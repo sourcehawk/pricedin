@@ -16,6 +16,7 @@ import (
 	"regexp"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/sourcehawk/pricedin/server/internal/store"
 )
@@ -337,9 +338,16 @@ func normalizeEmail(email string) string {
 	return strings.ToLower(strings.TrimSpace(email))
 }
 
+// truncate returns s as valid UTF-8 of at most n bytes, as the text
+// columns of Postgres need: it replaces invalid bytes and never cuts a
+// character.
 func truncate(s string, n int) string {
+	s = strings.ToValidUTF8(s, "\uFFFD")
 	if len(s) <= n {
 		return s
+	}
+	for n > 0 && !utf8.RuneStart(s[n]) {
+		n--
 	}
 	return s[:n]
 }

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/sourcehawk/pricedin/server/internal/auth"
 	"github.com/sourcehawk/pricedin/server/internal/auth/authtest"
@@ -284,5 +285,26 @@ func TestTokensAreRandomAndURLSafe(t *testing.T) {
 	}
 	if strings.Trim(a, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_") != "" {
 		t.Errorf("token %q has characters outside base64url", a)
+	}
+}
+
+// Postgres stores text as UTF-8 only, so the user agent of a session
+// must be valid UTF-8 after it is cut to size.
+func TestLoginStoresAValidUserAgent(t *testing.T) {
+	for name, ua := range map[string]string{
+		"a character across the size limit": strings.Repeat("a", 511) + "é",
+		"bytes that are not UTF-8":          "Mozilla\xff\xfe/5.0",
+	} {
+		t.Run(name, func(t *testing.T) {
+			f := newFixture(t)
+			if _, _, err := f.svc.Login(context.Background(), ownerEmail, ownerPassword, auth.Client{UserAgent: ua}); err != nil {
+				t.Fatal(err)
+			}
+			for _, s := range f.store.Sessions {
+				if !utf8.ValidString(s.UserAgent) || len(s.UserAgent) > 512 || s.UserAgent == "" {
+					t.Errorf("stored user agent %q, want valid UTF-8 of at most 512 bytes", s.UserAgent)
+				}
+			}
+		})
 	}
 }
