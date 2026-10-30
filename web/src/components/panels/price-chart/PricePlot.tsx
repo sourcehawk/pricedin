@@ -28,6 +28,7 @@ import {
   priceTick,
   right,
   shadePath,
+  spanLabel,
   top,
   width,
   xScale,
@@ -53,6 +54,8 @@ export interface PricePlotProps {
   onBand: (multiple: number | null) => void;
   hover: HoverStore;
   markers: readonly Marker[];
+  /** The price provider of the daily closes; null when the history names none. */
+  feed: string | null;
 }
 
 type Y = (v: number) => number;
@@ -221,7 +224,15 @@ function TipRow({
 }
 
 /** DayTip is the tooltip of a hovered day; the tooltip's background is the ink color, so ink lines use the surface color. */
-function DayTip({ p, shown }: { p: ChartPoint; shown: ReadonlySet<OverlayKey> }) {
+function DayTip({
+  p,
+  shown,
+  feed,
+}: {
+  p: ChartPoint;
+  shown: ReadonlySet<OverlayKey>;
+  feed: string | null;
+}) {
   return (
     <>
       <b>{dayLabel(p.date)}</b>
@@ -244,6 +255,12 @@ function DayTip({ p, shown }: { p: ChartPoint; shown: ReadonlySet<OverlayKey> })
           value={signedPct(p.epsGrowth12m.value)}
         />
       )}
+      <div className="tm">
+        {feed === null
+          ? "Daily close"
+          : `Close from ${feed.charAt(0).toUpperCase()}${feed.slice(1)}`}
+        , adjusted for splits. TTM EPS adds up the last four quarters filed by that day.
+      </div>
     </>
   );
 }
@@ -384,6 +401,7 @@ export function PricePlot({
   onBand,
   hover,
   markers,
+  feed,
 }: PricePlotProps) {
   const bandsOn = shown.has("bands");
   const g = useMemo(() => draw(chart, bandsOn), [chart, bandsOn]);
@@ -394,11 +412,12 @@ export function PricePlot({
   const guide = useRef<SVGLineElement>(null);
   const dots = useRef<(SVGCircleElement | null)[]>([]);
   const tip = useTip();
-  const specs = dotSpecs(g);
+  const specs = useMemo(() => dotSpecs(g), [g]);
   const nearest = chart.bands.value?.nearest.value ?? null;
 
   const live = useRef<HTMLParagraphElement>(null);
-  const hideTip = tip.hide;
+  const lastAt = useRef<{ x: number; y: number } | null>(null);
+  const { hide: hideTip, show: showTip, move: moveTip } = tip;
 
   const clear = useCallback(() => {
     hover.set(null);
@@ -417,16 +436,15 @@ export function PricePlot({
     clear();
   }, [days, clear]);
 
-  // A tapped day stays after the finger lifts, until a tap elsewhere.
+  // A tapped day or band stays after the finger lifts, until a tap elsewhere.
   useEffect(() => {
     const onDown = (e: PointerEvent) => {
       const own = svg.current;
-      if (
-        own !== null &&
-        e.target instanceof Node &&
-        !own.contains(e.target) &&
-        hover.get() !== null
-      ) {
+      if (own === null || !(e.target instanceof Node) || own.contains(e.target)) {
+        return;
+      }
+      onBand(null);
+      if (hover.get() !== null) {
         clear();
       }
     };
@@ -434,41 +452,53 @@ export function PricePlot({
     return () => {
       document.removeEventListener("pointerdown", onDown);
     };
-  }, [clear, hover]);
+  }, [clear, hover, onBand]);
 
-  const showDay = (i: number, at: { x: number; y: number }) => {
-    const p = chart.points[i];
-    const cx = g.xs[i];
-    const owner = svg.current;
-    if (p === undefined || cx === undefined || owner === null) {
-      return;
-    }
-    const changed = hover.get() !== i;
-    hover.set(i);
-    guide.current?.setAttribute("x1", String(cx));
-    guide.current?.setAttribute("x2", String(cx));
-    guide.current?.setAttribute("visibility", "visible");
-    specs.forEach((s, k) => {
-      const d = dots.current[k];
-      const v = s.v(p);
-      const on = s.key === "price" || shown.has(s.key);
-      if (d === null || d === undefined) {
+  const showDay = useCallback(
+    (i: number, at: { x: number; y: number }, refresh = false) => {
+      const p = chart.points[i];
+      const cx = g.xs[i];
+      const owner = svg.current;
+      if (p === undefined || cx === undefined || owner === null) {
         return;
       }
-      if (!on || v === null || s.y === null) {
-        d.setAttribute("visibility", "hidden");
-        return;
+      const changed = refresh || hover.get() !== i;
+      hover.set(i);
+      lastAt.current = at;
+      guide.current?.setAttribute("x1", String(cx));
+      guide.current?.setAttribute("x2", String(cx));
+      guide.current?.setAttribute("visibility", "visible");
+      specs.forEach((s, k) => {
+        const d = dots.current[k];
+        const v = s.v(p);
+        const on = s.key === "price" || shown.has(s.key);
+        if (d === null || d === undefined) {
+          return;
+        }
+        if (!on || v === null || s.y === null) {
+          d.setAttribute("visibility", "hidden");
+          return;
+        }
+        d.setAttribute("cx", String(cx));
+        d.setAttribute("cy", String(s.y(v)));
+        d.setAttribute("visibility", "visible");
+      });
+      if (changed) {
+        showTip(owner, <DayTip p={p} shown={shown} feed={feed} />, at);
+      } else {
+        moveTip(owner, at);
       }
-      d.setAttribute("cx", String(cx));
-      d.setAttribute("cy", String(s.y(v)));
-      d.setAttribute("visibility", "visible");
-    });
-    if (changed) {
-      tip.show(owner, <DayTip p={p} shown={shown} />, at);
-    } else {
-      tip.move(owner, at);
+    },
+    [chart, g, specs, shown, feed, hover, showTip, moveTip],
+  );
+
+  // New values for the same days, or other lines, redraw the selected day.
+  useEffect(() => {
+    const i = hover.get();
+    if (i !== null && lastAt.current !== null) {
+      showDay(i, lastAt.current, true);
     }
-  };
+  }, [showDay, hover]);
 
   const onPointer = (e: React.PointerEvent<SVGSVGElement>) => {
     const target = e.target as Element;
@@ -538,9 +568,13 @@ export function PricePlot({
   const first = chart.points[0];
   const last = chart.points.at(-1);
   const summary =
-    `${ticker} daily close over ${chart.range}, from ${usd(first?.close)} to ${usd(last?.close)}` +
+    `${ticker} daily close ${spanLabel(chart.start, chart.end, chart.range)}, from ${usd(first?.close)} to ${usd(last?.close)}` +
     (names.length > 0 ? `, with ${listed(names)}` : "");
 
+  const bandName = (m: number) => {
+    const band = chart.bands.value?.multiples.find((b) => b.multiple === m);
+    return `${multipleLabel(m)} band: ${usd(band?.priceToday.value)} today`;
+  };
   const walkBand = (m: number) => (m === nearest ? "bands band-near" : "bands");
   const bh = (m: number) => (m === lifted ? " bh" : "");
   const on = (k: OverlayKey) => shown.has(k);
@@ -716,21 +750,37 @@ export function PricePlot({
       />
       {g.bandLines.length > 0 && (
         <g clipPath={`url(#${clip})`}>
-          {g.bandLines.map((b) => (
-            <path
-              key={b.multiple}
-              className={`L-band bhit${bh(b.multiple)}`}
-              data-bm={b.multiple}
-              d={b.d}
-              fill="none"
-              stroke="transparent"
-              strokeWidth={12}
-            />
-          ))}
+          {g.bandLines.map((b) => {
+            // A band without a label at the right edge takes the focus on its line.
+            const focus = g.labels.every((l) => l.multiple !== b.multiple)
+              ? {
+                  role: "img",
+                  tabIndex: 0,
+                  "aria-label": bandName(b.multiple),
+                  onFocus: () => {
+                    onBand(b.multiple);
+                  },
+                  onBlur: () => {
+                    onBand(null);
+                  },
+                }
+              : {};
+            return (
+              <path
+                key={b.multiple}
+                className={`L-band bhit${bh(b.multiple)}`}
+                data-bm={b.multiple}
+                d={b.d}
+                fill="none"
+                stroke="transparent"
+                strokeWidth={12}
+                {...focus}
+              />
+            );
+          })}
         </g>
       )}
       {g.labels.map((l) => {
-        const band = chart.bands.value?.multiples.find((b) => b.multiple === l.multiple);
         return (
           <g
             key={l.multiple}
@@ -739,7 +789,7 @@ export function PricePlot({
             data-walk={walkBand(l.multiple)}
             role="img"
             tabIndex={0}
-            aria-label={`${multipleLabel(l.multiple)} band: ${usd(band?.priceToday.value)} today`}
+            aria-label={bandName(l.multiple)}
             onFocus={() => {
               onBand(l.multiple);
             }}
@@ -783,12 +833,17 @@ export function PricePlot({
         aria-label={`${ticker} price chart. The arrow keys, Home and End move through the days.`}
         tabIndex={0}
         onPointerMove={onPointer}
-        onPointerDown={onPointer}
+        onPointerDown={(e) => {
+          if (e.pointerType === "touch" && bandOf(e.target) === null) {
+            onBand(null);
+          }
+          onPointer(e);
+        }}
         onPointerLeave={(e) => {
           if (e.pointerType !== "touch") {
             clear();
+            onBand(null);
           }
-          onBand(null);
         }}
         onPointerOver={(e) => {
           const m = bandOf(e.target);
@@ -797,7 +852,7 @@ export function PricePlot({
           }
         }}
         onPointerOut={(e) => {
-          if (bandOf(e.target) !== null) {
+          if (e.pointerType !== "touch" && bandOf(e.target) !== null) {
             onBand(null);
           }
         }}

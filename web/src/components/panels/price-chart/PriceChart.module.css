@@ -65,3 +65,7 @@
   white-space: nowrap;
   border: 0;
 }
+
+.plot :global(.bhit):focus-visible {
+  outline: none;
+}

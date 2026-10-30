@@ -10,7 +10,7 @@ import type { Chart, ChartRange } from "@/engine";
 import { useEvaluation, useView } from "@/state/StockProvider";
 import { Panel } from "../Panel";
 import { Chips } from "./Chips";
-import { multipleLabel } from "./geometry";
+import { dayLabel, multipleLabel } from "./geometry";
 import { createHoverStore } from "./hover";
 import {
   allOverlays,
@@ -202,6 +202,7 @@ export function PriceChartPanel() {
           <Sourced value={close !== null && close.asOf === chart.end ? close : null}>
             {usd(last.close)}
           </Sourced>
+          {` on ${dayLabel(chart.end)}`}
         </>
       )}
     </span>
@@ -226,6 +227,7 @@ export function PriceChartPanel() {
           onBand={setHoverBand}
           hover={hover}
           markers={markers}
+          feed={history.prices?.provider ?? null}
         />
       </div>
       {walkthrough}

@@ -67,6 +67,7 @@ describe("PriceChartPanel", () => {
     expect(sub).toHaveTextContent(
       "3Y: +164.7% · high $273.81 · low $101.55 · P/E 16.5× → 25.0× · price–earnings link: moderate (0.47)",
     );
+    expect(sub).toHaveTextContent("last close $270.00 on 30 Sep 2026");
     expect(within(sub).getByText("+164.7%")).toHaveClass("up");
   });
 
@@ -121,6 +122,9 @@ describe("PriceChartPanel", () => {
     expect(screen.getByTestId("price-guide")).toHaveAttribute("visibility", "visible");
     expect(screen.getByTestId("price-guide")).toHaveAttribute("x1", "50");
     expect(await screen.findByRole("tooltip")).toHaveTextContent("30 Sep 2023");
+    expect(screen.getByRole("tooltip")).toHaveTextContent(
+      "Close from Massive, adjusted for splits",
+    );
     fireEvent.pointerLeave(svg, { pointerType: "mouse" });
     expect(within(chips()).getByText("Price").parentElement).toHaveTextContent("Price$270.00");
     expect(screen.getByTestId("price-guide")).toHaveAttribute("visibility", "hidden");
@@ -165,6 +169,24 @@ describe("PriceChartPanel", () => {
     pointer(document.body, "pointerdown", "touch");
     expect(guide).toHaveAttribute("visibility", "hidden");
     expect(within(chips()).getByText("Price").parentElement).toHaveTextContent("$270.00");
+  });
+
+  it("redraws the hovered day when a line is switched on", async () => {
+    await renderReady(<PriceChartPanel />);
+    pointer(sizeChart(), "pointermove", "mouse", { clientX: 50, clientY: 100 });
+    expect(await screen.findByRole("tooltip")).not.toHaveTextContent("Price change, 12M");
+    fireEvent.click(chip(/^Price change, 12M/));
+    await waitFor(() => {
+      expect(screen.getByRole("tooltip")).toHaveTextContent("Price change, 12M");
+    });
+  });
+
+  it("names the period that a short history covers", async () => {
+    serveHistory({ ...historyFixture.history, daily: historyFixture.history.daily.slice(-100) });
+    await renderReady(<PriceChartPanel />);
+    expect(within(chart()).getByRole("img", { name: /daily close/ })).toHaveAccessibleName(
+      /^GRMN daily close since \d+ \w+ 2026, from/,
+    );
   });
 
   it("drops the hovered day when the range changes", async () => {
@@ -248,6 +270,27 @@ describe("PriceChartPanel", () => {
       expect(chart().querySelector('[data-bm="20"].bline')).toHaveClass("bh");
     });
 
+    it("lets the keyboard reach a band that has no label", async () => {
+      await withBands();
+      const line = within(chart()).getByRole("img", { name: /^27\.5× band/ });
+      expect(line).toHaveClass("bhit");
+      act(() => {
+        line.focus();
+      });
+      expect(caption()).toHaveTextContent("27.5× band:");
+      expect(chart().querySelector('[data-bm="27.5"].bline')).toHaveClass("bh");
+    });
+
+    it("keeps a tapped band after the finger lifts, until a tap elsewhere", async () => {
+      await withBands();
+      const line = chart().querySelector('[data-bm="20"].bhit') as Element;
+      pointer(line, "pointerover", "touch");
+      pointer(line, "pointerout", "touch");
+      expect(caption()).toHaveTextContent("20× band:");
+      pointer(document.body, "pointerdown", "touch");
+      expect(caption()).toHaveTextContent("Hover a dotted line");
+    });
+
     it("puts the band hit areas above the layer that follows the pointer", async () => {
       await withBands();
       const capture = screen.getByTestId("price-capture");
@@ -266,7 +309,7 @@ describe("PriceChartPanel", () => {
       });
       await withBands();
       expect(chart().querySelectorAll(".bline").length).toBeGreaterThan(0);
-      expect(within(chart()).queryAllByRole("img", { name: / band:/ })).toHaveLength(0);
+      expect(chart().querySelectorAll(".blab")).toHaveLength(0);
     });
 
     it("says why there are no bands without a positive TTM EPS", async () => {
@@ -429,7 +472,7 @@ describe("PriceChartPanel", () => {
         "data-thl",
       );
       expect(card.querySelector(".t-takeaway")).toHaveTextContent(
-        /^GRMN in one line: over 3Y the price changed \+164\.7% and TTM EPS \+74\.2%/,
+        /^GRMN in one line: over 3Y the price changed \+164\.7% and TTM EPS \+74\.2%.*measured on a log scale, about 57% of the price gain came from higher earnings and 43% from a higher P\/E\.$/,
       );
     });
   });
