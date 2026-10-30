@@ -150,3 +150,42 @@ func TestPriceChartUsesTheDaysBeforeTheRange(t *testing.T) {
 	wantNone(t, "12-month change in the first year", whole.Points[10].PriceChange12M, ReasonInsufficientHistory)
 	wantNone(t, "chart without days", PriceChart(nil, nil, Range3Y), ReasonInsufficientHistory)
 }
+
+// A near-zero positive EPS gives a P/E in the billions or beyond; the bands
+// still come out as a handful of lines.
+func TestPEBandsAtANearZeroEPS(t *testing.T) {
+	for _, eps := range []float64{1e-9, 1e-16, 5e-324} {
+		pts := days(domain.NewDate(2026, 1, 1), 10, func(i int) (float64, *float64) { return 90 + 2*float64(i), ptr(eps) })
+		b := PEBands(pts)
+		if b.Ok() && (len(b.Get().Multiples) < 1 || len(b.Get().Multiples) > 50) {
+			t.Errorf("EPS %g: %d bands, want 1 to 50", eps, len(b.Get().Multiples))
+		}
+	}
+	pts := days(domain.NewDate(2026, 1, 1), 10, func(i int) (float64, *float64) { return 90 + 2*float64(i), ptr(1e-9) })
+	if n := len(wantSome(t, "bands", PEBands(pts)).Multiples); n < 3 || n > 7 {
+		t.Errorf("EPS 1e-9: %d bands, want about 5", n)
+	}
+}
+
+func TestPriceChartPEChangeNeedsAPositiveEPSToday(t *testing.T) {
+	for _, last := range []float64{0, -2} {
+		daily := days(domain.NewDate(2025, 1, 1), 400, func(i int) (float64, *float64) {
+			if i == 399 {
+				return 100, ptr(last)
+			}
+			return 100 + float64(i%7), ptr(5.0)
+		})
+		c := wantSome(t, "chart", PriceChart(daily, nil, Range1Y))
+		wantNone(t, "P/E change", c.Last12Months.PEChange, ReasonNeedsPositiveEPS)
+		wantSome(t, "EPS growth", c.Last12Months.EPSGrowth)
+	}
+}
+
+// A series of equal values does not vary, even when its mean carries
+// rounding noise.
+func TestCorrelationOfConstantSeries(t *testing.T) {
+	xs := series20(func(int) float64 { return 0.1 })
+	ys := series20(func(int) float64 { return 0.2 })
+	wantNone(t, "two constant series", Correlation(xs, ys), ReasonZeroVariance)
+	wantNone(t, "one constant series", Correlation(series20(func(i int) float64 { return float64(i) }), xs), ReasonZeroVariance)
+}

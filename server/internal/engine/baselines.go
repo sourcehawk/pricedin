@@ -59,7 +59,8 @@ func (s series) trailing(months int) Trailing {
 // continues last year's change in the weighted trend.
 type Trajectory struct {
 	// Rates are rounded to 0.5 pp. They never exceed Highest (rounded down
-	// to 0.5 pp) and never fall below -50%.
+	// to 0.5 pp) and never fall below -50%, unless Highest is below -50%:
+	// then each rate is Highest rounded down to 0.5 pp.
 	Rates    []float64 `json:"rates"`
 	Slope    float64   `json:"slope"`    // the change of the weighted trend over the last year; 0 without Previous
 	Previous Number    `json:"previous"` // the weighted trend four quarters ago

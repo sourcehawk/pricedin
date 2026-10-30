@@ -56,14 +56,21 @@ type ScenarioResult struct {
 	MeetsTarget  bool    `json:"meetsTarget"`
 }
 
-// Scenarios returns the outcome of each case. Results are missing when EPS
-// is not positive.
+// Scenarios returns the outcome of each case. A result is missing when EPS
+// or the case's exit P/E is not positive, or when its growth is -100% or
+// lower; WorstYearlyReturn skips missing results.
 func Scenarios(inv Investment, cases []ScenarioCase) ScenarioSet {
 	out := ScenarioSet{Cases: make([]ScenarioOutcome, len(cases)), MeetingTarget: []string{}}
 	worst := math.Inf(1)
 	for i, c := range cases {
 		out.Cases[i] = ScenarioOutcome{ScenarioCase: c, Result: None[ScenarioResult](ReasonNeedsPositiveEPS)}
-		if !(inv.EPS > 0) {
+		switch {
+		case !(inv.EPS > 0):
+			continue
+		case !(c.Growth > -1):
+			out.Cases[i].Result = None[ScenarioResult](ReasonGrowthOutOfRange)
+			continue
+		case !(c.ExitPE > 0):
 			continue
 		}
 		p := Project(inv, c.Growth, c.ExitPE)
@@ -84,12 +91,14 @@ func Scenarios(inv Investment, cases []ScenarioCase) ScenarioSet {
 		worst = math.Min(worst, r.YearlyReturn)
 	}
 	switch {
+	case !math.IsInf(worst, 1):
+		out.WorstYearlyReturn = Some(worst)
+	case len(cases) > 0:
+		out.WorstYearlyReturn = None[float64](out.Cases[0].Result.Reason)
 	case !(inv.EPS > 0):
 		out.WorstYearlyReturn = None[float64](ReasonNeedsPositiveEPS)
-	case len(cases) == 0:
-		out.WorstYearlyReturn = None[float64](ReasonInsufficientHistory)
 	default:
-		out.WorstYearlyReturn = Some(worst)
+		out.WorstYearlyReturn = None[float64](ReasonInsufficientHistory)
 	}
 	return out
 }

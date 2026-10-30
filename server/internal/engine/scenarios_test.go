@@ -62,3 +62,18 @@ func TestScenariosNeedPositiveEPS(t *testing.T) {
 		t.Errorf("meeting target = %#v, want an empty list", set.MeetingTarget)
 	}
 }
+
+func TestScenariosSkipCasesTheyCannotProject(t *testing.T) {
+	set := Scenarios(grmn, []ScenarioCase{
+		{Name: "Bear", Growth: -2.2, ExitPE: 10},
+		{Name: "Base", Growth: 0.1, ExitPE: 0},
+		{Name: "Bull", Growth: 0.2, ExitPE: 25},
+	})
+	wantNone(t, "growth below -100%", set.Cases[0].Result, ReasonGrowthOutOfRange)
+	wantNone(t, "zero exit P/E", set.Cases[1].Result, ReasonNeedsPositiveEPS)
+	bull := wantSome(t, "bull", set.Cases[2].Result)
+	near(t, "worst return skips the missing cases", wantSome(t, "worst", set.WorstYearlyReturn), bull.YearlyReturn, 0)
+
+	none := Scenarios(grmn, DefaultScenarios(ptr(-2.2), ptr(10.0)))
+	wantNone(t, "worst without any result", none.WorstYearlyReturn, ReasonGrowthOutOfRange)
+}

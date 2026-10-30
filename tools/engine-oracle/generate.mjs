@@ -277,6 +277,12 @@ add("trajectory fill without a weighted trend", "trajectoryFill", {
   quarters: short(gq, 4),
   years: 3,
 });
+add(
+  "trajectory fill when the highest reading is below -50%",
+  "trajectoryFill",
+  { quarters: withEps(short(gq, 5), 4, 0.245), years: 3 },
+  "The cap at the highest reading wins over the -50% floor, as in the prototype.",
+);
 
 add(
   "year rates repeat the last rate",
@@ -614,6 +620,25 @@ add("cases where only the bear case meets the target", "scenarios", {
 });
 add("cases with a dividend", "scenarios", { ...scenBase, dividend: 3.6, years: 5 });
 add("cases need positive EPS", "scenarios", { ...scenBase, eps: 0 });
+add(
+  "cases around a collapse of more than -100%",
+  "scenarios",
+  { ...scenBase, cases: O.defaultScenarios({ weightedTrend: -2.2, exitPe: 10 }) },
+  N.scenarioRange,
+);
+add(
+  "cases with a non-positive exit P/E",
+  "scenarios",
+  {
+    ...scenBase,
+    cases: [
+      { name: "Bear", growth: 0.05, exitPe: 0 },
+      { name: "Base", growth: 0.1, exitPe: -5 },
+      { name: "Bull", growth: 0.2, exitPe: 25 },
+    ],
+  },
+  N.scenarioRange,
+);
 
 // ------------------------------------------------------- share counts
 
@@ -639,10 +664,18 @@ add("correlation of opposite series", "correlation", {
   ys: lin(20, (i) => -i * 0.03 + Math.cos(i) * 0.01),
 });
 add("correlation needs 20 points", "correlation", { xs: lin(19, (i) => i), ys: lin(19, (i) => i) });
-add("correlation of a constant series", "correlation", {
-  xs: lin(25, () => 0.1),
-  ys: lin(25, (i) => i),
-});
+add(
+  "correlation of a constant series",
+  "correlation",
+  { xs: lin(25, () => 0.1), ys: lin(25, (i) => i) },
+  N.constantSeries,
+);
+add(
+  "correlation of two constant series",
+  "correlation",
+  { xs: lin(25, () => 0.1), ys: lin(25, () => 0.2) },
+  N.constantSeries,
+);
 add("correlation of weakly linked series", "correlation", {
   xs: lin(30, (i) => Math.sin(i)),
   ys: lin(30, (i) => Math.cos(i * 1.7)),
@@ -661,6 +694,15 @@ add(
   },
   N.nullData,
 );
+const nearZero = (eps) =>
+  lin(10, (i) => ({
+    date: `2026-01-${String(i + 1).padStart(2, "0")}`,
+    close: 90 + 2 * i,
+    ttmEps: eps,
+  }));
+add("P/E bands at a near-zero EPS", "peBands", { points: nearZero(1e-9) }, N.bandSteps);
+add("P/E bands at a tiny EPS", "peBands", { points: nearZero(1e-16) }, N.bandSteps);
+add("P/E bands at a P/E near 1", "peBands", { points: nearZero(80) }, N.bandSteps);
 add("P/E bands need a positive EPS", "peBands", {
   points: tail(GRMN.history.daily, 10).map((d) => ({ ...d, ttmEps: -1 })),
 });
@@ -689,6 +731,28 @@ add(
   [N.g12, N.dailyPe, N.nullData],
 );
 add("price chart without daily data", "priceChart", { daily: [], quarters: gq, range: "3Y" });
+const days = (n, f) =>
+  lin(n, (i) => ({ date: new Date(Date.UTC(2025, 0, 1 + i)).toISOString().slice(0, 10), ...f(i) }));
+add(
+  "price chart when EPS fell to zero",
+  "priceChart",
+  {
+    daily: days(400, (i) => ({ close: 100 + (i % 7), ttmEps: i === 399 ? 0 : 5 })),
+    quarters: [],
+    range: "1Y",
+  },
+  [N.g12, N.dailyPe, N.peChangeNeedsEps],
+);
+add(
+  "price chart when EPS turned negative",
+  "priceChart",
+  {
+    daily: days(400, (i) => ({ close: 100 + (i % 7), ttmEps: i === 399 ? -2 : 5 })),
+    quarters: [],
+    range: "6M",
+  },
+  [N.g12, N.dailyPe, N.peChangeNeedsEps],
+);
 
 // ------------------------------------------------------------- financials
 
@@ -817,6 +881,18 @@ add(
   "evaluate",
   { history: { quarters: short(gq, 6), daily: [] }, levers: defaultLevers(GRMN) },
   [...evalNotes, N.trailingHistory, N.typicalHistory],
+);
+add(
+  "evaluate a custom exit P/E of zero",
+  "evaluate",
+  ev(noDaily(GRMN), { exitPe: { mode: "custom", custom: 0, trailingMonths: 36 } }),
+  [...evalNotes, N.exitPePositive],
+);
+add(
+  "evaluate a collapse in the latest quarter",
+  "evaluate",
+  { history: { quarters: withEps(short(gq, 5), 4, -4), daily: [] }, levers: defaultLevers(GRMN) },
+  [...evalNotes, N.scenarioRange],
 );
 add(
   "evaluate no history",

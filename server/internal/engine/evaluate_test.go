@@ -189,3 +189,19 @@ func TestEvaluateWithNegativeEPS(t *testing.T) {
 	wantSome(t, "weighted trend", ev.Baselines.Weighted)
 	wantSome(t, "price chart", ev.PriceChart)
 }
+
+func TestEvaluateTreatsANonPositiveExitPEAsMissing(t *testing.T) {
+	ex := loadExample(t)
+	for _, pe := range []float64{0, -5} {
+		l := ex.Input.Levers
+		l.ExitPE = ExitPELever{Mode: ExitPECustom, Custom: pe}
+		ev, err := Evaluate(ex.Input.History, l)
+		if err != nil {
+			t.Fatal(err)
+		}
+		wantNone(t, "exit P/E in use", ev.ExitPE.InUse, ReasonNeedsPositiveEPS)
+		wantNone(t, "at baseline", ev.AtBaseline, ReasonNeedsPositiveEPS)
+		wantNone(t, "return grid", ev.ReturnGrid, ReasonNeedsPositiveEPS)
+		wantNone(t, "required", ev.Required.Growth, ReasonNeedsPositiveEPS)
+	}
+}

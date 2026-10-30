@@ -121,7 +121,7 @@ type ExitPE struct {
 // ExitPEView is everything the page shows about the exit P/E.
 type ExitPEView struct {
 	Mode     ExitPEMode    `json:"mode"`
-	InUse    Maybe[ExitPE] `json:"inUse"`
+	InUse    Maybe[ExitPE] `json:"inUse"`    // missing with needs_positive_eps when zero or less
 	Estimate Maybe[ExitPE] `json:"estimate"` // the estimated exit P/E, whatever the mode
 	G0       Number        `json:"g0"`
 	GExit    Number        `json:"gExit"`
@@ -158,6 +158,9 @@ func (s series) exitPE(l Levers, peNow Number) ExitPEView {
 		inUse = Some(ExitPE{Value: l.ExitPE.Custom, Rule: RuleCustom})
 	default:
 		inUse = estimate
+	}
+	if inUse.Ok() && !(inUse.Get().Value > 0) {
+		inUse = None[ExitPE](ReasonNeedsPositiveEPS)
 	}
 	v := ExitPEView{Mode: l.ExitPE.Mode, InUse: inUse, Estimate: estimate, G0: est.G0, GExit: est.GExit, Typical: typ}
 	switch {

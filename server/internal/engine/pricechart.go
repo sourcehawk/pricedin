@@ -52,6 +52,8 @@ type Link struct {
 	Class string `json:"class"`
 }
 
+const maxBands = 50
+
 // minLinkPoints is the fewest points a price-earnings link needs.
 const minLinkPoints = 20
 
@@ -61,6 +63,9 @@ const minLinkPoints = 20
 func Correlation(xs, ys []float64) Maybe[Link] {
 	if len(xs) < minLinkPoints {
 		return None[Link](ReasonTooFewPoints)
+	}
+	if constant(xs) || constant(ys) {
+		return None[Link](ReasonZeroVariance)
 	}
 	r := pearson(xs, ys)
 	if math.IsNaN(r) || math.IsInf(r, 0) {
@@ -76,6 +81,17 @@ func Correlation(xs, ys []float64) Maybe[Link] {
 		class = "moderate"
 	}
 	return Some(Link{Correlation: r, Class: class})
+}
+
+// constant reports whether every value equals the first. A constant series
+// does not vary, although rounding can leave its values off its mean.
+func constant(vs []float64) bool {
+	for _, v := range vs {
+		if v != vs[0] {
+			return false
+		}
+	}
+	return true
 }
 
 func pearson(xs, ys []float64) float64 {
@@ -140,8 +156,18 @@ func PEBands(points []PricePoint) Maybe[Bands] {
 		return None[Bands](ReasonNeedsPositiveEPS)
 	}
 	pLo, pHi := lo*0.9, hi*1.05
+	// The powers of ten widen until the largest step gives at most 5 bands
+	// and the smallest at least 3, so a P/E in the billions (a near-zero
+	// EPS) still gets a few bands.
+	kLo, kHi := -1, 3
+	for (pHi-pLo)/(5*math.Pow(10, float64(kHi))) > 5 && kHi < 400 {
+		kHi++
+	}
+	for (pHi-pLo)/math.Pow(10, float64(kLo)) < 3 && kLo > -400 {
+		kLo--
+	}
 	stp, best := 1.0, 1e9
-	for k := -1; k <= 3; k++ {
+	for k := kLo; k <= kHi; k++ {
 		for _, f := range []float64{1, 2, 2.5, 5} {
 			c := f * math.Pow(10, float64(k))
 			n := math.Floor(pHi/c) - math.Ceil(pLo/c) + 1
@@ -154,7 +180,8 @@ func PEBands(points []PricePoint) Maybe[Bands] {
 		}
 	}
 	var ms []float64
-	for m := math.Ceil(pLo/stp) * stp; m <= pHi+1e-9; m += stp {
+	// At a huge P/E a step can be too small to change m.
+	for m := math.Ceil(pLo/stp) * stp; m <= pHi+1e-9 && len(ms) < maxBands && m+stp > m; m += stp {
 		if m > 0 {
 			ms = append(ms, toFixed(m, 2))
 		}
@@ -212,7 +239,7 @@ func pointPE(d PricePoint) Number {
 	case !(*d.TTMEPS > 0):
 		return None[float64](ReasonNeedsPositiveEPS)
 	}
-	return Some(d.Close / *d.TTMEPS)
+	return finite(d.Close / *d.TTMEPS, ReasonNeedsPositiveEPS)
 }
 
 // Chart is the price chart of the visible range.
@@ -337,7 +364,11 @@ func PriceChart(daily []PricePoint, quarters []Quarter, rng ChartRange) Maybe[Ch
 	}
 	r12, g12 := l.PriceChange12M, l.EPSGrowth12M
 	out.Last12Months = Last12Months{PriceChange: r12, EPSGrowth: g12, PEChange: None[float64](reasonOf(r12, g12))}
-	if r12.Ok() && g12.Ok() {
+	switch {
+	case !r12.Ok() || !g12.Ok():
+	case l.TTMEPS == nil || !(*l.TTMEPS > 0):
+		out.Last12Months.PEChange = None[float64](ReasonNeedsPositiveEPS)
+	default:
 		out.Last12Months.PEChange = Some((1+r12.Get())/(1+g12.Get()) - 1)
 	}
 	var xs, ys []float64

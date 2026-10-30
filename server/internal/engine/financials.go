@@ -285,6 +285,10 @@ func pairCorrelation(a, b Metric, qa, qb []Number) PairCorrelation {
 	if len(xs) == 0 {
 		return out
 	}
+	if constant(xs) || constant(ys) {
+		out.Result = None[PairCorrelationV](ReasonZeroVariance)
+		return out
+	}
 	n := float64(len(xs))
 	ma, mb := 0.0, 0.0
 	for i := range xs {

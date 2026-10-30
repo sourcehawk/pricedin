@@ -46,6 +46,16 @@ export const NOTES = {
     "v1: missing year-by-year rates repeat the last rate, or the flat rate when there is none; filling from the trajectory is a UI action.",
   growthRange:
     "v1: a growth of -100% or lower gives null with reason growth_out_of_range for values that compound it.",
+  bandSteps:
+    "v1: the band step search widens its powers of ten when the P/E span needs it, and the bands stop at 50; the prototype searches 0.1 to 5000 only, which never ends for a near-zero EPS.",
+  peChangeNeedsEps:
+    "v1: the 12-month P/E change needs a positive TTM EPS today; the prototype divides by zero when EPS fell to zero.",
+  scenarioRange:
+    "v1: a case with growth of -100% or lower, or a non-positive exit P/E, has no result, and the worst return skips it.",
+  exitPePositive:
+    "v1: an exit P/E in use of zero or less is missing with reason needs_positive_eps.",
+  constantSeries:
+    "v1: a correlation of a constant series is missing with reason zero_variance; the prototype divides rounding noise.",
 };
 
 // ---------------------------------------------------------------- helpers
@@ -635,6 +645,8 @@ export function scenarios({ price: Pp, eps: E, targetReturn: r, years: n, divide
   const math = coreMath();
   const out = cases.map((c) => {
     if (!(E > 0)) return { ...c, result: none("needs_positive_eps") };
+    if (!(c.growth > -1)) return { ...c, result: none("growth_out_of_range") };
+    if (!(c.exitPe > 0)) return { ...c, result: none("needs_positive_eps") };
     // Lines 1323-1324 (drawScen).
     const p = math.proj(Pp, E, c.growth, n, c.exitPe, D),
       t = math.tone(p.cagr - r);
@@ -658,7 +670,9 @@ export function scenarios({ price: Pp, eps: E, targetReturn: r, years: n, divide
     meetingTarget: res.filter((c) => c.result.value.meetsTarget).map((c) => c.name),
     worstYearlyReturn: res.length
       ? val(Math.min(...res.map((c) => c.result.value.yearlyReturn)))
-      : none(E > 0 ? "insufficient_history" : "needs_positive_eps"),
+      : none(
+          out.length ? out[0].result.reason : E > 0 ? "insufficient_history" : "needs_positive_eps",
+        ),
   };
 }
 
@@ -689,8 +703,13 @@ export function shareCountEvents({ quarters }) {
 
 const LINK = { strong: "strong", moderate: "moderate", weak: "weak", negative: "negative" };
 
+// v1: a series whose values are all equal does not vary, whatever rounding
+// noise its mean leaves.
+const constant = (v) => v.every((x) => x === v[0]);
+
 export function correlation({ xs, ys }) {
   if (xs.length < 20) return none("too_few_points");
+  if (constant(xs) || constant(ys)) return none("zero_variance");
   const c = P.corr(xs, ys);
   if (!fin(c)) return none("zero_variance");
   return val({ correlation: c, class: LINK[P.corrWord(c)] });
@@ -711,7 +730,11 @@ function enrichDaily(daily) {
     else if (!(a[j].e > 0)) g12 = none("needs_positive_eps");
     else g12 = val(d.e / a[j].e - 1);
     const pe =
-      d.e == null ? none("missing_data") : d.e > 0 ? val(d.p / d.e) : none("needs_positive_eps");
+      d.e == null
+        ? none("missing_data")
+        : d.e > 0 && fin(d.p / d.e)
+          ? val(d.p / d.e)
+          : none("needs_positive_eps");
     const r12 = d.r12 == null ? none("insufficient_history") : val(d.r12);
     return {
       t: d.t,
@@ -725,6 +748,48 @@ function enrichDaily(daily) {
   });
 }
 
+// Lines 1043-1048 and 1115 (drawPx, bandNear) with the v1 step search: the
+// powers of ten widen from the prototype's -1..3 until the largest step
+// gives at most 5 bands and the smallest at least 3, and the bands stop at
+// 50 or when a step no longer moves the multiple.
+function bandsV1(D) {
+  const pes = D.map((d) => d.p / d.e).filter((v) => v > 0 && isFinite(v)),
+    pLo = Math.min(...pes) * 0.9,
+    pHi = Math.max(...pes) * 1.05;
+  let kLo = -1,
+    kHi = 3;
+  while ((pHi - pLo) / (5 * Math.pow(10, kHi)) > 5 && kHi < 400) kHi++;
+  while ((pHi - pLo) / Math.pow(10, kLo) < 3 && kLo > -400) kLo--;
+  let stp = 1,
+    best = 1e9;
+  for (let k = kLo; k <= kHi; k++)
+    for (const f of [1, 2, 2.5, 5]) {
+      const c = f * Math.pow(10, k),
+        n = Math.floor(pHi / c) - Math.ceil(pLo / c) + 1;
+      if (n < 3) continue;
+      const sc = Math.abs(n - 5);
+      if (sc < best) {
+        best = sc;
+        stp = c;
+      }
+    }
+  const ms = [];
+  for (
+    let m = Math.ceil(pLo / stp) * stp;
+    m <= pHi + 1e-9 && ms.length < 50 && m + stp > m;
+    m += stp
+  )
+    if (m > 0) ms.push(+m.toFixed(2));
+  const LST = D[D.length - 1],
+    nowPe = LST.p / LST.e,
+    mu = ms.find((m) => m >= nowPe),
+    md = [...ms].reverse().find((m) => m <= nowPe);
+  const near = ms.length
+    ? ms.reduce((b, m) => (Math.abs(m - nowPe) < Math.abs(b - nowPe) ? m : b), ms[0])
+    : null;
+  return { ms, nowPe, mu, md, first: D[0].p / D[0].e, near };
+}
+
 export function peBands({ points }) {
   // points: [{close, ttmEps}] of the visible range.
   const D = points.map((d) => ({
@@ -732,17 +797,13 @@ export function peBands({ points }) {
     e: d.ttmEps != null && d.ttmEps > 0 ? d.ttmEps : NaN,
   }));
   if (!D.some((d) => fin(d.p / d.e))) return none("needs_positive_eps");
-  const b = P.bands(D);
+  const b = bandsV1(D);
   const LST = points[points.length - 1];
   const nowOk = fin(b.nowPe);
   const firstOk = fin(b.first);
+  const nowReason = LST.ttmEps == null ? "missing_data" : "needs_positive_eps";
   const multiples = b.ms.map((m) => {
-    if (!(LST.ttmEps > 0))
-      return {
-        multiple: m,
-        priceToday: none(LST.ttmEps == null ? "missing_data" : "needs_positive_eps"),
-        vsPrice: none(LST.ttmEps == null ? "missing_data" : "needs_positive_eps"),
-      };
+    if (!nowOk) return { multiple: m, priceToday: none(nowReason), vsPrice: none(nowReason) };
     const rel = P.bandRelation({ e: LST.ttmEps, p: LST.close }, m);
     return {
       multiple: m,
@@ -750,7 +811,6 @@ export function peBands({ points }) {
       vsPrice: val(rel === "right at" ? "at" : rel),
     };
   });
-  const nowReason = LST.ttmEps == null ? "missing_data" : "needs_positive_eps";
   let current = none(nowOk ? "not_applicable" : nowReason);
   if (nowOk && b.mu && b.md && b.mu !== b.md) current = val({ lower: b.md, upper: b.mu });
   let crossed = [];
@@ -825,10 +885,11 @@ export function priceChart({ daily, quarters, range: px }) {
   // The "Compare the two 12-month" walkthrough step (line 1669).
   const r12 = l.priceChange12m,
     g12 = l.epsGrowth12m;
-  const peChange =
-    has(r12) && has(g12)
-      ? val((1 + r12.value) / (1 + g12.value) - 1)
-      : none(has(r12) ? g12.reason : r12.reason);
+  let peChange = none(has(r12) ? g12.reason : r12.reason);
+  if (has(r12) && has(g12)) {
+    peChange =
+      l.ttmEps > 0 ? val((1 + r12.value) / (1 + g12.value) - 1) : none("needs_positive_eps");
+  }
   const both = D.filter((d) => has(d.priceChange12m) && has(d.epsGrowth12m));
   const link = correlation({
     xs: both.map((d) => d.priceChange12m.value),
@@ -1033,12 +1094,9 @@ export function financials({ quarters }) {
         xb = changes[METRICS[b]];
       // v1: pairwise complete changes only.
       const idx = xa.map((_, i) => i).filter((i) => fin(xa[i]) && fin(xb[i]));
-      const r = idx.length
-        ? P.rr(
-            idx.map((i) => xa[i]),
-            idx.map((i) => xb[i]),
-          )
-        : NaN;
+      const ca = idx.map((i) => xa[i]),
+        cb = idx.map((i) => xb[i]);
+      const r = !idx.length || constant(ca) || constant(cb) ? NaN : P.rr(ca, cb);
       correlations.push({
         a: METRICS[a],
         b: METRICS[b],
@@ -1133,6 +1191,7 @@ export function evaluate({ history, levers }) {
       ? val({ value: Math.round(typical.value.value * 2) / 2, rule: "trailing" })
       : none(typical.value.reason);
   else inUse = val({ value: levers.exitPe.custom, rule: "custom" });
+  if (has(inUse) && !(inUse.value.value > 0)) inUse = none("needs_positive_eps");
   const pe = has(inUse) ? val(inUse.value.value) : none(inUse.reason);
   let peNowVsTypical = none(has(peNow) ? typical.value.reason : peNow.reason);
   if (has(peNow) && has(typical.value)) {
