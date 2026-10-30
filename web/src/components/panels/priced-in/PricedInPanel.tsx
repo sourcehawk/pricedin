@@ -87,11 +87,7 @@ function Row({
   );
 }
 
-/**
- * PricedInPanel is the priced-in summary: the EPS growth that today's price
- * requires, what it means in dollars, the verdict, the growth baselines it
- * is compared with, the quarterly YoY growth and the growth scale.
- */
+/** PricedInPanel renders only in the page's ready state: useEvaluation throws before an evaluation exists. */
 export function PricedInPanel() {
   const { evaluation: ev, state, levers, history, provenance } = useEvaluation();
   const r = state.targetReturn;
