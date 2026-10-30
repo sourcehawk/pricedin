@@ -72,7 +72,7 @@ func EarningsPaths(in PathsInput) Maybe[Paths] {
 		out.History = append(out.History, HistoryPoint{Label: q.Label, PeriodEnd: q.PeriodEnd, TTMEPS: s.ttm[i], TTMYoY: s.ttmYoY[i]})
 	}
 	g, req := in.Baseline, in.Required
-	gOk := g.Ok() && g.Get() > -1
+	gOk := g.Ok() && growthInRange(g.Get())
 	gReason := ReasonGrowthOutOfRange
 	if !g.Ok() {
 		gReason = g.Reason
@@ -185,8 +185,8 @@ const peakTie = 1e-9
 
 // Peak is the index and value of the highest required growth.
 type Peak struct {
-	Index int     `json:"index"`
-	Value float64 `json:"value"`
+	Index  int     `json:"index"`
+	Growth float64 `json:"growth"`
 }
 
 // HowDemanding returns the required growth at each quarter of the last three
@@ -258,7 +258,7 @@ func HowDemanding(quarters []Quarter, inv Investment, exitPE Number) Demanding {
 	for i, v := range reqs {
 		// Rounding noise must not move the peak between equal values.
 		if !math.IsNaN(v) && v >= top-peakTie {
-			out.Peak = Some(Peak{Index: i, Value: v})
+			out.Peak = Some(Peak{Index: i, Growth: v})
 			break
 		}
 	}

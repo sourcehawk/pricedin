@@ -16,12 +16,12 @@ func TestTypicalPE(t *testing.T) {
 	// TTM EPS is 4 from the fourth quarter on, so the P/Es are close/4.
 	q := withCloses(quarters(1, 1, 1, 1, 1, 1, 1, 1), 0, 0, 0, 40, 60, 80, 100, 0)
 	odd := TypicalPE(q, 120, 4, 12) // quarters 3..7: P/Es 10, 15, 20, 25 and today's 30
-	near(t, "median of an odd count", wantSome(t, "typical", odd.Value), 20, 1e-12)
+	near(t, "median of an odd count", wantSome(t, "typical", odd.PE), 20, 1e-12)
 	if odd.Months != 12 || odd.Points != 5 {
 		t.Errorf("months, points = %d, %d, want 12, 5", odd.Months, odd.Points)
 	}
 	even := TypicalPE(q, 120, 4, 9) // quarters 4..7: P/Es 15, 20, 25 and today's 30
-	near(t, "the conventional median of an even count", wantSome(t, "typical", even.Value), 22.5, 1e-12)
+	near(t, "the conventional median of an even count", wantSome(t, "typical", even.PE), 22.5, 1e-12)
 
 	if got := TypicalPE(q, 120, 4, 0).Months; got != 36 {
 		t.Errorf("default months = %d, want 36", got)
@@ -34,7 +34,7 @@ func TestTypicalPE(t *testing.T) {
 		t.Errorf("short history uses %d points, want 5", short.Points)
 	}
 	none := TypicalPE(quarters(1, 1), 120, -1, 12)
-	wantNone(t, "typical P/E without any P/E", none.Value, ReasonInsufficientHistory)
+	wantNone(t, "typical P/E without any P/E", none.PE, ReasonInsufficientHistory)
 }
 
 func TestEstimatedExitPE(t *testing.T) {
@@ -58,7 +58,7 @@ func TestEstimatedExitPE(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := EstimatedExitPE(tt.price, tt.eps, 3, tt.weighted, tt.typic)
-			near(t, "exit P/E", wantSome(t, "exit P/E", got.Value), tt.want, 1e-12)
+			near(t, "exit P/E", wantSome(t, "exit P/E", got.PE), tt.want, 1e-12)
 			if got.Rule == nil || *got.Rule != tt.rule {
 				t.Errorf("rule = %v, want %q", got.Rule, tt.rule)
 			}
@@ -66,7 +66,7 @@ func TestEstimatedExitPE(t *testing.T) {
 	}
 
 	bad := EstimatedExitPE(100, 0, 3, ptr(0.1), nil)
-	wantNone(t, "zero EPS", bad.Value, ReasonNeedsPositiveEPS)
+	wantNone(t, "zero EPS", bad.PE, ReasonNeedsPositiveEPS)
 	if bad.Rule != nil {
 		t.Errorf("rule = %q, want none without a value", *bad.Rule)
 	}

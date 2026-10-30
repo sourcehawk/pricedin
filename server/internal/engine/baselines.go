@@ -5,7 +5,7 @@ import "math"
 // Trailing is trailing growth: the compound yearly growth of TTM EPS over
 // Months.
 type Trailing struct {
-	Value Number `json:"value"`
+	Growth Number `json:"growth"`
 	// Months is the look-back in use: the requested months rounded to a
 	// multiple of 3, at least 6 and at most MaxMonths (when that is 6 or
 	// more).
@@ -42,15 +42,15 @@ func (s series) trailing(months int) Trailing {
 	}
 	switch {
 	case last-q < 3:
-		out.Value = None[float64](ReasonInsufficientHistory)
+		out.Growth = None[float64](ReasonInsufficientHistory)
 	case !out.FromTTM.Ok():
-		out.Value = out.FromTTM
+		out.Growth = out.FromTTM
 	case !out.ToTTM.Ok():
-		out.Value = out.ToTTM
+		out.Growth = out.ToTTM
 	case !(out.FromTTM.Get() > 0) || !(out.ToTTM.Get() > 0):
-		out.Value = None[float64](ReasonNeedsPositiveEPS)
+		out.Growth = None[float64](ReasonNeedsPositiveEPS)
 	default:
-		out.Value = Some(math.Pow(out.ToTTM.Get()/out.FromTTM.Get(), 12/float64(m)) - 1)
+		out.Growth = Some(math.Pow(out.ToTTM.Get()/out.FromTTM.Get(), 12/float64(m)) - 1)
 	}
 	return out
 }
@@ -58,9 +58,9 @@ func (s series) trailing(months int) Trailing {
 // Trajectory is the trajectory fill: one growth rate per year that
 // continues last year's change in the weighted trend.
 type Trajectory struct {
-	// Rates are rounded to 0.5 pp. They never exceed Highest (rounded down
-	// to 0.5 pp) and never fall below -50%, unless Highest is below -50%:
-	// then each rate is Highest rounded down to 0.5 pp.
+	// Rates are rounded to 0.5 pp and stay within -50% to 200%, the bounds
+	// of a custom rate, so they can fill the custom year-by-year rates.
+	// Within those bounds they never exceed Highest (rounded down to 0.5 pp).
 	Rates    []float64 `json:"rates"`
 	Slope    float64   `json:"slope"`    // the change of the weighted trend over the last year; 0 without Previous
 	Previous Number    `json:"previous"` // the weighted trend four quarters ago
@@ -97,6 +97,7 @@ func (s series) trajectory(years int) Maybe[Trajectory] {
 		st *= 0.5
 		g = math.Min(hi, math.Max(-0.5, g+st))
 		rate := math.Min(math.Floor(hi*200)/2, jsRound(g*200)/2)
+		rate = math.Max(minCustomGrowth*100, math.Min(maxCustomGrowth*100, rate))
 		rates = append(rates, rate/100)
 		if math.Abs(rate/100-hi) < 0.006 {
 			capped = true

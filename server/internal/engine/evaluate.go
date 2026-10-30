@@ -39,7 +39,7 @@ type Evaluation struct {
 // Baselines are the growth baselines and the one in use.
 type Baselines struct {
 	Active   BaselineMode `json:"active"`
-	Value    Number       `json:"value"` // the growth of the active baseline
+	Growth   Number       `json:"growth"` // the growth of the active baseline
 	Weighted Number       `json:"weighted"`
 	Today    Number       `json:"today"`
 	Trailing Trailing     `json:"trailing"`
@@ -160,13 +160,13 @@ func Evaluate(h History, l Levers) (Evaluation, error) {
 	}
 	switch l.Baseline.Mode {
 	case BaselineToday:
-		b.Value = b.Today
+		b.Growth = b.Today
 	case BaselineTrailing:
-		b.Value = b.Trailing.Value
+		b.Growth = b.Trailing.Growth
 	case BaselineCustom:
-		b.Value = b.Custom
+		b.Growth = b.Custom
 	default:
-		b.Value = b.Weighted
+		b.Growth = b.Weighted
 	}
 	b.YoYShift = None[float64](ReasonInsufficientHistory)
 	if s.last >= 3 {
@@ -177,13 +177,13 @@ func Evaluate(h History, l Levers) (Evaluation, error) {
 		}
 	}
 	ev.Baselines = b
-	g := b.Value
+	g := b.Growth
 
 	// The exit P/E and the requirement.
 	ev.ExitPE = s.exitPE(l, ev.PENow)
 	pe := None[float64](ev.ExitPE.InUse.Reason)
 	if ev.ExitPE.InUse.Ok() {
-		pe = Some(ev.ExitPE.InUse.Get().Value)
+		pe = Some(ev.ExitPE.InUse.Get().PE)
 	}
 	if pe.Ok() {
 		ev.Required = Requirement(inv, pe.Get())
@@ -212,7 +212,7 @@ func Evaluate(h History, l Levers) (Evaluation, error) {
 	for i, q := range h.Quarters {
 		ev.Quarters[i] = QuarterView{Label: q.Label, PeriodEnd: q.PeriodEnd, EPS: q.EPS, QuarterPoint: QuarterPoint{TTMEPS: s.ttm[i], YoY: s.yoy[i], TTMYoY: s.ttmYoY[i], WeightedTrend: s.wtd[i]}}
 	}
-	ev.GrowthScale = GrowthScale([]*float64{req.Value, b.Today.Value, b.Weighted.Value, b.Trailing.Value.Value, g.Value})
+	ev.GrowthScale = GrowthScale([]*float64{req.Value, b.Today.Value, b.Weighted.Value, b.Trailing.Growth.Value, g.Value})
 
 	switch {
 	case !pe.Ok() && l.TTMEPS > 0:
@@ -222,8 +222,8 @@ func Evaluate(h History, l Levers) (Evaluation, error) {
 	default:
 		ev.ReturnGrid = ReturnGrid(GridInput{
 			Investment: inv, ExitPE: pe.Get(), Required: req,
-			Baseline: ActiveBaseline{Mode: l.Baseline.Mode, Value: g},
-			Weighted: b.Weighted, Today: b.Today, Trailing: b.Trailing.Value,
+			Baseline: ActiveBaseline{Mode: l.Baseline.Mode, Growth: g},
+			Weighted: b.Weighted, Today: b.Today, Trailing: b.Trailing.Growth,
 		})
 	}
 	ev.EarningsPaths = EarningsPaths(PathsInput{Quarters: h.Quarters, EPS: l.TTMEPS, Years: n, Baseline: g, YearlyRates: yearly, Required: req})
@@ -249,7 +249,7 @@ func atBaseline(inv Investment, g, pe, req, reqEPS Number) Maybe[AtBaseline] {
 		return None[AtBaseline](pe.Reason)
 	case !g.Ok():
 		return None[AtBaseline](g.Reason)
-	case !(g.Get() > -1):
+	case !growthInRange(g.Get()):
 		return None[AtBaseline](ReasonGrowthOutOfRange)
 	}
 	p := Project(inv, g.Get(), pe.Get())

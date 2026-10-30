@@ -249,7 +249,7 @@
    "input": {"price":270,"eps":10.8,"targetReturn":0.15,"years":3,"growth":-1,"dividend":0},
    "expected": {"value":null,"reason":"growth_out_of_range"},
    "tolerance": 1e-9,
-   "note": "v1: a growth of -100% or lower gives null with reason growth_out_of_range for values that compound it."
+   "note": "v1: a growth of -100% or lower, or above 1000%, gives null with reason growth_out_of_range for values that compound it."
   },
   {
    "name": "exit P/E needed when dividends reach the target",
@@ -2574,7 +2574,7 @@
     "months": 12
    },
    "expected": {
-    "value": {"value":0.16756756756756763},
+    "growth": {"value":0.16756756756756763},
     "months": 12,
     "maxMonths": 45,
     "fromTtm": {"value":9.25},
@@ -2800,7 +2800,7 @@
     "months": 13
    },
    "expected": {
-    "value": {"value":0.16756756756756763},
+    "growth": {"value":0.16756756756756763},
     "months": 12,
     "maxMonths": 45,
     "fromTtm": {"value":9.25},
@@ -3026,7 +3026,7 @@
     "months": 36
    },
    "expected": {
-    "value": {"value":0.20321717357215352},
+    "growth": {"value":0.20321717357215352},
     "months": 36,
     "maxMonths": 45,
     "fromTtm": {"value":6.199999999999999},
@@ -3252,7 +3252,7 @@
     "months": 45
    },
    "expected": {
-    "value": {"value":0.1830458494210092},
+    "growth": {"value":0.1830458494210092},
     "months": 45,
     "maxMonths": 45,
     "fromTtm": {"value":5.75},
@@ -3478,7 +3478,7 @@
     "months": 3
    },
    "expected": {
-    "value": {"value":0.12110726643598668},
+    "growth": {"value":0.12110726643598668},
     "months": 6,
     "maxMonths": 45,
     "fromTtm": {"value":10.2},
@@ -3704,7 +3704,7 @@
     "months": 0
    },
    "expected": {
-    "value": {"value":0.16756756756756763},
+    "growth": {"value":0.16756756756756763},
     "months": 12,
     "maxMonths": 45,
     "fromTtm": {"value":9.25},
@@ -3930,7 +3930,7 @@
     "months": 60
    },
    "expected": {
-    "value": {"value":0.1830458494210092},
+    "growth": {"value":0.1830458494210092},
     "months": 45,
     "maxMonths": 45,
     "fromTtm": {"value":5.75},
@@ -4036,7 +4036,7 @@
     "months": 24
    },
    "expected": {
-    "value": {"value":0.16756756756756763},
+    "growth": {"value":0.16756756756756763},
     "months": 12,
     "maxMonths": 12,
     "fromTtm": {"value":9.25},
@@ -4120,7 +4120,7 @@
     "months": 12
    },
    "expected": {
-    "value": {"value":0.12110726643598668},
+    "growth": {"value":0.12110726643598668},
     "months": 6,
     "maxMonths": 6,
     "fromTtm": {"value":10.2},
@@ -4347,7 +4347,7 @@
     "months": 12
    },
    "expected": {
-    "value": {"value":null,"reason":"missing_data"},
+    "growth": {"value":null,"reason":"missing_data"},
     "months": 12,
     "maxMonths": 45,
     "fromTtm": {"value":null,"reason":"missing_data"},
@@ -4574,7 +4574,7 @@
     "months": 12
    },
    "expected": {
-    "value": {"value":null,"reason":"needs_positive_eps"},
+    "growth": {"value":null,"reason":"needs_positive_eps"},
     "months": 12,
     "maxMonths": 45,
     "fromTtm": {"value":-1.25},
@@ -6070,7 +6070,7 @@
    },
    "expected": {
     "value": {
-     "rates": [-0.9,-0.9,-0.9],
+     "rates": [-0.5,-0.5,-0.5],
      "slope": 0,
      "previous": {"value":null,"reason":"insufficient_history"},
      "highest": -0.9,
@@ -6078,7 +6078,7 @@
     }
    },
    "tolerance": 1e-9,
-   "note": "The cap at the highest reading wins over the -50% floor, as in the prototype."
+   "note": "v1: the trajectory rates stay within -50% to 200%, the bounds of a custom rate, so that they can fill the custom rates; the prototype lets the cap at the highest reading go below -50%."
   },
   {
    "name": "year rates repeat the last rate",
@@ -6420,7 +6420,7 @@
     "eps": 10.8,
     "months": 36
    },
-   "expected": {"value":{"value":23.026315789473685},"months":36,"points":13},
+   "expected": {"pe":{"value":23.026315789473685},"months":36,"points":13},
    "tolerance": 1e-9
   },
   {
@@ -6642,7 +6642,7 @@
     "eps": 10.8,
     "months": 33
    },
-   "expected": {"value":{"value":23.277863777089784},"months":33,"points":12},
+   "expected": {"pe":{"value":23.277863777089784},"months":33,"points":12},
    "tolerance": 1e-9,
    "note": "v1: typical P/E is the conventional median (the mean of the two middle values for an even count); the prototype takes the upper middle value."
   },
@@ -6865,7 +6865,7 @@
     "eps": 10.8,
     "months": 6
    },
-   "expected": {"value":{"value":24.285714285714285},"months":6,"points":3},
+   "expected": {"pe":{"value":24.285714285714285},"months":6,"points":3},
    "tolerance": 1e-9,
    "note": "v1: typical P/E is the conventional median (the mean of the two middle values for an even count); the prototype takes the upper middle value."
   },
@@ -7088,7 +7088,7 @@
     "eps": 10.8,
     "months": 20
    },
-   "expected": {"value":{"value":24.211822660098523},"months":21,"points":8},
+   "expected": {"pe":{"value":24.211822660098523},"months":21,"points":8},
    "tolerance": 1e-9,
    "note": "v1: typical P/E is the conventional median (the mean of the two middle values for an even count); the prototype takes the upper middle value."
   },
@@ -7311,7 +7311,7 @@
     "eps": 10.8,
     "months": 60
    },
-   "expected": {"value":{"value":23.026315789473685},"months":36,"points":13},
+   "expected": {"pe":{"value":23.026315789473685},"months":36,"points":13},
    "tolerance": 1e-9
   },
   {
@@ -7379,7 +7379,7 @@
     "eps": 10.8,
     "months": 36
    },
-   "expected": {"value":{"value":24.642857142857142},"months":36,"points":2},
+   "expected": {"pe":{"value":24.642857142857142},"months":36,"points":2},
    "tolerance": 1e-9,
    "note": "v1: the typical P/E window starts at the first quarter when the history is shorter than the look-back. v1: typical P/E is the conventional median (the mean of the two middle values for an even count); the prototype takes the upper middle value."
   },
@@ -7602,7 +7602,7 @@
     "eps": -1,
     "months": 12
    },
-   "expected": {"value":{"value":23.907563025210084},"months":12,"points":4},
+   "expected": {"pe":{"value":23.907563025210084},"months":12,"points":4},
    "tolerance": 1e-9,
    "note": "v1: typical P/E is the conventional median (the mean of the two middle values for an even count); the prototype takes the upper middle value."
   },
@@ -7638,7 +7638,7 @@
     "eps": -1,
     "months": 12
    },
-   "expected": {"value":{"value":null,"reason":"insufficient_history"},"months":12,"points":0},
+   "expected": {"pe":{"value":null,"reason":"insufficient_history"},"months":12,"points":0},
    "tolerance": 1e-9,
    "note": "v1: the typical P/E window starts at the first quarter when the history is shorter than the look-back."
   },
@@ -7646,49 +7646,49 @@
    "name": "estimated exit P/E fades a premium",
    "fn": "estimatedExitPe",
    "input": {"price":270,"eps":10.8,"years":3,"weightedTrend":0.1298,"typicalPe":22.1},
-   "expected": {"value":{"value":20},"rule":"fade","g0":{"value":0.1298},"gExit":{"value":0.0949}},
+   "expected": {"pe":{"value":20},"rule":"fade","g0":{"value":0.1298},"gExit":{"value":0.0949}},
    "tolerance": 1e-9
   },
   {
    "name": "estimated exit P/E over ten years",
    "fn": "estimatedExitPe",
    "input": {"price":270,"eps":10.8,"years":10,"weightedTrend":0.1298,"typicalPe":22.1},
-   "expected": {"value":{"value":16},"rule":"fade","g0":{"value":0.1298},"gExit":{"value":0.06692503708921127}},
+   "expected": {"pe":{"value":16},"rule":"fade","g0":{"value":0.1298},"gExit":{"value":0.06692503708921127}},
    "tolerance": 1e-9
   },
   {
    "name": "estimated exit P/E of a slow grower above its typical P/E",
    "fn": "estimatedExitPe",
    "input": {"price":70,"eps":2.95,"years":3,"weightedTrend":0.05,"typicalPe":21},
-   "expected": {"value":{"value":21},"rule":"slowGrowerTypical","g0":{"value":0.05},"gExit":{"value":0.055}},
+   "expected": {"pe":{"value":21},"rule":"slowGrowerTypical","g0":{"value":0.05},"gExit":{"value":0.055}},
    "tolerance": 1e-9
   },
   {
    "name": "estimated exit P/E of a slow grower near its typical P/E",
    "fn": "estimatedExitPe",
    "input": {"price":70,"eps":2.95,"years":3,"weightedTrend":0.05,"typicalPe":23.5},
-   "expected": {"value":{"value":23.5},"rule":"slowGrowerKeep","g0":{"value":0.05},"gExit":{"value":0.055}},
+   "expected": {"pe":{"value":23.5},"rule":"slowGrowerKeep","g0":{"value":0.05},"gExit":{"value":0.055}},
    "tolerance": 1e-9
   },
   {
    "name": "estimated exit P/E keeps a low P/E",
    "fn": "estimatedExitPe",
    "input": {"price":120,"eps":10.8,"years":3,"weightedTrend":0.2,"typicalPe":22.1},
-   "expected": {"value":{"value":11},"rule":"lowPeKeep","g0":{"value":0.2},"gExit":{"value":0.13}},
+   "expected": {"pe":{"value":11},"rule":"lowPeKeep","g0":{"value":0.2},"gExit":{"value":0.13}},
    "tolerance": 1e-9
   },
   {
    "name": "estimated exit P/E of a shrinking company",
    "fn": "estimatedExitPe",
    "input": {"price":70,"eps":2.1,"years":3,"weightedTrend":-0.2,"typicalPe":30},
-   "expected": {"value":{"value":30},"rule":"slowGrowerTypical","g0":{"value":-0.2},"gExit":{"value":-0.07}},
+   "expected": {"pe":{"value":30},"rule":"slowGrowerTypical","g0":{"value":-0.2},"gExit":{"value":-0.07}},
    "tolerance": 1e-9
   },
   {
    "name": "estimated exit P/E never goes below 6",
    "fn": "estimatedExitPe",
    "input": {"price":100,"eps":10,"years":3,"weightedTrend":0.01,"typicalPe":4},
-   "expected": {"value":{"value":6},"rule":"slowGrowerTypical","g0":{"value":0.01},"gExit":{"value":0.035}},
+   "expected": {"pe":{"value":6},"rule":"slowGrowerTypical","g0":{"value":0.01},"gExit":{"value":0.035}},
    "tolerance": 1e-9
   },
   {
@@ -7696,7 +7696,7 @@
    "fn": "estimatedExitPe",
    "input": {"price":270,"eps":0,"years":3,"weightedTrend":0.1298,"typicalPe":22.1},
    "expected": {
-    "value": {"value":null,"reason":"needs_positive_eps"},
+    "pe": {"value":null,"reason":"needs_positive_eps"},
     "rule": null,
     "g0": {"value":0.1298},
     "gExit": {"value":0.0949}
@@ -7708,7 +7708,7 @@
    "fn": "estimatedExitPe",
    "input": {"price":270,"eps":10.8,"years":3,"weightedTrend":null,"typicalPe":22.1},
    "expected": {
-    "value": {"value":22},
+    "pe": {"value":22},
     "rule": "slowGrowerTypical",
     "g0": {"value":null,"reason":"insufficient_history"},
     "gExit": {"value":null,"reason":"insufficient_history"}
@@ -7720,7 +7720,7 @@
    "name": "estimated exit P/E without a typical P/E",
    "fn": "estimatedExitPe",
    "input": {"price":70,"eps":2.95,"years":3,"weightedTrend":0.05,"typicalPe":null},
-   "expected": {"value":{"value":23.5},"rule":"slowGrowerKeep","g0":{"value":0.05},"gExit":{"value":0.055}},
+   "expected": {"pe":{"value":23.5},"rule":"slowGrowerKeep","g0":{"value":0.05},"gExit":{"value":0.055}},
    "tolerance": 1e-9
   },
   {
@@ -7734,7 +7734,7 @@
     "dividend": 0,
     "exitPe": 22,
     "required": {"value":0.14953},
-    "baseline": {"mode":"weighted","value":{"value":0.12981}},
+    "baseline": {"mode":"weighted","growth":{"value":0.12981}},
     "weighted": {"value":0.12981},
     "today": {"value":0.12245},
     "trailing": {"value":0.11869}
@@ -8761,7 +8761,7 @@
     "dividend": 0,
     "exitPe": 22,
     "required": {"value":0.14953},
-    "baseline": {"mode":"today","value":{"value":0.12245}},
+    "baseline": {"mode":"today","growth":{"value":0.12245}},
     "weighted": {"value":0.12981},
     "today": {"value":0.12245},
     "trailing": {"value":0.11869}
@@ -9788,7 +9788,7 @@
     "dividend": 0,
     "exitPe": 22,
     "required": {"value":0.14953},
-    "baseline": {"mode":"trailing","value":{"value":0.11869}},
+    "baseline": {"mode":"trailing","growth":{"value":0.11869}},
     "weighted": {"value":0.12981},
     "today": {"value":0.12245},
     "trailing": {"value":0.11869}
@@ -10815,7 +10815,7 @@
     "dividend": 0,
     "exitPe": 22,
     "required": {"value":0.14953},
-    "baseline": {"mode":"custom","value":{"value":0.1}},
+    "baseline": {"mode":"custom","growth":{"value":0.1}},
     "weighted": {"value":0.12981},
     "today": {"value":0.12245},
     "trailing": {"value":0.11869}
@@ -11771,7 +11771,7 @@
     "dividend": 0,
     "exitPe": 22,
     "required": {"value":0.14953},
-    "baseline": {"mode":"custom","value":{"value":0.333}},
+    "baseline": {"mode":"custom","growth":{"value":0.333}},
     "weighted": {"value":0.12981},
     "today": {"value":0.12245},
     "trailing": {"value":0.11869}
@@ -12443,7 +12443,7 @@
     "dividend": 30,
     "exitPe": 22,
     "required": {"value":null,"reason":"dividends_reach_target"},
-    "baseline": {"mode":"weighted","value":{"value":0.12981}},
+    "baseline": {"mode":"weighted","growth":{"value":0.12981}},
     "weighted": {"value":0.12981},
     "today": {"value":0.12245},
     "trailing": {"value":0.11869}
@@ -13476,7 +13476,7 @@
     "dividend": 0,
     "exitPe": 22,
     "required": {"value":0.14953},
-    "baseline": {"mode":"trailing","value":{"value":null,"reason":"insufficient_history"}},
+    "baseline": {"mode":"trailing","growth":{"value":null,"reason":"insufficient_history"}},
     "weighted": {"value":0.12981},
     "today": {"value":0.12245},
     "trailing": {"value":null,"reason":"insufficient_history"}
@@ -14432,7 +14432,7 @@
     "dividend": 0,
     "exitPe": 150,
     "required": {"value":0.52},
-    "baseline": {"mode":"weighted","value":{"value":0.71}},
+    "baseline": {"mode":"weighted","growth":{"value":0.71}},
     "weighted": {"value":0.71},
     "today": {"value":0.95},
     "trailing": {"value":0.66}
@@ -15323,7 +15323,7 @@
     "dividend": 0,
     "exitPe": 18,
     "required": {"value":0.31},
-    "baseline": {"mode":"weighted","value":{"value":-0.62}},
+    "baseline": {"mode":"weighted","growth":{"value":-0.62}},
     "weighted": {"value":-0.62},
     "today": {"value":-0.7},
     "trailing": {"value":-0.4}
@@ -16072,7 +16072,7 @@
     "dividend": 0,
     "exitPe": 22,
     "required": {"value":0.14953},
-    "baseline": {"mode":"weighted","value":{"value":0.12981}},
+    "baseline": {"mode":"weighted","growth":{"value":0.12981}},
     "weighted": {"value":0.12981},
     "today": {"value":0.12245},
     "trailing": {"value":0.11869}
@@ -18620,7 +18620,7 @@
     ],
     "scale": {"min":0,"max":0.30000000000000004,"step":0.05},
     "typicalRequired": {"value":0.16761168400005477},
-    "peak": {"value":{"index":8,"value":0.22339038790979582}},
+    "peak": {"value":{"index":8,"growth":0.22339038790979582}},
     "requiredAboveDelivered": 4,
     "compared": 12
    },
@@ -18984,7 +18984,7 @@
     ],
     "scale": {"min":0,"max":0.30000000000000004,"step":0.05},
     "typicalRequired": {"value":0.1521167725966055},
-    "peak": {"value":{"index":8,"value":0.21145457580527993}},
+    "peak": {"value":{"index":8,"growth":0.21145457580527993}},
     "requiredAboveDelivered": 2,
     "compared": 12
    },
@@ -19499,7 +19499,7 @@
     ],
     "scale": {"min":0,"max":0.25,"step":0.05},
     "typicalRequired": {"value":0.18852204224732794},
-    "peak": {"value":{"index":5,"value":0.20006181289335823}},
+    "peak": {"value":{"index":5,"growth":0.20006181289335823}},
     "requiredAboveDelivered": 0,
     "compared": 0
    },
@@ -19863,7 +19863,7 @@
     ],
     "scale": {"min":0,"max":0.30000000000000004,"step":0.05},
     "typicalRequired": {"value":0.16406125789737502},
-    "peak": {"value":{"index":5,"value":0.200061812893358}},
+    "peak": {"value":{"index":5,"growth":0.200061812893358}},
     "requiredAboveDelivered": 0,
     "compared": 7
    },
@@ -21813,6 +21813,27 @@
    },
    "tolerance": 1e-9,
    "note": "v1: missing quarterly data gives null with a reason; the prototype has no missing data."
+  },
+  {
+   "name": "band price on a day",
+   "fn": "bandPrice",
+   "input": {"ttmEps":10.8,"multiple":22.5},
+   "expected": {"value":243.00000000000003},
+   "tolerance": 1e-9
+  },
+  {
+   "name": "band price without EPS",
+   "fn": "bandPrice",
+   "input": {"ttmEps":null,"multiple":20},
+   "expected": {"value":null,"reason":"missing_data"},
+   "tolerance": 1e-9
+  },
+  {
+   "name": "band price at a loss",
+   "fn": "bandPrice",
+   "input": {"ttmEps":-1,"multiple":20},
+   "expected": {"value":null,"reason":"needs_positive_eps"},
+   "tolerance": 1e-9
   },
   {
    "name": "P/E bands at a near-zero EPS",
@@ -33796,21 +33817,22 @@
      "value": {
       "label": "Q3 FY26",
       "compareLabel": "Q3 FY25",
-      "revenue": {"value":{"value":1990000000},"change":{"value":0.12049549549549554},"tone":{"value":"good"}},
+      "revenue": {"latest":{"value":1990000000},"change":{"value":0.12049549549549554},"tone":{"value":"good"}},
       "operatingCosts": {
-       "value": {"value":1378000000},
+       "latest": {"value":1378000000},
        "change": {"value":0.04473085670962851},
        "tone": {"value":"neutral"}
       },
-      "operatingIncome": {"value":{"value":612000000},"change":{"value":0.33916849015317285},"tone":{"value":"good"}},
+      "operatingIncome": {"latest":{"value":612000000},"change":{"value":0.33916849015317285},"tone":{"value":"good"}},
       "operatingMargin": {
-       "value": {"value":0.3075376884422111},
+       "latest": {"value":0.3075376884422111},
        "previous": {"value":0.25731981981981983},
-       "change": {"value":0.05021786862239125}
+       "change": {"value":0.05021786862239125},
+       "tone": {"value":"good"}
       },
-      "eps": {"value":{"value":2.75},"change":{"value":0.12244897959183665},"tone":{"value":"good"}},
-      "freeCashFlow": {"value":{"value":293000000},"change":{"value":-0.3105882352941176},"tone":{"value":"bad"}},
-      "dilutedShares": {"value":{"value":192000000},"change":{"value":-0.02003151537814518},"tone":{"value":"good"}}
+      "eps": {"latest":{"value":2.75},"change":{"value":0.12244897959183665},"tone":{"value":"good"}},
+      "freeCashFlow": {"latest":{"value":293000000},"change":{"value":-0.3105882352941176},"tone":{"value":"bad"}},
+      "dilutedShares": {"latest":{"value":192000000},"change":{"value":-0.02003151537814518},"tone":{"value":"good"}}
      }
     },
     "compare": {
@@ -34538,17 +34560,22 @@
      "value": {
       "label": "Q3 FY26",
       "compareLabel": "Q3 FY25",
-      "revenue": {"value":{"value":10575000000},"change":{"value":0.4582184225041368},"tone":{"value":"good"}},
-      "operatingCosts": {"value":{"value":9094000000},"change":{"value":0.420271747618304},"tone":{"value":"neutral"}},
-      "operatingIncome": {"value":{"value":1481000000},"change":{"value":0.7444051825677267},"tone":{"value":"good"}},
-      "operatingMargin": {
-       "value": {"value":0.14004728132387706},
-       "previous": {"value":0.1170711527854385},
-       "change": {"value":0.022976128538438556}
+      "revenue": {"latest":{"value":10575000000},"change":{"value":0.4582184225041368},"tone":{"value":"good"}},
+      "operatingCosts": {
+       "latest": {"value":9094000000},
+       "change": {"value":0.420271747618304},
+       "tone": {"value":"neutral"}
       },
-      "eps": {"value":{"value":0.783},"change":{"value":0.43933823529411753},"tone":{"value":"good"}},
-      "freeCashFlow": {"value":{"value":2103000000},"change":{"value":0.25477326968973757},"tone":{"value":"good"}},
-      "dilutedShares": {"value":{"value":1620000000},"change":{"value":0.012054107936057878},"tone":{"value":"bad"}}
+      "operatingIncome": {"latest":{"value":1481000000},"change":{"value":0.7444051825677267},"tone":{"value":"good"}},
+      "operatingMargin": {
+       "latest": {"value":0.14004728132387706},
+       "previous": {"value":0.1170711527854385},
+       "change": {"value":0.022976128538438556},
+       "tone": {"value":"good"}
+      },
+      "eps": {"latest":{"value":0.783},"change":{"value":0.43933823529411753},"tone":{"value":"good"}},
+      "freeCashFlow": {"latest":{"value":2103000000},"change":{"value":0.25477326968973757},"tone":{"value":"good"}},
+      "dilutedShares": {"latest":{"value":1620000000},"change":{"value":0.012054107936057878},"tone":{"value":"bad"}}
      }
     },
     "compare": {
@@ -35547,21 +35574,22 @@
      "value": {
       "label": "Q3 FY26",
       "compareLabel": "Q3 FY25",
-      "revenue": {"value":{"value":1990000000},"change":{"value":0.12049549549549554},"tone":{"value":"good"}},
+      "revenue": {"latest":{"value":1990000000},"change":{"value":0.12049549549549554},"tone":{"value":"good"}},
       "operatingCosts": {
-       "value": {"value":1378000000},
+       "latest": {"value":1378000000},
        "change": {"value":0.04473085670962851},
        "tone": {"value":"neutral"}
       },
-      "operatingIncome": {"value":{"value":612000000},"change":{"value":0.33916849015317285},"tone":{"value":"good"}},
+      "operatingIncome": {"latest":{"value":612000000},"change":{"value":0.33916849015317285},"tone":{"value":"good"}},
       "operatingMargin": {
-       "value": {"value":0.3075376884422111},
+       "latest": {"value":0.3075376884422111},
        "previous": {"value":0.25731981981981983},
-       "change": {"value":0.05021786862239125}
+       "change": {"value":0.05021786862239125},
+       "tone": {"value":"good"}
       },
-      "eps": {"value":{"value":2.75},"change":{"value":0.12244897959183665},"tone":{"value":"good"}},
-      "freeCashFlow": {"value":{"value":293000000},"change":{"value":-0.3105882352941176},"tone":{"value":"bad"}},
-      "dilutedShares": {"value":{"value":192000000},"change":{"value":-0.02003151537814518},"tone":{"value":"good"}}
+      "eps": {"latest":{"value":2.75},"change":{"value":0.12244897959183665},"tone":{"value":"good"}},
+      "freeCashFlow": {"latest":{"value":293000000},"change":{"value":-0.3105882352941176},"tone":{"value":"bad"}},
+      "dilutedShares": {"latest":{"value":192000000},"change":{"value":-0.02003151537814518},"tone":{"value":"good"}}
      }
     },
     "compare": {
@@ -36187,22 +36215,22 @@
     "peNow": {"value":25},
     "exitPe": {
      "mode": "estimated",
-     "inUse": {"value":{"value":20,"rule":"fade"}},
-     "estimate": {"value":{"value":20,"rule":"fade"}},
+     "inUse": {"value":{"pe":20,"rule":"fade"}},
+     "estimate": {"value":{"pe":20,"rule":"fade"}},
      "g0": {"value":0.15950428064100572},
      "gExit": {"value":0.10975214032050286},
-     "typical": {"value":{"value":23.026315789473685},"months":36,"points":13},
+     "typical": {"pe":{"value":23.026315789473685},"months":36,"points":13},
      "peNowVsTypical": {"value":"close"},
      "vsNow": {"value":"lower"},
      "sliderMax": 45
     },
     "baselines": {
      "active": "weighted",
-     "value": {"value":0.15950428064100572},
+     "growth": {"value":0.15950428064100572},
      "weighted": {"value":0.15950428064100572},
      "today": {"value":0.12244897959183665},
      "trailing": {
-      "value": {"value":0.16756756756756763},
+      "growth": {"value":0.16756756756756763},
       "months": 12,
       "maxMonths": 45,
       "fromTtm": {"value":9.25},
@@ -37751,7 +37779,7 @@
      ],
      "scale": {"min":0,"max":0.30000000000000004,"step":0.05},
      "typicalRequired": {"value":0.2053023239677798},
-     "peak": {"value":{"index":8,"value":0.26288157087973385}},
+     "peak": {"value":{"index":8,"growth":0.26288157087973385}},
      "requiredAboveDelivered": 8,
      "compared": 12
     },
@@ -39439,21 +39467,30 @@
       "value": {
        "label": "Q3 FY26",
        "compareLabel": "Q3 FY25",
-       "revenue": {"value":{"value":1990000000},"change":{"value":0.12049549549549554},"tone":{"value":"good"}},
+       "revenue": {
+        "latest": {"value":1990000000},
+        "change": {"value":0.12049549549549554},
+        "tone": {"value":"good"}
+       },
        "operatingCosts": {
-        "value": {"value":1378000000},
+        "latest": {"value":1378000000},
         "change": {"value":0.04473085670962851},
         "tone": {"value":"neutral"}
        },
-       "operatingIncome": {"value":{"value":612000000},"change":{"value":0.33916849015317285},"tone":{"value":"good"}},
+       "operatingIncome": {"latest":{"value":612000000},"change":{"value":0.33916849015317285},"tone":{"value":"good"}},
        "operatingMargin": {
-        "value": {"value":0.3075376884422111},
+        "latest": {"value":0.3075376884422111},
         "previous": {"value":0.25731981981981983},
-        "change": {"value":0.05021786862239125}
+        "change": {"value":0.05021786862239125},
+        "tone": {"value":"good"}
        },
-       "eps": {"value":{"value":2.75},"change":{"value":0.12244897959183665},"tone":{"value":"good"}},
-       "freeCashFlow": {"value":{"value":293000000},"change":{"value":-0.3105882352941176},"tone":{"value":"bad"}},
-       "dilutedShares": {"value":{"value":192000000},"change":{"value":-0.02003151537814518},"tone":{"value":"good"}}
+       "eps": {"latest":{"value":2.75},"change":{"value":0.12244897959183665},"tone":{"value":"good"}},
+       "freeCashFlow": {"latest":{"value":293000000},"change":{"value":-0.3105882352941176},"tone":{"value":"bad"}},
+       "dilutedShares": {
+        "latest": {"value":192000000},
+        "change": {"value":-0.02003151537814518},
+        "tone": {"value":"good"}
+       }
       }
      },
      "compare": {
@@ -39903,22 +39940,22 @@
     "peNow": {"value":25},
     "exitPe": {
      "mode": "estimated",
-     "inUse": {"value":{"value":20,"rule":"fade"}},
-     "estimate": {"value":{"value":20,"rule":"fade"}},
+     "inUse": {"value":{"pe":20,"rule":"fade"}},
+     "estimate": {"value":{"pe":20,"rule":"fade"}},
      "g0": {"value":0.15950428064100572},
      "gExit": {"value":0.10975214032050286},
-     "typical": {"value":{"value":23.026315789473685},"months":36,"points":13},
+     "typical": {"pe":{"value":23.026315789473685},"months":36,"points":13},
      "peNowVsTypical": {"value":"close"},
      "vsNow": {"value":"lower"},
      "sliderMax": 45
     },
     "baselines": {
      "active": "custom",
-     "value": {"value":0.11892754482769208},
+     "growth": {"value":0.11892754482769208},
      "weighted": {"value":0.15950428064100572},
      "today": {"value":0.12244897959183665},
      "trailing": {
-      "value": {"value":0.16756756756756763},
+      "growth": {"value":0.16756756756756763},
       "months": 12,
       "maxMonths": 45,
       "fromTtm": {"value":9.25},
@@ -41475,7 +41512,7 @@
      ],
      "scale": {"min":0,"max":0.30000000000000004,"step":0.05},
      "typicalRequired": {"value":0.2053023239677798},
-     "peak": {"value":{"index":8,"value":0.26288157087973385}},
+     "peak": {"value":{"index":8,"growth":0.26288157087973385}},
      "requiredAboveDelivered": 8,
      "compared": 12
     },
@@ -41846,21 +41883,30 @@
       "value": {
        "label": "Q3 FY26",
        "compareLabel": "Q3 FY25",
-       "revenue": {"value":{"value":1990000000},"change":{"value":0.12049549549549554},"tone":{"value":"good"}},
+       "revenue": {
+        "latest": {"value":1990000000},
+        "change": {"value":0.12049549549549554},
+        "tone": {"value":"good"}
+       },
        "operatingCosts": {
-        "value": {"value":1378000000},
+        "latest": {"value":1378000000},
         "change": {"value":0.04473085670962851},
         "tone": {"value":"neutral"}
        },
-       "operatingIncome": {"value":{"value":612000000},"change":{"value":0.33916849015317285},"tone":{"value":"good"}},
+       "operatingIncome": {"latest":{"value":612000000},"change":{"value":0.33916849015317285},"tone":{"value":"good"}},
        "operatingMargin": {
-        "value": {"value":0.3075376884422111},
+        "latest": {"value":0.3075376884422111},
         "previous": {"value":0.25731981981981983},
-        "change": {"value":0.05021786862239125}
+        "change": {"value":0.05021786862239125},
+        "tone": {"value":"good"}
        },
-       "eps": {"value":{"value":2.75},"change":{"value":0.12244897959183665},"tone":{"value":"good"}},
-       "freeCashFlow": {"value":{"value":293000000},"change":{"value":-0.3105882352941176},"tone":{"value":"bad"}},
-       "dilutedShares": {"value":{"value":192000000},"change":{"value":-0.02003151537814518},"tone":{"value":"good"}}
+       "eps": {"latest":{"value":2.75},"change":{"value":0.12244897959183665},"tone":{"value":"good"}},
+       "freeCashFlow": {"latest":{"value":293000000},"change":{"value":-0.3105882352941176},"tone":{"value":"bad"}},
+       "dilutedShares": {
+        "latest": {"value":192000000},
+        "change": {"value":-0.02003151537814518},
+        "tone": {"value":"good"}
+       }
       }
      },
      "compare": {
@@ -42306,22 +42352,22 @@
     "peNow": {"value":25},
     "exitPe": {
      "mode": "today",
-     "inUse": {"value":{"value":25,"rule":"today"}},
-     "estimate": {"value":{"value":20,"rule":"fade"}},
+     "inUse": {"value":{"pe":25,"rule":"today"}},
+     "estimate": {"value":{"pe":20,"rule":"fade"}},
      "g0": {"value":0.15950428064100572},
      "gExit": {"value":0.10975214032050286},
-     "typical": {"value":{"value":23.026315789473685},"months":36,"points":13},
+     "typical": {"pe":{"value":23.026315789473685},"months":36,"points":13},
      "peNowVsTypical": {"value":"close"},
      "vsNow": {"value":"same"},
      "sliderMax": 45
     },
     "baselines": {
      "active": "custom",
-     "value": {"value":0.1},
+     "growth": {"value":0.1},
      "weighted": {"value":0.15950428064100572},
      "today": {"value":0.12244897959183665},
      "trailing": {
-      "value": {"value":0.16756756756756763},
+      "growth": {"value":0.16756756756756763},
       "months": 12,
       "maxMonths": 45,
       "fromTtm": {"value":9.25},
@@ -43799,7 +43845,7 @@
      ],
      "scale": {"min":0,"max":0.30000000000000004,"step":0.05},
      "typicalRequired": {"value":0.11890356161127569},
-     "peak": {"value":{"index":8,"value":0.17235539951414758}},
+     "peak": {"value":{"index":8,"growth":0.17235539951414758}},
      "requiredAboveDelivered": 0,
      "compared": 12
     },
@@ -44170,21 +44216,30 @@
       "value": {
        "label": "Q3 FY26",
        "compareLabel": "Q3 FY25",
-       "revenue": {"value":{"value":1990000000},"change":{"value":0.12049549549549554},"tone":{"value":"good"}},
+       "revenue": {
+        "latest": {"value":1990000000},
+        "change": {"value":0.12049549549549554},
+        "tone": {"value":"good"}
+       },
        "operatingCosts": {
-        "value": {"value":1378000000},
+        "latest": {"value":1378000000},
         "change": {"value":0.04473085670962851},
         "tone": {"value":"neutral"}
        },
-       "operatingIncome": {"value":{"value":612000000},"change":{"value":0.33916849015317285},"tone":{"value":"good"}},
+       "operatingIncome": {"latest":{"value":612000000},"change":{"value":0.33916849015317285},"tone":{"value":"good"}},
        "operatingMargin": {
-        "value": {"value":0.3075376884422111},
+        "latest": {"value":0.3075376884422111},
         "previous": {"value":0.25731981981981983},
-        "change": {"value":0.05021786862239125}
+        "change": {"value":0.05021786862239125},
+        "tone": {"value":"good"}
        },
-       "eps": {"value":{"value":2.75},"change":{"value":0.12244897959183665},"tone":{"value":"good"}},
-       "freeCashFlow": {"value":{"value":293000000},"change":{"value":-0.3105882352941176},"tone":{"value":"bad"}},
-       "dilutedShares": {"value":{"value":192000000},"change":{"value":-0.02003151537814518},"tone":{"value":"good"}}
+       "eps": {"latest":{"value":2.75},"change":{"value":0.12244897959183665},"tone":{"value":"good"}},
+       "freeCashFlow": {"latest":{"value":293000000},"change":{"value":-0.3105882352941176},"tone":{"value":"bad"}},
+       "dilutedShares": {
+        "latest": {"value":192000000},
+        "change": {"value":-0.02003151537814518},
+        "tone": {"value":"good"}
+       }
       }
      },
      "compare": {
@@ -44630,22 +44685,22 @@
     "peNow": {"value":25},
     "exitPe": {
      "mode": "trailing",
-     "inUse": {"value":{"value":24,"rule":"trailing"}},
-     "estimate": {"value":{"value":20,"rule":"fade"}},
+     "inUse": {"value":{"pe":24,"rule":"trailing"}},
+     "estimate": {"value":{"pe":20,"rule":"fade"}},
      "g0": {"value":0.15950428064100572},
      "gExit": {"value":0.10975214032050286},
-     "typical": {"value":{"value":24.13793103448276},"months":24,"points":9},
+     "typical": {"pe":{"value":24.13793103448276},"months":24,"points":9},
      "peNowVsTypical": {"value":"close"},
      "vsNow": {"value":"lower"},
      "sliderMax": 45
     },
     "baselines": {
      "active": "trailing",
-     "value": {"value":0.20321717357215352},
+     "growth": {"value":0.20321717357215352},
      "weighted": {"value":0.15950428064100572},
      "today": {"value":0.12244897959183665},
      "trailing": {
-      "value": {"value":0.20321717357215352},
+      "growth": {"value":0.20321717357215352},
       "months": 36,
       "maxMonths": 45,
       "fromTtm": {"value":6.199999999999999},
@@ -46200,7 +46255,7 @@
      ],
      "scale": {"min":0,"max":0.30000000000000004,"step":0.05},
      "typicalRequired": {"value":0.1342329125477144},
-     "peak": {"value":{"index":8,"value":0.18841705840769984}},
+     "peak": {"value":{"index":8,"growth":0.18841705840769984}},
      "requiredAboveDelivered": 0,
      "compared": 12
     },
@@ -46571,21 +46626,30 @@
       "value": {
        "label": "Q3 FY26",
        "compareLabel": "Q3 FY25",
-       "revenue": {"value":{"value":1990000000},"change":{"value":0.12049549549549554},"tone":{"value":"good"}},
+       "revenue": {
+        "latest": {"value":1990000000},
+        "change": {"value":0.12049549549549554},
+        "tone": {"value":"good"}
+       },
        "operatingCosts": {
-        "value": {"value":1378000000},
+        "latest": {"value":1378000000},
         "change": {"value":0.04473085670962851},
         "tone": {"value":"neutral"}
        },
-       "operatingIncome": {"value":{"value":612000000},"change":{"value":0.33916849015317285},"tone":{"value":"good"}},
+       "operatingIncome": {"latest":{"value":612000000},"change":{"value":0.33916849015317285},"tone":{"value":"good"}},
        "operatingMargin": {
-        "value": {"value":0.3075376884422111},
+        "latest": {"value":0.3075376884422111},
         "previous": {"value":0.25731981981981983},
-        "change": {"value":0.05021786862239125}
+        "change": {"value":0.05021786862239125},
+        "tone": {"value":"good"}
        },
-       "eps": {"value":{"value":2.75},"change":{"value":0.12244897959183665},"tone":{"value":"good"}},
-       "freeCashFlow": {"value":{"value":293000000},"change":{"value":-0.3105882352941176},"tone":{"value":"bad"}},
-       "dilutedShares": {"value":{"value":192000000},"change":{"value":-0.02003151537814518},"tone":{"value":"good"}}
+       "eps": {"latest":{"value":2.75},"change":{"value":0.12244897959183665},"tone":{"value":"good"}},
+       "freeCashFlow": {"latest":{"value":293000000},"change":{"value":-0.3105882352941176},"tone":{"value":"bad"}},
+       "dilutedShares": {
+        "latest": {"value":192000000},
+        "change": {"value":-0.02003151537814518},
+        "tone": {"value":"good"}
+       }
       }
      },
      "compare": {
@@ -47031,22 +47095,22 @@
     "peNow": {"value":25},
     "exitPe": {
      "mode": "custom",
-     "inUse": {"value":{"value":18,"rule":"custom"}},
-     "estimate": {"value":{"value":18,"rule":"fade"}},
+     "inUse": {"value":{"pe":18,"rule":"custom"}},
+     "estimate": {"value":{"pe":18,"rule":"fade"}},
      "g0": {"value":0.15950428064100572},
      "gExit": {"value":0.0913418844335625},
-     "typical": {"value":{"value":23.026315789473685},"months":36,"points":13},
+     "typical": {"pe":{"value":23.026315789473685},"months":36,"points":13},
      "peNowVsTypical": {"value":"close"},
      "vsNow": {"value":"lower"},
      "sliderMax": 45
     },
     "baselines": {
      "active": "today",
-     "value": {"value":0.12244897959183665},
+     "growth": {"value":0.12244897959183665},
      "weighted": {"value":0.15950428064100572},
      "today": {"value":0.12244897959183665},
      "trailing": {
-      "value": {"value":0.16756756756756763},
+      "growth": {"value":0.16756756756756763},
       "months": 12,
       "maxMonths": 45,
       "fromTtm": {"value":9.25},
@@ -48657,7 +48721,7 @@
      ],
      "scale": {"min":0,"max":0.30000000000000004,"step":0.05},
      "typicalRequired": {"value":0.19637485480709516},
-     "peak": {"value":{"index":8,"value":0.23315053312237488}},
+     "peak": {"value":{"index":8,"growth":0.23315053312237488}},
      "requiredAboveDelivered": 7,
      "compared": 12
     },
@@ -49028,21 +49092,30 @@
       "value": {
        "label": "Q3 FY26",
        "compareLabel": "Q3 FY25",
-       "revenue": {"value":{"value":1990000000},"change":{"value":0.12049549549549554},"tone":{"value":"good"}},
+       "revenue": {
+        "latest": {"value":1990000000},
+        "change": {"value":0.12049549549549554},
+        "tone": {"value":"good"}
+       },
        "operatingCosts": {
-        "value": {"value":1378000000},
+        "latest": {"value":1378000000},
         "change": {"value":0.04473085670962851},
         "tone": {"value":"neutral"}
        },
-       "operatingIncome": {"value":{"value":612000000},"change":{"value":0.33916849015317285},"tone":{"value":"good"}},
+       "operatingIncome": {"latest":{"value":612000000},"change":{"value":0.33916849015317285},"tone":{"value":"good"}},
        "operatingMargin": {
-        "value": {"value":0.3075376884422111},
+        "latest": {"value":0.3075376884422111},
         "previous": {"value":0.25731981981981983},
-        "change": {"value":0.05021786862239125}
+        "change": {"value":0.05021786862239125},
+        "tone": {"value":"good"}
        },
-       "eps": {"value":{"value":2.75},"change":{"value":0.12244897959183665},"tone":{"value":"good"}},
-       "freeCashFlow": {"value":{"value":293000000},"change":{"value":-0.3105882352941176},"tone":{"value":"bad"}},
-       "dilutedShares": {"value":{"value":192000000},"change":{"value":-0.02003151537814518},"tone":{"value":"good"}}
+       "eps": {"latest":{"value":2.75},"change":{"value":0.12244897959183665},"tone":{"value":"good"}},
+       "freeCashFlow": {"latest":{"value":293000000},"change":{"value":-0.3105882352941176},"tone":{"value":"bad"}},
+       "dilutedShares": {
+        "latest": {"value":192000000},
+        "change": {"value":-0.02003151537814518},
+        "tone": {"value":"good"}
+       }
       }
      },
      "compare": {
@@ -49488,22 +49561,22 @@
     "peNow": {"value":4.62962962962963},
     "exitPe": {
      "mode": "estimated",
-     "inUse": {"value":{"value":6,"rule":"lowPeKeep"}},
-     "estimate": {"value":{"value":6,"rule":"lowPeKeep"}},
+     "inUse": {"value":{"pe":6,"rule":"lowPeKeep"}},
+     "estimate": {"value":{"pe":6,"rule":"lowPeKeep"}},
      "g0": {"value":0.15950428064100572},
      "gExit": {"value":0.10975214032050286},
-     "typical": {"value":{"value":22.84263959390863},"months":36,"points":13},
+     "typical": {"pe":{"value":22.84263959390863},"months":36,"points":13},
      "peNowVsTypical": {"value":"below"},
      "vsNow": {"value":"higher"},
      "sliderMax": 45
     },
     "baselines": {
      "active": "weighted",
-     "value": {"value":0.15950428064100572},
+     "growth": {"value":0.15950428064100572},
      "weighted": {"value":0.15950428064100572},
      "today": {"value":0.12244897959183665},
      "trailing": {
-      "value": {"value":0.16756756756756763},
+      "growth": {"value":0.16756756756756763},
       "months": 12,
       "maxMonths": 45,
       "fromTtm": {"value":9.25},
@@ -50860,7 +50933,7 @@
      ],
      "scale": {"min":0,"max":0.8,"step":0.1},
      "typicalRequired": {"value":0.6117169553050302},
-     "peak": {"value":{"index":8,"value":0.7204171177048944}},
+     "peak": {"value":{"index":8,"growth":0.7204171177048944}},
      "requiredAboveDelivered": 11,
      "compared": 11
     },
@@ -51231,21 +51304,30 @@
       "value": {
        "label": "Q3 FY26",
        "compareLabel": "Q3 FY25",
-       "revenue": {"value":{"value":1990000000},"change":{"value":0.12049549549549554},"tone":{"value":"good"}},
+       "revenue": {
+        "latest": {"value":1990000000},
+        "change": {"value":0.12049549549549554},
+        "tone": {"value":"good"}
+       },
        "operatingCosts": {
-        "value": {"value":1378000000},
+        "latest": {"value":1378000000},
         "change": {"value":0.04473085670962851},
         "tone": {"value":"neutral"}
        },
-       "operatingIncome": {"value":{"value":612000000},"change":{"value":0.33916849015317285},"tone":{"value":"good"}},
+       "operatingIncome": {"latest":{"value":612000000},"change":{"value":0.33916849015317285},"tone":{"value":"good"}},
        "operatingMargin": {
-        "value": {"value":0.3075376884422111},
+        "latest": {"value":0.3075376884422111},
         "previous": {"value":0.25731981981981983},
-        "change": {"value":0.05021786862239125}
+        "change": {"value":0.05021786862239125},
+        "tone": {"value":"good"}
        },
-       "eps": {"value":{"value":2.75},"change":{"value":0.12244897959183665},"tone":{"value":"good"}},
-       "freeCashFlow": {"value":{"value":293000000},"change":{"value":-0.3105882352941176},"tone":{"value":"bad"}},
-       "dilutedShares": {"value":{"value":192000000},"change":{"value":-0.02003151537814518},"tone":{"value":"good"}}
+       "eps": {"latest":{"value":2.75},"change":{"value":0.12244897959183665},"tone":{"value":"good"}},
+       "freeCashFlow": {"latest":{"value":293000000},"change":{"value":-0.3105882352941176},"tone":{"value":"bad"}},
+       "dilutedShares": {
+        "latest": {"value":192000000},
+        "change": {"value":-0.02003151537814518},
+        "tone": {"value":"good"}
+       }
       }
      },
      "compare": {
@@ -51695,18 +51777,18 @@
      "estimate": {"value":null,"reason":"needs_positive_eps"},
      "g0": {"value":0.15950428064100572},
      "gExit": {"value":0.10975214032050286},
-     "typical": {"value":{"value":22.934477691691157},"months":36,"points":12},
+     "typical": {"pe":{"value":22.934477691691157},"months":36,"points":12},
      "peNowVsTypical": {"value":null,"reason":"needs_positive_eps"},
      "vsNow": {"value":null,"reason":"needs_positive_eps"},
      "sliderMax": 45
     },
     "baselines": {
      "active": "weighted",
-     "value": {"value":0.15950428064100572},
+     "growth": {"value":0.15950428064100572},
      "weighted": {"value":0.15950428064100572},
      "today": {"value":0.12244897959183665},
      "trailing": {
-      "value": {"value":0.16756756756756763},
+      "growth": {"value":0.16756756756756763},
       "months": 12,
       "maxMonths": 45,
       "fromTtm": {"value":9.25},
@@ -52385,21 +52467,30 @@
       "value": {
        "label": "Q3 FY26",
        "compareLabel": "Q3 FY25",
-       "revenue": {"value":{"value":1990000000},"change":{"value":0.12049549549549554},"tone":{"value":"good"}},
+       "revenue": {
+        "latest": {"value":1990000000},
+        "change": {"value":0.12049549549549554},
+        "tone": {"value":"good"}
+       },
        "operatingCosts": {
-        "value": {"value":1378000000},
+        "latest": {"value":1378000000},
         "change": {"value":0.04473085670962851},
         "tone": {"value":"neutral"}
        },
-       "operatingIncome": {"value":{"value":612000000},"change":{"value":0.33916849015317285},"tone":{"value":"good"}},
+       "operatingIncome": {"latest":{"value":612000000},"change":{"value":0.33916849015317285},"tone":{"value":"good"}},
        "operatingMargin": {
-        "value": {"value":0.3075376884422111},
+        "latest": {"value":0.3075376884422111},
         "previous": {"value":0.25731981981981983},
-        "change": {"value":0.05021786862239125}
+        "change": {"value":0.05021786862239125},
+        "tone": {"value":"good"}
        },
-       "eps": {"value":{"value":2.75},"change":{"value":0.12244897959183665},"tone":{"value":"good"}},
-       "freeCashFlow": {"value":{"value":293000000},"change":{"value":-0.3105882352941176},"tone":{"value":"bad"}},
-       "dilutedShares": {"value":{"value":192000000},"change":{"value":-0.02003151537814518},"tone":{"value":"good"}}
+       "eps": {"latest":{"value":2.75},"change":{"value":0.12244897959183665},"tone":{"value":"good"}},
+       "freeCashFlow": {"latest":{"value":293000000},"change":{"value":-0.3105882352941176},"tone":{"value":"bad"}},
+       "dilutedShares": {
+        "latest": {"value":192000000},
+        "change": {"value":-0.02003151537814518},
+        "tone": {"value":"good"}
+       }
       }
      },
      "compare": {
@@ -52849,22 +52940,22 @@
     "peNow": {"value":25},
     "exitPe": {
      "mode": "estimated",
-     "inUse": {"value":{"value":23,"rule":"fade"}},
-     "estimate": {"value":{"value":23,"rule":"fade"}},
+     "inUse": {"value":{"pe":23,"rule":"fade"}},
+     "estimate": {"value":{"pe":23,"rule":"fade"}},
      "g0": {"value":0.15950428064100572},
      "gExit": {"value":0.13897659988243571},
-     "typical": {"value":{"value":23.026315789473685},"months":36,"points":13},
+     "typical": {"pe":{"value":23.026315789473685},"months":36,"points":13},
      "peNowVsTypical": {"value":"close"},
      "vsNow": {"value":"lower"},
      "sliderMax": 45
     },
     "baselines": {
      "active": "weighted",
-     "value": {"value":0.15950428064100572},
+     "growth": {"value":0.15950428064100572},
      "weighted": {"value":0.15950428064100572},
      "today": {"value":0.12244897959183665},
      "trailing": {
-      "value": {"value":0.16756756756756763},
+      "growth": {"value":0.16756756756756763},
       "months": 12,
       "maxMonths": 45,
       "fromTtm": {"value":9.25},
@@ -54345,7 +54436,7 @@
      ],
      "scale": {"min":-0.2,"max":0.4,"step":0.1},
      "typicalRequired": {"value":0.15131578947368407},
-     "peak": {"value":{"index":8,"value":0.32432432432432434}},
+     "peak": {"value":{"index":8,"growth":0.32432432432432434}},
      "requiredAboveDelivered": 4,
      "compared": 12
     },
@@ -54716,21 +54807,30 @@
       "value": {
        "label": "Q3 FY26",
        "compareLabel": "Q3 FY25",
-       "revenue": {"value":{"value":1990000000},"change":{"value":0.12049549549549554},"tone":{"value":"good"}},
+       "revenue": {
+        "latest": {"value":1990000000},
+        "change": {"value":0.12049549549549554},
+        "tone": {"value":"good"}
+       },
        "operatingCosts": {
-        "value": {"value":1378000000},
+        "latest": {"value":1378000000},
         "change": {"value":0.04473085670962851},
         "tone": {"value":"neutral"}
        },
-       "operatingIncome": {"value":{"value":612000000},"change":{"value":0.33916849015317285},"tone":{"value":"good"}},
+       "operatingIncome": {"latest":{"value":612000000},"change":{"value":0.33916849015317285},"tone":{"value":"good"}},
        "operatingMargin": {
-        "value": {"value":0.3075376884422111},
+        "latest": {"value":0.3075376884422111},
         "previous": {"value":0.25731981981981983},
-        "change": {"value":0.05021786862239125}
+        "change": {"value":0.05021786862239125},
+        "tone": {"value":"good"}
        },
-       "eps": {"value":{"value":2.75},"change":{"value":0.12244897959183665},"tone":{"value":"good"}},
-       "freeCashFlow": {"value":{"value":293000000},"change":{"value":-0.3105882352941176},"tone":{"value":"bad"}},
-       "dilutedShares": {"value":{"value":192000000},"change":{"value":-0.02003151537814518},"tone":{"value":"good"}}
+       "eps": {"latest":{"value":2.75},"change":{"value":0.12244897959183665},"tone":{"value":"good"}},
+       "freeCashFlow": {"latest":{"value":293000000},"change":{"value":-0.3105882352941176},"tone":{"value":"bad"}},
+       "dilutedShares": {
+        "latest": {"value":192000000},
+        "change": {"value":-0.02003151537814518},
+        "tone": {"value":"good"}
+       }
       }
      },
      "compare": {
@@ -55335,22 +55435,22 @@
     "peNow": {"value":25},
     "exitPe": {
      "mode": "estimated",
-     "inUse": {"value":{"value":16,"rule":"fade"}},
-     "estimate": {"value":{"value":16,"rule":"fade"}},
+     "inUse": {"value":{"pe":16,"rule":"fade"}},
+     "estimate": {"value":{"pe":16,"rule":"fade"}},
      "g0": {"value":0.15950428064100572},
      "gExit": {"value":0.06987207498530446},
-     "typical": {"value":{"value":23.026315789473685},"months":36,"points":13},
+     "typical": {"pe":{"value":23.026315789473685},"months":36,"points":13},
      "peNowVsTypical": {"value":"close"},
      "vsNow": {"value":"lower"},
      "sliderMax": 45
     },
     "baselines": {
      "active": "weighted",
-     "value": {"value":0.15950428064100572},
+     "growth": {"value":0.15950428064100572},
      "weighted": {"value":0.15950428064100572},
      "today": {"value":0.12244897959183665},
      "trailing": {
-      "value": {"value":0.16756756756756763},
+      "growth": {"value":0.16756756756756763},
       "months": 12,
       "maxMonths": 45,
       "fromTtm": {"value":9.25},
@@ -57101,7 +57201,7 @@
      ],
      "scale": {"min":0,"max":0.30000000000000004,"step":0.05},
      "typicalRequired": {"value":0.19263702496984592},
-     "peak": {"value":{"index":8,"value":0.20945099808235335}},
+     "peak": {"value":{"index":8,"growth":0.20945099808235335}},
      "requiredAboveDelivered": 6,
      "compared": 12
     },
@@ -57733,21 +57833,30 @@
       "value": {
        "label": "Q3 FY26",
        "compareLabel": "Q3 FY25",
-       "revenue": {"value":{"value":1990000000},"change":{"value":0.12049549549549554},"tone":{"value":"good"}},
+       "revenue": {
+        "latest": {"value":1990000000},
+        "change": {"value":0.12049549549549554},
+        "tone": {"value":"good"}
+       },
        "operatingCosts": {
-        "value": {"value":1378000000},
+        "latest": {"value":1378000000},
         "change": {"value":0.04473085670962851},
         "tone": {"value":"neutral"}
        },
-       "operatingIncome": {"value":{"value":612000000},"change":{"value":0.33916849015317285},"tone":{"value":"good"}},
+       "operatingIncome": {"latest":{"value":612000000},"change":{"value":0.33916849015317285},"tone":{"value":"good"}},
        "operatingMargin": {
-        "value": {"value":0.3075376884422111},
+        "latest": {"value":0.3075376884422111},
         "previous": {"value":0.25731981981981983},
-        "change": {"value":0.05021786862239125}
+        "change": {"value":0.05021786862239125},
+        "tone": {"value":"good"}
        },
-       "eps": {"value":{"value":2.75},"change":{"value":0.12244897959183665},"tone":{"value":"good"}},
-       "freeCashFlow": {"value":{"value":293000000},"change":{"value":-0.3105882352941176},"tone":{"value":"bad"}},
-       "dilutedShares": {"value":{"value":192000000},"change":{"value":-0.02003151537814518},"tone":{"value":"good"}}
+       "eps": {"latest":{"value":2.75},"change":{"value":0.12244897959183665},"tone":{"value":"good"}},
+       "freeCashFlow": {"latest":{"value":293000000},"change":{"value":-0.3105882352941176},"tone":{"value":"bad"}},
+       "dilutedShares": {
+        "latest": {"value":192000000},
+        "change": {"value":-0.02003151537814518},
+        "tone": {"value":"good"}
+       }
       }
      },
      "compare": {
@@ -58193,22 +58302,22 @@
     "peNow": {"value":33.33333333333333},
     "exitPe": {
      "mode": "estimated",
-     "inUse": {"value":{"value":30.5,"rule":"slowGrowerTypical"}},
-     "estimate": {"value":{"value":30.5,"rule":"slowGrowerTypical"}},
+     "inUse": {"value":{"pe":30.5,"rule":"slowGrowerTypical"}},
+     "estimate": {"value":{"pe":30.5,"rule":"slowGrowerTypical"}},
      "g0": {"value":-0.2055547627123673},
      "gExit": {"value":-0.07277738135618367},
-     "typical": {"value":{"value":30.538224202948236},"months":36,"points":13},
+     "typical": {"pe":{"value":30.538224202948236},"months":36,"points":13},
      "peNowVsTypical": {"value":"close"},
      "vsNow": {"value":"lower"},
      "sliderMax": 45
     },
     "baselines": {
      "active": "weighted",
-     "value": {"value":-0.2055547627123673},
+     "growth": {"value":-0.2055547627123673},
      "weighted": {"value":-0.2055547627123673},
      "today": {"value":-0.23684210526315796},
      "trailing": {
-      "value": {"value":-0.21795827123695977},
+      "growth": {"value":-0.21795827123695977},
       "months": 12,
       "maxMonths": 45,
       "fromTtm": {"value":2.684},
@@ -59692,7 +59801,7 @@
      ],
      "scale": {"min":-0.30000000000000004,"max":0.2,"step":0.1},
      "typicalRequired": {"value":0.1504802129261531},
-     "peak": {"value":{"index":12,"value":0.18456112453378992}},
+     "peak": {"value":{"index":12,"growth":0.18456112453378992}},
      "requiredAboveDelivered": 12,
      "compared": 12
     },
@@ -60081,22 +60190,31 @@
       "value": {
        "label": "Q3 FY26",
        "compareLabel": "Q3 FY25",
-       "revenue": {"value":{"value":11034000000},"change":{"value":-0.2741744507301671},"tone":{"value":"bad"}},
+       "revenue": {
+        "latest": {"value":11034000000},
+        "change": {"value":-0.2741744507301671},
+        "tone": {"value":"bad"}
+       },
        "operatingCosts": {
-        "value": {"value":10151000000},
+        "latest": {"value":10151000000},
         "change": {"value":-0.25568265141516355},
         "tone": {"value":"warn"}
        },
-       "operatingIncome": {"value":{"value":883000000},"change":{"value":-0.4354219948849105},"tone":{"value":"bad"}},
+       "operatingIncome": {"latest":{"value":883000000},"change":{"value":-0.4354219948849105},"tone":{"value":"bad"}},
        "operatingMargin": {
-        "value": {"value":0.08002537611020483},
+        "latest": {"value":0.08002537611020483},
         "previous": {"value":0.10288119984212604},
-        "change": {"value":-0.022855823731921215}
+        "change": {"value":-0.022855823731921215},
+        "tone": {"value":"bad"}
        },
-       "eps": {"value":{"value":0.522},"change":{"value":-0.23684210526315796},"tone":{"value":"bad"}},
-       "freeCashFlow": {"value":{"value":1111000000},"change":{"value":-0.19141193595342065},"tone":{"value":"bad"}},
+       "eps": {"latest":{"value":0.522},"change":{"value":-0.23684210526315796},"tone":{"value":"bad"}},
+       "freeCashFlow": {
+        "latest": {"value":1111000000},
+        "change": {"value":-0.19141193595342065},
+        "tone": {"value":"bad"}
+       },
        "dilutedShares": {
-        "value": {"value":1480000000},
+        "latest": {"value":1480000000},
         "change": {"value":-0.04833755705024245},
         "tone": {"value":"good"}
        }
@@ -60545,22 +60663,22 @@
     "peNow": {"value":23.72881355932203},
     "exitPe": {
      "mode": "estimated",
-     "inUse": {"value":{"value":23.5,"rule":"slowGrowerKeep"}},
-     "estimate": {"value":{"value":23.5,"rule":"slowGrowerKeep"}},
+     "inUse": {"value":{"pe":23.5,"rule":"slowGrowerKeep"}},
+     "estimate": {"value":{"pe":23.5,"rule":"slowGrowerKeep"}},
      "g0": {"value":0.05220919777380679},
      "gExit": {"value":0.05610459888690339},
-     "typical": {"value":{"value":23.329393223010246},"months":36,"points":13},
+     "typical": {"pe":{"value":23.329393223010246},"months":36,"points":13},
      "peNowVsTypical": {"value":"close"},
      "vsNow": {"value":"same"},
      "sliderMax": 45
     },
     "baselines": {
      "active": "weighted",
-     "value": {"value":0.05220919777380679},
+     "growth": {"value":0.05220919777380679},
      "weighted": {"value":0.05220919777380679},
      "today": {"value":0.04415954415954415},
      "trailing": {
-      "value": {"value":0.052068473609129695},
+      "growth": {"value":0.052068473609129695},
       "months": 12,
       "maxMonths": 45,
       "fromTtm": {"value":2.8040000000000003},
@@ -62115,7 +62233,7 @@
      ],
      "scale": {"min":0,"max":0.2,"step":0.05},
      "typicalRequired": {"value":0.14721029067381797},
-     "peak": {"value":{"index":8,"value":0.1666628331076203}},
+     "peak": {"value":{"index":8,"growth":0.1666628331076203}},
      "requiredAboveDelivered": 12,
      "compared": 12
     },
@@ -62487,29 +62605,34 @@
        "label": "Q3 FY26",
        "compareLabel": "Q3 FY25",
        "revenue": {
-        "value": {"value":12609000000},
+        "latest": {"value":12609000000},
         "change": {"value":0.04043237890915097},
         "tone": {"value":"good"}
        },
        "operatingCosts": {
-        "value": {"value":8826000000},
+        "latest": {"value":8826000000},
         "change": {"value":0.03203928905519171},
         "tone": {"value":"neutral"}
        },
        "operatingIncome": {
-        "value": {"value":3783000000},
+        "latest": {"value":3783000000},
         "change": {"value":0.060555088309503846},
         "tone": {"value":"good"}
        },
        "operatingMargin": {
-        "value": {"value":0.30002379252914585},
+        "latest": {"value":0.30002379252914585},
         "previous": {"value":0.29433121544681906},
-        "change": {"value":0.0056925770823267885}
+        "change": {"value":0.0056925770823267885},
+        "tone": {"value":"good"}
        },
-       "eps": {"value":{"value":0.733},"change":{"value":0.04415954415954415},"tone":{"value":"good"}},
-       "freeCashFlow": {"value":{"value":3293000000},"change":{"value":0.38245172124265325},"tone":{"value":"good"}},
+       "eps": {"latest":{"value":0.733},"change":{"value":0.04415954415954415},"tone":{"value":"good"}},
+       "freeCashFlow": {
+        "latest": {"value":3293000000},
+        "change": {"value":0.38245172124265325},
+        "tone": {"value":"good"}
+       },
        "dilutedShares": {
-        "value": {"value":4300000000},
+        "latest": {"value":4300000000},
         "change": {"value":-0.003994003964223336},
         "tone": {"value":"good"}
        }
@@ -62958,22 +63081,22 @@
     "peNow": {"value":300},
     "exitPe": {
      "mode": "estimated",
-     "inUse": {"value":{"value":157.5,"rule":"fade"}},
-     "estimate": {"value":{"value":157.5,"rule":"fade"}},
+     "inUse": {"value":{"pe":157.5,"rule":"fade"}},
+     "estimate": {"value":{"pe":157.5,"rule":"fade"}},
      "g0": {"value":0.7326294757158881},
      "gExit": {"value":0.3963147378579441},
-     "typical": {"value":{"value":209.4244604316547},"months":36,"points":13},
+     "typical": {"pe":{"value":209.4244604316547},"months":36,"points":13},
      "peNowVsTypical": {"value":"above"},
      "vsNow": {"value":"lower"},
      "sliderMax": 390
     },
     "baselines": {
      "active": "weighted",
-     "value": {"value":0.7326294757158881},
+     "growth": {"value":0.7326294757158881},
      "weighted": {"value":0.7326294757158881},
      "today": {"value":0.8045977011494254},
      "trailing": {
-      "value": {"value":0.7463556851311954},
+      "growth": {"value":0.7463556851311954},
       "months": 12,
       "maxMonths": 45,
       "fromTtm": {"value":0.34299999999999997},
@@ -64310,7 +64433,7 @@
      ],
      "scale": {"min":0,"max":0.8,"step":0.1},
      "typicalRequired": {"value":0.26458139894218835},
-     "peak": {"value":{"index":12,"value":0.4255356167545148}},
+     "peak": {"value":{"index":12,"growth":0.4255356167545148}},
      "requiredAboveDelivered": 0,
      "compared": 12
     },
@@ -64689,21 +64812,22 @@
       "value": {
        "label": "Q3 FY26",
        "compareLabel": "Q3 FY25",
-       "revenue": {"value":{"value":1317000000},"change":{"value":0.8841201716738198},"tone":{"value":"good"}},
+       "revenue": {"latest":{"value":1317000000},"change":{"value":0.8841201716738198},"tone":{"value":"good"}},
        "operatingCosts": {
-        "value": {"value":922000000},
+        "latest": {"value":922000000},
         "change": {"value":0.6794171220400729},
         "tone": {"value":"neutral"}
        },
-       "operatingIncome": {"value":{"value":395000000},"change":{"value":1.6333333333333333},"tone":{"value":"good"}},
+       "operatingIncome": {"latest":{"value":395000000},"change":{"value":1.6333333333333333},"tone":{"value":"good"}},
        "operatingMargin": {
-        "value": {"value":0.2999240698557327},
+        "latest": {"value":0.2999240698557327},
         "previous": {"value":0.2145922746781116},
-        "change": {"value":0.08533179517762113}
+        "change": {"value":0.08533179517762113},
+        "tone": {"value":"good"}
        },
-       "eps": {"value":{"value":0.157},"change":{"value":0.8045977011494254},"tone":{"value":"good"}},
-       "freeCashFlow": {"value":{"value":557000000},"change":{"value":0.8443708609271523},"tone":{"value":"good"}},
-       "dilutedShares": {"value":{"value":2350000000},"change":{"value":0.04060400978555667},"tone":{"value":"bad"}}
+       "eps": {"latest":{"value":0.157},"change":{"value":0.8045977011494254},"tone":{"value":"good"}},
+       "freeCashFlow": {"latest":{"value":557000000},"change":{"value":0.8443708609271523},"tone":{"value":"good"}},
+       "dilutedShares": {"latest":{"value":2350000000},"change":{"value":0.04060400978555667},"tone":{"value":"bad"}}
       }
      },
      "compare": {
@@ -65149,22 +65273,22 @@
     "peNow": {"value":55},
     "exitPe": {
      "mode": "estimated",
-     "inUse": {"value":{"value":35,"rule":"fade"}},
-     "estimate": {"value":{"value":35,"rule":"fade"}},
+     "inUse": {"value":{"pe":35,"rule":"fade"}},
+     "estimate": {"value":{"pe":35,"rule":"fade"}},
      "g0": {"value":0.3943072443698561},
      "gExit": {"value":0.22715362218492804},
-     "typical": {"value":{"value":62.511312217194565},"months":36,"points":13},
+     "typical": {"pe":{"value":62.511312217194565},"months":36,"points":13},
      "peNowVsTypical": {"value":"below"},
      "vsNow": {"value":"lower"},
      "sliderMax": 75
     },
     "baselines": {
      "active": "weighted",
-     "value": {"value":0.3943072443698561},
+     "growth": {"value":0.3943072443698561},
      "weighted": {"value":0.3943072443698561},
      "today": {"value":0.43933823529411753},
      "trailing": {
-      "value": {"value":0.406000937646507},
+      "growth": {"value":0.406000937646507},
       "months": 12,
       "maxMonths": 45,
       "fromTtm": {"value":2.133},
@@ -66500,7 +66624,7 @@
      ],
      "scale": {"min":0,"max":0.5,"step":0.1},
      "typicalRequired": {"value":0.39527998397334807},
-     "peak": {"value":{"index":0,"value":0.4608951689654761}},
+     "peak": {"value":{"index":0,"growth":0.4608951689654761}},
      "requiredAboveDelivered": 10,
      "compared": 12
     },
@@ -66871,21 +66995,34 @@
       "value": {
        "label": "Q3 FY26",
        "compareLabel": "Q3 FY25",
-       "revenue": {"value":{"value":10575000000},"change":{"value":0.4582184225041368},"tone":{"value":"good"}},
+       "revenue": {
+        "latest": {"value":10575000000},
+        "change": {"value":0.4582184225041368},
+        "tone": {"value":"good"}
+       },
        "operatingCosts": {
-        "value": {"value":9094000000},
+        "latest": {"value":9094000000},
         "change": {"value":0.420271747618304},
         "tone": {"value":"neutral"}
        },
-       "operatingIncome": {"value":{"value":1481000000},"change":{"value":0.7444051825677267},"tone":{"value":"good"}},
+       "operatingIncome": {"latest":{"value":1481000000},"change":{"value":0.7444051825677267},"tone":{"value":"good"}},
        "operatingMargin": {
-        "value": {"value":0.14004728132387706},
+        "latest": {"value":0.14004728132387706},
         "previous": {"value":0.1170711527854385},
-        "change": {"value":0.022976128538438556}
+        "change": {"value":0.022976128538438556},
+        "tone": {"value":"good"}
        },
-       "eps": {"value":{"value":0.783},"change":{"value":0.43933823529411753},"tone":{"value":"good"}},
-       "freeCashFlow": {"value":{"value":2103000000},"change":{"value":0.25477326968973757},"tone":{"value":"good"}},
-       "dilutedShares": {"value":{"value":1620000000},"change":{"value":0.012054107936057878},"tone":{"value":"bad"}}
+       "eps": {"latest":{"value":0.783},"change":{"value":0.43933823529411753},"tone":{"value":"good"}},
+       "freeCashFlow": {
+        "latest": {"value":2103000000},
+        "change": {"value":0.25477326968973757},
+        "tone": {"value":"good"}
+       },
+       "dilutedShares": {
+        "latest": {"value":1620000000},
+        "change": {"value":0.012054107936057878},
+        "tone": {"value":"bad"}
+       }
       }
      },
      "compare": {
@@ -67188,22 +67325,22 @@
     "peNow": {"value":25},
     "exitPe": {
      "mode": "estimated",
-     "inUse": {"value":{"value":20,"rule":"fade"}},
-     "estimate": {"value":{"value":20,"rule":"fade"}},
+     "inUse": {"value":{"pe":20,"rule":"fade"}},
+     "estimate": {"value":{"pe":20,"rule":"fade"}},
      "g0": {"value":0.1257568075078597},
      "gExit": {"value":0.09287840375392985},
-     "typical": {"value":{"value":24.285714285714285},"months":36,"points":3},
+     "typical": {"pe":{"value":24.285714285714285},"months":36,"points":3},
      "peNowVsTypical": {"value":"close"},
      "vsNow": {"value":"lower"},
      "sliderMax": 45
     },
     "baselines": {
      "active": "weighted",
-     "value": {"value":0.1257568075078597},
+     "growth": {"value":0.1257568075078597},
      "weighted": {"value":0.1257568075078597},
      "today": {"value":0.12244897959183665},
      "trailing": {
-      "value": {"value":0.12110726643598668},
+      "growth": {"value":0.12110726643598668},
       "months": 6,
       "maxMonths": 6,
       "fromTtm": {"value":10.2},
@@ -68523,7 +68660,7 @@
      ],
      "scale": {"min":0,"max":0.25,"step":0.05},
      "typicalRequired": {"value":0.22688767099350904},
-     "peak": {"value":{"index":5,"value":0.23879994676833305}},
+     "peak": {"value":{"index":5,"growth":0.23879994676833305}},
      "requiredAboveDelivered": 0,
      "compared": 0
     },
@@ -68840,21 +68977,30 @@
       "value": {
        "label": "Q3 FY26",
        "compareLabel": "Q3 FY25",
-       "revenue": {"value":{"value":1990000000},"change":{"value":0.12049549549549554},"tone":{"value":"good"}},
+       "revenue": {
+        "latest": {"value":1990000000},
+        "change": {"value":0.12049549549549554},
+        "tone": {"value":"good"}
+       },
        "operatingCosts": {
-        "value": {"value":1378000000},
+        "latest": {"value":1378000000},
         "change": {"value":0.04473085670962851},
         "tone": {"value":"neutral"}
        },
-       "operatingIncome": {"value":{"value":612000000},"change":{"value":0.33916849015317285},"tone":{"value":"good"}},
+       "operatingIncome": {"latest":{"value":612000000},"change":{"value":0.33916849015317285},"tone":{"value":"good"}},
        "operatingMargin": {
-        "value": {"value":0.3075376884422111},
+        "latest": {"value":0.3075376884422111},
         "previous": {"value":0.25731981981981983},
-        "change": {"value":0.05021786862239125}
+        "change": {"value":0.05021786862239125},
+        "tone": {"value":"good"}
        },
-       "eps": {"value":{"value":2.75},"change":{"value":0.12244897959183665},"tone":{"value":"good"}},
-       "freeCashFlow": {"value":{"value":293000000},"change":{"value":-0.3105882352941176},"tone":{"value":"bad"}},
-       "dilutedShares": {"value":{"value":192000000},"change":{"value":-0.02003151537814518},"tone":{"value":"good"}}
+       "eps": {"latest":{"value":2.75},"change":{"value":0.12244897959183665},"tone":{"value":"good"}},
+       "freeCashFlow": {"latest":{"value":293000000},"change":{"value":-0.3105882352941176},"tone":{"value":"bad"}},
+       "dilutedShares": {
+        "latest": {"value":192000000},
+        "change": {"value":-0.02003151537814518},
+        "tone": {"value":"good"}
+       }
       }
      },
      "compare": {
@@ -69043,7 +69189,7 @@
    "note": "v1: typical P/E is the conventional median (the mean of the two middle values for an even count); the prototype takes the upper middle value. v1: the return grid has a row at the exact baseline growth, tagged with its baseline, and the YOU cell sits in it; the prototype marks the nearest row. v1: the earnings-path scale covers every plotted point, including intermediate points and negative TTM EPS; the prototype uses only the end points and clamps the minimum at 0. v1: 12-month EPS growth compares the TTM EPS known on a day with the TTM EPS known 365 days earlier; the prototype uses the TTM of four quarters earlier, which is the same value without a reporting lag. v1: the daily P/E is null when TTM EPS is not positive; the prototype divides anyway. v1: the typical required growth over the period is the conventional median, like the typical P/E. v1: the count of quarters where the price asked for more than was delivered compares only quarters with both values. v1: correlations skip quarters where either change is missing; the prototype has no missing data. v1: bar scales include negative values and zero; the prototype assumes positive values. v1: the trailing look-back is limited by the available history; the prototype caps it at 45 months, the limit of its 19 demo quarters. v1: the typical P/E window starts at the first quarter when the history is shorter than the look-back."
   },
   {
-   "name": "evaluate a custom exit P/E of zero",
+   "name": "evaluate today's P/E that rounds to zero",
    "fn": "evaluate",
    "input": {
     "history": {
@@ -69261,37 +69407,37 @@
      "daily": []
     },
     "levers": {
-     "price": 270,
-     "ttmEps": 10.8,
+     "price": 1,
+     "ttmEps": 10,
      "dividend": 0,
      "targetReturn": 0.15,
      "holdingYears": 3,
-     "exitPe": {"mode":"custom","custom":0,"trailingMonths":36},
+     "exitPe": {"mode":"today","trailingMonths":36},
      "baseline": {"mode":"weighted","trailingMonths":12},
      "scenarios": [],
      "chartRange": "3Y"
     }
    },
    "expected": {
-    "peNow": {"value":25},
+    "peNow": {"value":0.1},
     "exitPe": {
-     "mode": "custom",
+     "mode": "today",
      "inUse": {"value":null,"reason":"needs_positive_eps"},
-     "estimate": {"value":{"value":20,"rule":"fade"}},
+     "estimate": {"value":{"pe":6,"rule":"lowPeKeep"}},
      "g0": {"value":0.15950428064100572},
      "gExit": {"value":0.10975214032050286},
-     "typical": {"value":{"value":23.026315789473685},"months":36,"points":13},
-     "peNowVsTypical": {"value":"close"},
+     "typical": {"pe":{"value":22.84263959390863},"months":36,"points":13},
+     "peNowVsTypical": {"value":"below"},
      "vsNow": {"value":null,"reason":"needs_positive_eps"},
      "sliderMax": 45
     },
     "baselines": {
      "active": "weighted",
-     "value": {"value":0.15950428064100572},
+     "growth": {"value":0.15950428064100572},
      "weighted": {"value":0.15950428064100572},
      "today": {"value":0.12244897959183665},
      "trailing": {
-      "value": {"value":0.16756756756756763},
+      "growth": {"value":0.16756756756756763},
       "months": 12,
       "maxMonths": 45,
       "fromTtm": {"value":9.25},
@@ -69584,97 +69730,97 @@
        {
         "quartersAhead": 0,
         "label": "Q3 FY26",
-        "baseline": {"value":10.8},
+        "baseline": {"value":10},
         "required": {"value":null,"reason":"needs_positive_eps"},
         "gap": {"value":null,"reason":"needs_positive_eps"}
        },
        {
         "quartersAhead": 1,
         "label": "Q4 FY26",
-        "baseline": {"value":11.2070638065268},
+        "baseline": {"value":10.37691093196926},
         "required": {"value":null,"reason":"needs_positive_eps"},
         "gap": {"value":null,"reason":"needs_positive_eps"}
        },
        {
         "quartersAhead": 2,
         "label": "Q1 FY27",
-        "baseline": {"value":11.6294702929225},
+        "baseline": {"value":10.768028049002314},
         "required": {"value":null,"reason":"needs_positive_eps"},
         "gap": {"value":null,"reason":"needs_positive_eps"}
        },
        {
         "quartersAhead": 3,
         "label": "Q2 FY27",
-        "baseline": {"value":12.067797741563924},
+        "baseline": {"value":11.173886797744373},
         "required": {"value":null,"reason":"needs_positive_eps"},
         "gap": {"value":null,"reason":"needs_positive_eps"}
        },
        {
         "quartersAhead": 4,
         "label": "Q3 FY27",
-        "baseline": {"value":12.522646230922861},
+        "baseline": {"value":11.595042806410056},
         "required": {"value":null,"reason":"needs_positive_eps"},
         "gap": {"value":null,"reason":"needs_positive_eps"}
        },
        {
         "quartersAhead": 5,
         "label": "Q4 FY27",
-        "baseline": {"value":12.994638457084708},
+        "baseline": {"value":12.032072645448803},
         "required": {"value":null,"reason":"needs_positive_eps"},
         "gap": {"value":null,"reason":"needs_positive_eps"}
        },
        {
         "quartersAhead": 6,
         "label": "Q1 FY28",
-        "baseline": {"value":13.484420586231048},
+        "baseline": {"value":12.4855746168806},
         "required": {"value":null,"reason":"needs_positive_eps"},
         "gap": {"value":null,"reason":"needs_positive_eps"}
        },
        {
         "quartersAhead": 7,
         "label": "Q2 FY28",
-        "baseline": {"value":13.99266313925323},
+        "baseline": {"value":12.956169573382619},
         "required": {"value":null,"reason":"needs_positive_eps"},
         "gap": {"value":null,"reason":"needs_positive_eps"}
        },
        {
         "quartersAhead": 8,
         "label": "Q3 FY28",
-        "baseline": {"value":14.520061909708014},
+        "baseline": {"value":13.444501768248161},
         "required": {"value":null,"reason":"needs_positive_eps"},
         "gap": {"value":null,"reason":"needs_positive_eps"}
        },
        {
         "quartersAhead": 9,
         "label": "Q4 FY28",
-        "baseline": {"value":15.067338916371954},
+        "baseline": {"value":13.951239737381439},
         "required": {"value":null,"reason":"needs_positive_eps"},
         "gap": {"value":null,"reason":"needs_positive_eps"}
        },
        {
         "quartersAhead": 10,
         "label": "Q1 FY29",
-        "baseline": {"value":15.635243391698598},
+        "baseline": {"value":14.477077214535738},
         "required": {"value":null,"reason":"needs_positive_eps"},
         "gap": {"value":null,"reason":"needs_positive_eps"}
        },
        {
         "quartersAhead": 11,
         "label": "Q2 FY29",
-        "baseline": {"value":16.22455280753173},
+        "baseline": {"value":15.022734081047897},
         "required": {"value":null,"reason":"needs_positive_eps"},
         "gap": {"value":null,"reason":"needs_positive_eps"}
        },
        {
         "quartersAhead": 12,
         "label": "Q3 FY29",
-        "baseline": {"value":16.836073939478855},
+        "baseline": {"value":15.58895735136931},
         "required": {"value":null,"reason":"needs_positive_eps"},
         "gap": {"value":null,"reason":"needs_positive_eps"}
        }
       ],
       "gapTone": {"value":null,"reason":"needs_positive_eps"},
-      "scale": {"min":4,"max":17.50951689705801,"step":2}
+      "scale": {"min":4,"max":16.21251564542408,"step":2}
      }
     },
     "howDemanding": {
@@ -69803,9 +69949,9 @@
        "label": "Q3 FY26",
        "periodEnd": "2026-09-30",
        "today": true,
-       "price": {"value":270},
-       "ttmEps": {"value":10.8},
-       "pe": {"value":25},
+       "price": {"value":1},
+       "ttmEps": {"value":10},
+       "pe": {"value":0.1},
        "required": {"value":null,"reason":"needs_positive_eps"},
        "delivered": {"value":0.16756756756756763}
       }
@@ -69825,13 +69971,13 @@
        "exitPe": 15,
        "result": {
         "value": {
-         "eps": 14.374800000000006,
-         "exitPrice": 215.6220000000001,
-         "totalReturn": -0.20139999999999958,
-         "yearlyReturn": -0.0722240681680757,
-         "vsTarget": -0.2222240681680757,
-         "tone": "bad",
-         "meetsTarget": false
+         "eps": 13.310000000000004,
+         "exitPrice": 199.65000000000006,
+         "totalReturn": 198.65000000000006,
+         "yearlyReturn": 4.844622130504361,
+         "vsTarget": 4.694622130504361,
+         "tone": "good",
+         "meetsTarget": true
         }
        }
       },
@@ -69841,13 +69987,13 @@
        "exitPe": 20,
        "result": {
         "value": {
-         "eps": 16.857676799999997,
-         "exitPrice": 337.1535359999999,
-         "totalReturn": 0.24871679999999974,
-         "yearlyReturn": 0.07684860939816462,
-         "vsTarget": -0.07315139060183537,
-         "tone": "bad",
-         "meetsTarget": false
+         "eps": 15.608959999999996,
+         "exitPrice": 312.1791999999999,
+         "totalReturn": 311.1791999999999,
+         "yearlyReturn": 5.783721152653848,
+         "vsTarget": 5.633721152653847,
+         "tone": "good",
+         "meetsTarget": true
         }
        }
       },
@@ -69857,19 +70003,19 @@
        "exitPe": 24,
        "result": {
         "value": {
-         "eps": 19.6111584,
-         "exitPrice": 470.6678016,
-         "totalReturn": 0.74321408,
-         "yearlyReturn": 0.20351149227326948,
-         "vsTarget": 0.053511492273269484,
+         "eps": 18.158479999999997,
+         "exitPrice": 435.80351999999993,
+         "totalReturn": 434.80351999999993,
+         "yearlyReturn": 6.581647314527414,
+         "vsTarget": 6.431647314527414,
          "tone": "good",
          "meetsTarget": true
         }
        }
       }
      ],
-     "meetingTarget": ["Bull"],
-     "worstYearlyReturn": {"value":-0.0722240681680757}
+     "meetingTarget": ["Bear","Base","Bull"],
+     "worstYearlyReturn": {"value":4.844622130504361}
     },
     "shareCountEvents": [
      {
@@ -70183,21 +70329,30 @@
       "value": {
        "label": "Q3 FY26",
        "compareLabel": "Q3 FY25",
-       "revenue": {"value":{"value":1990000000},"change":{"value":0.12049549549549554},"tone":{"value":"good"}},
+       "revenue": {
+        "latest": {"value":1990000000},
+        "change": {"value":0.12049549549549554},
+        "tone": {"value":"good"}
+       },
        "operatingCosts": {
-        "value": {"value":1378000000},
+        "latest": {"value":1378000000},
         "change": {"value":0.04473085670962851},
         "tone": {"value":"neutral"}
        },
-       "operatingIncome": {"value":{"value":612000000},"change":{"value":0.33916849015317285},"tone":{"value":"good"}},
+       "operatingIncome": {"latest":{"value":612000000},"change":{"value":0.33916849015317285},"tone":{"value":"good"}},
        "operatingMargin": {
-        "value": {"value":0.3075376884422111},
+        "latest": {"value":0.3075376884422111},
         "previous": {"value":0.25731981981981983},
-        "change": {"value":0.05021786862239125}
+        "change": {"value":0.05021786862239125},
+        "tone": {"value":"good"}
        },
-       "eps": {"value":{"value":2.75},"change":{"value":0.12244897959183665},"tone":{"value":"good"}},
-       "freeCashFlow": {"value":{"value":293000000},"change":{"value":-0.3105882352941176},"tone":{"value":"bad"}},
-       "dilutedShares": {"value":{"value":192000000},"change":{"value":-0.02003151537814518},"tone":{"value":"good"}}
+       "eps": {"latest":{"value":2.75},"change":{"value":0.12244897959183665},"tone":{"value":"good"}},
+       "freeCashFlow": {"latest":{"value":293000000},"change":{"value":-0.3105882352941176},"tone":{"value":"bad"}},
+       "dilutedShares": {
+        "latest": {"value":192000000},
+        "change": {"value":-0.02003151537814518},
+        "tone": {"value":"good"}
+       }
       }
      },
      "compare": {
@@ -70410,6 +70565,2384 @@
    "note": "v1: typical P/E is the conventional median (the mean of the two middle values for an even count); the prototype takes the upper middle value. v1: the return grid has a row at the exact baseline growth, tagged with its baseline, and the YOU cell sits in it; the prototype marks the nearest row. v1: the earnings-path scale covers every plotted point, including intermediate points and negative TTM EPS; the prototype uses only the end points and clamps the minimum at 0. v1: 12-month EPS growth compares the TTM EPS known on a day with the TTM EPS known 365 days earlier; the prototype uses the TTM of four quarters earlier, which is the same value without a reporting lag. v1: the daily P/E is null when TTM EPS is not positive; the prototype divides anyway. v1: the typical required growth over the period is the conventional median, like the typical P/E. v1: the count of quarters where the price asked for more than was delivered compares only quarters with both values. v1: correlations skip quarters where either change is missing; the prototype has no missing data. v1: bar scales include negative values and zero; the prototype assumes positive values. v1: an exit P/E in use of zero or less is missing with reason needs_positive_eps."
   },
   {
+   "name": "evaluate user cases with a zero and a negative exit P/E",
+   "fn": "evaluate",
+   "input": {
+    "history": {
+     "quarters": [
+      {
+       "label": "Q1 FY22",
+       "periodEnd": "2022-03-31",
+       "eps": 1.3,
+       "close": null,
+       "dilutedShares": 194558325,
+       "revenue": null,
+       "operatingIncome": null,
+       "operatingCosts": null,
+       "freeCashFlow": null
+      },
+      {
+       "label": "Q2 FY22",
+       "periodEnd": "2022-06-30",
+       "eps": 1.45,
+       "close": null,
+       "dilutedShares": 194655604,
+       "revenue": null,
+       "operatingIncome": null,
+       "operatingCosts": null,
+       "freeCashFlow": null
+      },
+      {
+       "label": "Q3 FY22",
+       "periodEnd": "2022-09-30",
+       "eps": 1.5,
+       "close": null,
+       "dilutedShares": 194752932,
+       "revenue": null,
+       "operatingIncome": null,
+       "operatingCosts": null,
+       "freeCashFlow": null
+      },
+      {
+       "label": "Q4 FY22",
+       "periodEnd": "2022-12-31",
+       "eps": 1.5,
+       "close": null,
+       "dilutedShares": 194850308,
+       "revenue": null,
+       "operatingIncome": null,
+       "operatingCosts": null,
+       "freeCashFlow": null
+      },
+      {
+       "label": "Q1 FY23",
+       "periodEnd": "2023-03-31",
+       "eps": 1.35,
+       "close": null,
+       "dilutedShares": 194947733,
+       "revenue": null,
+       "operatingIncome": null,
+       "operatingCosts": null,
+       "freeCashFlow": null
+      },
+      {
+       "label": "Q2 FY23",
+       "periodEnd": "2023-06-30",
+       "eps": 1.65,
+       "close": null,
+       "dilutedShares": 195045207,
+       "revenue": null,
+       "operatingIncome": null,
+       "operatingCosts": null,
+       "freeCashFlow": null
+      },
+      {
+       "label": "Q3 FY23",
+       "periodEnd": "2023-09-30",
+       "eps": 1.7,
+       "close": 102,
+       "dilutedShares": 195142730,
+       "revenue": null,
+       "operatingIncome": null,
+       "operatingCosts": null,
+       "freeCashFlow": null
+      },
+      {
+       "label": "Q4 FY23",
+       "periodEnd": "2023-12-31",
+       "eps": 1.85,
+       "close": 128,
+       "dilutedShares": 195240301,
+       "revenue": null,
+       "operatingIncome": null,
+       "operatingCosts": null,
+       "freeCashFlow": null
+      },
+      {
+       "label": "Q1 FY24",
+       "periodEnd": "2024-03-31",
+       "eps": 1.55,
+       "close": 148,
+       "dilutedShares": 195337921,
+       "revenue": null,
+       "operatingIncome": null,
+       "operatingCosts": null,
+       "freeCashFlow": null
+      },
+      {
+       "label": "Q2 FY24",
+       "periodEnd": "2024-06-30",
+       "eps": 2,
+       "close": 162,
+       "dilutedShares": 195435590,
+       "revenue": null,
+       "operatingIncome": null,
+       "operatingCosts": null,
+       "freeCashFlow": null
+      },
+      {
+       "label": "Q3 FY24",
+       "periodEnd": "2024-09-30",
+       "eps": 2.2,
+       "close": 175,
+       "dilutedShares": 195533308,
+       "revenue": null,
+       "operatingIncome": null,
+       "operatingCosts": null,
+       "freeCashFlow": null
+      },
+      {
+       "label": "Q4 FY24",
+       "periodEnd": "2024-12-31",
+       "eps": 2.45,
+       "close": 205,
+       "dilutedShares": 195631075,
+       "revenue": 1820000000,
+       "operatingIncome": 520000000,
+       "operatingCosts": 1300000000,
+       "freeCashFlow": 380000000
+      },
+      {
+       "label": "Q1 FY25",
+       "periodEnd": "2025-03-31",
+       "eps": 2.05,
+       "close": 210,
+       "dilutedShares": 195728890,
+       "revenue": 1540000000,
+       "operatingIncome": 330000000,
+       "operatingCosts": 1210000000,
+       "freeCashFlow": 360000000
+      },
+      {
+       "label": "Q2 FY25",
+       "periodEnd": "2025-06-30",
+       "eps": 2.3,
+       "close": 205,
+       "dilutedShares": 195826755,
+       "revenue": 1760000000,
+       "operatingIncome": 450000000,
+       "operatingCosts": 1310000000,
+       "freeCashFlow": 160000000
+      },
+      {
+       "label": "Q3 FY25",
+       "periodEnd": "2025-09-30",
+       "eps": 2.45,
+       "close": 245,
+       "dilutedShares": 195924668,
+       "revenue": 1776000000,
+       "operatingIncome": 457000000,
+       "operatingCosts": 1319000000,
+       "freeCashFlow": 425000000
+      },
+      {
+       "label": "Q4 FY25",
+       "periodEnd": "2025-12-31",
+       "eps": 3.05,
+       "close": 225,
+       "dilutedShares": 191712288,
+       "revenue": 2117000000,
+       "operatingIncome": 640000000,
+       "operatingCosts": 1477000000,
+       "freeCashFlow": 470000000
+      },
+      {
+       "label": "Q1 FY26",
+       "periodEnd": "2026-03-31",
+       "eps": 2.4,
+       "close": 240,
+       "dilutedShares": 191808144,
+       "revenue": 1810000000,
+       "operatingIncome": 420000000,
+       "operatingCosts": 1390000000,
+       "freeCashFlow": 390000000
+      },
+      {
+       "label": "Q2 FY26",
+       "periodEnd": "2026-06-30",
+       "eps": 2.6,
+       "close": 255,
+       "dilutedShares": 191904048,
+       "revenue": 1815000000,
+       "operatingIncome": 505000000,
+       "operatingCosts": 1310000000,
+       "freeCashFlow": 210000000
+      },
+      {
+       "label": "Q3 FY26",
+       "periodEnd": "2026-09-30",
+       "eps": 2.75,
+       "close": 270,
+       "dilutedShares": 192000000,
+       "revenue": 1990000000,
+       "operatingIncome": 612000000,
+       "operatingCosts": 1378000000,
+       "freeCashFlow": 293000000
+      }
+     ],
+     "daily": []
+    },
+    "levers": {
+     "price": 270,
+     "ttmEps": 10.8,
+     "dividend": 0,
+     "targetReturn": 0.15,
+     "holdingYears": 3,
+     "exitPe": {"mode":"estimated","trailingMonths":36},
+     "baseline": {"mode":"weighted","trailingMonths":12},
+     "scenarios": [
+      {"name":"Bear","growth":0.05,"exitPe":0},
+      {"name":"Base","growth":0.1,"exitPe":-5},
+      {"name":"Bull","growth":0.2,"exitPe":25}
+     ],
+     "chartRange": "3Y"
+    }
+   },
+   "expected": {
+    "peNow": {"value":25},
+    "exitPe": {
+     "mode": "estimated",
+     "inUse": {"value":{"pe":20,"rule":"fade"}},
+     "estimate": {"value":{"pe":20,"rule":"fade"}},
+     "g0": {"value":0.15950428064100572},
+     "gExit": {"value":0.10975214032050286},
+     "typical": {"pe":{"value":23.026315789473685},"months":36,"points":13},
+     "peNowVsTypical": {"value":"close"},
+     "vsNow": {"value":"lower"},
+     "sliderMax": 45
+    },
+    "baselines": {
+     "active": "weighted",
+     "growth": {"value":0.15950428064100572},
+     "weighted": {"value":0.15950428064100572},
+     "today": {"value":0.12244897959183665},
+     "trailing": {
+      "growth": {"value":0.16756756756756763},
+      "months": 12,
+      "maxMonths": 45,
+      "fromTtm": {"value":9.25},
+      "toTtm": {"value":10.8}
+     },
+     "custom": {"value":null,"reason":"not_applicable"},
+     "yoyShift": {"value":-0.12244897959183665}
+    },
+    "yearByYear": {"value":null,"reason":"not_applicable"},
+    "trajectory": {
+     "value": {
+      "rates": [0.14,0.13,0.125],
+      "slope": -0.042265134911476016,
+      "previous": {"value":0.20176941555248173},
+      "highest": 0.27527609534356345,
+      "capped": false
+     }
+    },
+    "required": {
+     "growth": {"value":0.23879994676833305},
+     "exitPrice": {"value":410.63624999999996},
+     "priceChange": {"value":0.5208749999999998},
+     "eps": {"value":20.531812499999997},
+     "dividends": 0,
+     "tightFrom": {"value":0.22379994676833304},
+     "undemandingFrom": {"value":0.25379994676833306}
+    },
+    "gap": {"value":-0.07929566612732733},
+    "verdict": {"value":"demanding"},
+    "atBaseline": {
+     "value": {
+      "exitPrice": 336.7214787895771,
+      "totalReturn": 0.24711658810954473,
+      "yearlyReturn": 0.07638842430990178,
+      "vsTarget": -0.07361157569009821,
+      "tone": "bad",
+      "meetsTarget": false,
+      "eps": 16.836073939478855,
+      "epsGap": {"value":-3.695738560521143},
+      "exitPeNeeded": {"value":24.39026173656201},
+      "fragile": false
+     }
+    },
+    "sensitivity": {
+     "value": {
+      "lowerExitPe": {"exitPe":18,"requiredGrowth":{"value":0.28307982099082474}},
+      "lowerTarget": {"targetReturn":0.13,"requiredGrowth":{"value":0.21725559986801413}},
+      "marketTarget": {"targetReturn":0.1,"requiredGrowth":{"value":0.18493907951753608}},
+      "oneYear": {"years":1,"requiredGrowth":{"value":0.4375}},
+      "fiveYears": {"years":5,"requiredGrowth":{"value":0.20248548547996426}}
+     }
+    },
+    "quarters": [
+     {
+      "label": "Q1 FY22",
+      "periodEnd": "2022-03-31",
+      "eps": 1.3,
+      "ttmEps": {"value":null,"reason":"insufficient_history"},
+      "yoy": {"value":null,"reason":"insufficient_history"},
+      "ttmYoy": {"value":null,"reason":"insufficient_history"},
+      "weightedTrend": {"value":null,"reason":"insufficient_history"}
+     },
+     {
+      "label": "Q2 FY22",
+      "periodEnd": "2022-06-30",
+      "eps": 1.45,
+      "ttmEps": {"value":null,"reason":"insufficient_history"},
+      "yoy": {"value":null,"reason":"insufficient_history"},
+      "ttmYoy": {"value":null,"reason":"insufficient_history"},
+      "weightedTrend": {"value":null,"reason":"insufficient_history"}
+     },
+     {
+      "label": "Q3 FY22",
+      "periodEnd": "2022-09-30",
+      "eps": 1.5,
+      "ttmEps": {"value":null,"reason":"insufficient_history"},
+      "yoy": {"value":null,"reason":"insufficient_history"},
+      "ttmYoy": {"value":null,"reason":"insufficient_history"},
+      "weightedTrend": {"value":null,"reason":"insufficient_history"}
+     },
+     {
+      "label": "Q4 FY22",
+      "periodEnd": "2022-12-31",
+      "eps": 1.5,
+      "ttmEps": {"value":5.75},
+      "yoy": {"value":null,"reason":"insufficient_history"},
+      "ttmYoy": {"value":null,"reason":"insufficient_history"},
+      "weightedTrend": {"value":null,"reason":"insufficient_history"}
+     },
+     {
+      "label": "Q1 FY23",
+      "periodEnd": "2023-03-31",
+      "eps": 1.35,
+      "ttmEps": {"value":5.8},
+      "yoy": {"value":0.03846153846153855},
+      "ttmYoy": {"value":null,"reason":"insufficient_history"},
+      "weightedTrend": {"value":0.03846153846153855}
+     },
+     {
+      "label": "Q2 FY23",
+      "periodEnd": "2023-06-30",
+      "eps": 1.65,
+      "ttmEps": {"value":6},
+      "yoy": {"value":0.13793103448275867},
+      "ttmYoy": {"value":null,"reason":"insufficient_history"},
+      "weightedTrend": {"value":0.09672942018835269}
+     },
+     {
+      "label": "Q3 FY23",
+      "periodEnd": "2023-09-30",
+      "eps": 1.7,
+      "ttmEps": {"value":6.199999999999999},
+      "yoy": {"value":0.1333333333333333},
+      "ttmYoy": {"value":null,"reason":"insufficient_history"},
+      "weightedTrend": {"value":0.11331398848246224}
+     },
+     {
+      "label": "Q4 FY23",
+      "periodEnd": "2023-12-31",
+      "eps": 1.85,
+      "ttmEps": {"value":6.549999999999999},
+      "yoy": {"value":0.2333333333333334},
+      "ttmYoy": {"value":0.13913043478260856},
+      "weightedTrend": {"value":0.16018445812680013}
+     },
+     {
+      "label": "Q1 FY24",
+      "periodEnd": "2024-03-31",
+      "eps": 1.55,
+      "ttmEps": {"value":6.75},
+      "yoy": {"value":0.14814814814814814},
+      "ttmYoy": {"value":0.1637931034482758},
+      "weightedTrend": {"value":0.15590207988004462}
+     },
+     {
+      "label": "Q2 FY24",
+      "periodEnd": "2024-06-30",
+      "eps": 2,
+      "ttmEps": {"value":7.1000000000000005},
+      "yoy": {"value":0.21212121212121215},
+      "ttmYoy": {"value":0.18333333333333335},
+      "weightedTrend": {"value":0.17472059713834714}
+     },
+     {
+      "label": "Q3 FY24",
+      "periodEnd": "2024-09-30",
+      "eps": 2.2,
+      "ttmEps": {"value":7.6},
+      "yoy": {"value":0.2941176470588236},
+      "ttmYoy": {"value":0.22580645161290325},
+      "weightedTrend": {"value":0.21308187321223815}
+     },
+     {
+      "label": "Q4 FY24",
+      "periodEnd": "2024-12-31",
+      "eps": 2.45,
+      "ttmEps": {"value":8.200000000000001},
+      "yoy": {"value":0.32432432432432434},
+      "ttmYoy": {"value":0.2519083969465652},
+      "weightedTrend": {"value":0.24783617675881636}
+     },
+     {
+      "label": "Q1 FY25",
+      "periodEnd": "2025-03-31",
+      "eps": 2.05,
+      "ttmEps": {"value":8.7},
+      "yoy": {"value":0.32258064516129026},
+      "ttmYoy": {"value":0.28888888888888875},
+      "weightedTrend": {"value":0.27527609534356345}
+     },
+     {
+      "label": "Q2 FY25",
+      "periodEnd": "2025-06-30",
+      "eps": 2.3,
+      "ttmEps": {"value":9},
+      "yoy": {"value":0.1499999999999999},
+      "ttmYoy": {"value":0.26760563380281677},
+      "weightedTrend": {"value":0.23881923774854583}
+     },
+     {
+      "label": "Q3 FY25",
+      "periodEnd": "2025-09-30",
+      "eps": 2.45,
+      "ttmEps": {"value":9.25},
+      "yoy": {"value":0.11363636363636354},
+      "ttmYoy": {"value":0.2171052631578947},
+      "weightedTrend": {"value":0.20176941555248173}
+     },
+     {
+      "label": "Q4 FY25",
+      "periodEnd": "2025-12-31",
+      "eps": 3.05,
+      "ttmEps": {"value":9.85},
+      "yoy": {"value":0.2448979591836733},
+      "ttmYoy": {"value":0.20121951219512169},
+      "weightedTrend": {"value":0.21462728688533644}
+     },
+     {
+      "label": "Q1 FY26",
+      "periodEnd": "2026-03-31",
+      "eps": 2.4,
+      "ttmEps": {"value":10.2},
+      "yoy": {"value":0.17073170731707332},
+      "ttmYoy": {"value":0.1724137931034484},
+      "weightedTrend": {"value":0.20221154071638922}
+     },
+     {
+      "label": "Q2 FY26",
+      "periodEnd": "2026-06-30",
+      "eps": 2.6,
+      "ttmEps": {"value":10.5},
+      "yoy": {"value":0.1304347826086958},
+      "ttmYoy": {"value":0.16666666666666674},
+      "weightedTrend": {"value":0.17959358824667904}
+     },
+     {
+      "label": "Q3 FY26",
+      "periodEnd": "2026-09-30",
+      "eps": 2.75,
+      "ttmEps": {"value":10.8},
+      "yoy": {"value":0.12244897959183665},
+      "ttmYoy": {"value":0.16756756756756763},
+      "weightedTrend": {"value":0.15950428064100572}
+     }
+    ],
+    "growthScale": {"min":-0.05,"max":0.35,"step":0.05},
+    "returnGrid": {
+     "value": {
+      "step": 0.025,
+      "columns": [
+       {"exitPe":11,"today":false},
+       {"exitPe":14,"today":false},
+       {"exitPe":16,"today":false},
+       {"exitPe":18,"today":false},
+       {"exitPe":20,"today":false},
+       {"exitPe":22,"today":false},
+       {"exitPe":25,"today":true},
+       {"exitPe":28,"today":false},
+       {"exitPe":32,"today":false}
+      ],
+      "rows": [
+       {
+        "growth": 0,
+        "epsAtExit": 10.8,
+        "exact": false,
+        "tags": [],
+        "cells": [
+         {
+          "exitPrice": 118.80000000000001,
+          "totalReturn": -0.5599999999999999,
+          "yearlyReturn": -0.23940950784772164,
+          "vsTarget": -0.38940950784772166,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 151.20000000000002,
+          "totalReturn": -0.43999999999999995,
+          "yearlyReturn": -0.1757429400382886,
+          "vsTarget": -0.32574294003828863,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 172.8,
+          "totalReturn": -0.36,
+          "yearlyReturn": -0.13822612398724654,
+          "vsTarget": -0.28822612398724656,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 194.4,
+          "totalReturn": -0.28,
+          "yearlyReturn": -0.10371905068856702,
+          "vsTarget": -0.25371905068856704,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 216,
+          "totalReturn": -0.19999999999999996,
+          "yearlyReturn": -0.07168223327744416,
+          "vsTarget": -0.22168223327744416,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 237.60000000000002,
+          "totalReturn": -0.11999999999999988,
+          "yearlyReturn": -0.041716028587443166,
+          "vsTarget": -0.19171602858744316,
+          "tone": "bad"
+         },
+         {"exitPrice":270,"totalReturn":0,"yearlyReturn":0,"vsTarget":-0.15,"tone":"bad"},
+         {
+          "exitPrice": 302.40000000000003,
+          "totalReturn": 0.1200000000000001,
+          "yearlyReturn": 0.03849882037022079,
+          "vsTarget": -0.1115011796297792,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 345.6,
+          "totalReturn": 0.28,
+          "yearlyReturn": 0.08576704663796253,
+          "vsTarget": -0.06423295336203746,
+          "tone": "bad"
+         }
+        ]
+       },
+       {
+        "growth": 0.025,
+        "epsAtExit": 11.630418749999997,
+        "exact": false,
+        "tags": [],
+        "cells": [
+         {
+          "exitPrice": 127.93460624999997,
+          "totalReturn": -0.5261681250000001,
+          "yearlyReturn": -0.2203947455439148,
+          "vsTarget": -0.3703947455439148,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 162.82586249999997,
+          "totalReturn": -0.39694125000000013,
+          "yearlyReturn": -0.15513651353924596,
+          "vsTarget": -0.305136513539246,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 186.08669999999995,
+          "totalReturn": -0.31079000000000023,
+          "yearlyReturn": -0.11668177708692773,
+          "vsTarget": -0.26668177708692775,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 209.34753749999993,
+          "totalReturn": -0.22463875000000022,
+          "yearlyReturn": -0.08131202695578132,
+          "vsTarget": -0.23131202695578132,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 232.60837499999994,
+          "totalReturn": -0.1384875000000002,
+          "yearlyReturn": -0.04847428910938045,
+          "vsTarget": -0.19847428910938045,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 255.86921249999995,
+          "totalReturn": -0.052336250000000195,
+          "yearlyReturn": -0.0177589293021293,
+          "vsTarget": -0.1677589293021293,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 290.7604687499999,
+          "totalReturn": 0.07689062499999966,
+          "yearlyReturn": 0.02499999999999991,
+          "vsTarget": -0.12500000000000008,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 325.65172499999994,
+          "totalReturn": 0.20611749999999973,
+          "yearlyReturn": 0.06446129087947616,
+          "vsTarget": -0.08553870912052383,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 372.1733999999999,
+          "totalReturn": 0.37841999999999953,
+          "yearlyReturn": 0.11291122280391153,
+          "vsTarget": -0.03708877719608847,
+          "tone": "bad"
+         }
+        ]
+       },
+       {
+        "growth": 0.05,
+        "epsAtExit": 12.502350000000002,
+        "exact": false,
+        "tags": [],
+        "cells": [
+         {
+          "exitPrice": 137.52585000000002,
+          "totalReturn": -0.4906449999999999,
+          "yearlyReturn": -0.20137998324010764,
+          "vsTarget": -0.35137998324010766,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 175.0329,
+          "totalReturn": -0.35173,
+          "yearlyReturn": -0.13453008704020308,
+          "vsTarget": -0.2845300870402031,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 200.03760000000003,
+          "totalReturn": -0.2591199999999999,
+          "yearlyReturn": -0.0951374301866088,
+          "vsTarget": -0.2451374301866088,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 225.04230000000004,
+          "totalReturn": -0.16650999999999982,
+          "yearlyReturn": -0.0589050032229953,
+          "vsTarget": -0.2089050032229953,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 250.04700000000003,
+          "totalReturn": -0.07389999999999985,
+          "yearlyReturn": -0.02526634494131641,
+          "vsTarget": -0.1752663449413164,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 275.05170000000004,
+          "totalReturn": 0.018710000000000226,
+          "yearlyReturn": 0.006198169983184787,
+          "vsTarget": -0.1438018300168152,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 312.55875000000003,
+          "totalReturn": 0.15762500000000013,
+          "yearlyReturn": 0.050000000000000044,
+          "vsTarget": -0.09999999999999995,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 350.0658,
+          "totalReturn": 0.29654,
+          "yearlyReturn": 0.09042376138873176,
+          "vsTarget": -0.059576238611268234,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 400.07520000000005,
+          "totalReturn": 0.4817600000000002,
+          "yearlyReturn": 0.14005539896986074,
+          "vsTarget": -0.00994460103013925,
+          "tone": "warn"
+         }
+        ]
+       },
+       {
+        "growth": 0.075,
+        "epsAtExit": 13.416806249999999,
+        "exact": false,
+        "tags": [],
+        "cells": [
+         {
+          "exitPrice": 147.58486875,
+          "totalReturn": -0.453389375,
+          "yearlyReturn": -0.1823652209363008,
+          "vsTarget": -0.33236522093630083,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 187.8352875,
+          "totalReturn": -0.30431375000000005,
+          "yearlyReturn": -0.11392366054116032,
+          "vsTarget": -0.26392366054116034,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 214.66889999999998,
+          "totalReturn": -0.20493000000000006,
+          "yearlyReturn": -0.07359308328629,
+          "vsTarget": -0.22359308328629,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 241.50251249999997,
+          "totalReturn": -0.10554625000000017,
+          "yearlyReturn": -0.03649797949020961,
+          "vsTarget": -0.1864979794902096,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 268.336125,
+          "totalReturn": -0.006162500000000071,
+          "yearlyReturn": -0.002058400773252589,
+          "vsTarget": -0.15205840077325258,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 295.1697375,
+          "totalReturn": 0.09322125000000003,
+          "yearlyReturn": 0.03015526926849854,
+          "vsTarget": -0.11984473073150145,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 335.42015625,
+          "totalReturn": 0.24229687499999986,
+          "yearlyReturn": 0.07499999999999996,
+          "vsTarget": -0.07500000000000004,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 375.670575,
+          "totalReturn": 0.3913724999999999,
+          "yearlyReturn": 0.11638623189798736,
+          "vsTarget": -0.03361376810201264,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 429.33779999999996,
+          "totalReturn": 0.5901399999999999,
+          "yearlyReturn": 0.16719957513580974,
+          "vsTarget": 0.017199575135809747,
+          "tone": "good"
+         }
+        ]
+       },
+       {
+        "growth": 0.1,
+        "epsAtExit": 14.374800000000006,
+        "exact": false,
+        "tags": [],
+        "cells": [
+         {
+          "exitPrice": 158.12280000000007,
+          "totalReturn": -0.41435999999999973,
+          "yearlyReturn": -0.16335045863249376,
+          "vsTarget": -0.3133504586324938,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 201.24720000000008,
+          "totalReturn": -0.25463999999999976,
+          "yearlyReturn": -0.09331723404211745,
+          "vsTarget": -0.24331723404211744,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 229.9968000000001,
+          "totalReturn": -0.14815999999999963,
+          "yearlyReturn": -0.05204873638597107,
+          "vsTarget": -0.20204873638597107,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 258.7464000000001,
+          "totalReturn": -0.041679999999999606,
+          "yearlyReturn": -0.014090955757423584,
+          "vsTarget": -0.16409095575742358,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 287.4960000000001,
+          "totalReturn": 0.06480000000000041,
+          "yearlyReturn": 0.021149543394811454,
+          "vsTarget": -0.12885045660518854,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 316.24560000000014,
+          "totalReturn": 0.17128000000000054,
+          "yearlyReturn": 0.05411236855381274,
+          "vsTarget": -0.09588763144618725,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 359.3700000000001,
+          "totalReturn": 0.3310000000000004,
+          "yearlyReturn": 0.10000000000000009,
+          "vsTarget": -0.049999999999999906,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 402.49440000000016,
+          "totalReturn": 0.4907200000000005,
+          "yearlyReturn": 0.14234870240724296,
+          "vsTarget": -0.007651297592757039,
+          "tone": "warn"
+         },
+         {
+          "exitPrice": 459.9936000000002,
+          "totalReturn": 0.7036800000000007,
+          "yearlyReturn": 0.19434375130175896,
+          "vsTarget": 0.044343751301758966,
+          "tone": "good"
+         }
+        ]
+       },
+       {
+        "growth": 0.125,
+        "epsAtExit": 15.377343750000001,
+        "exact": false,
+        "tags": ["today"],
+        "cells": [
+         {
+          "exitPrice": 169.15078125000002,
+          "totalReturn": -0.3735156249999999,
+          "yearlyReturn": -0.1443356963286868,
+          "vsTarget": -0.29433569632868684,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 215.28281250000003,
+          "totalReturn": -0.20265624999999987,
+          "yearlyReturn": -0.07271080754307468,
+          "vsTarget": -0.22271080754307468,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 246.03750000000002,
+          "totalReturn": -0.08874999999999988,
+          "yearlyReturn": -0.03050438948565226,
+          "vsTarget": -0.18050438948565226,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 276.7921875,
+          "totalReturn": 0.02515624999999999,
+          "yearlyReturn": 0.008316067975361996,
+          "vsTarget": -0.141683932024638,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 307.546875,
+          "totalReturn": 0.1390625000000001,
+          "yearlyReturn": 0.044357487562875386,
+          "vsTarget": -0.10564251243712461,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 338.30156250000005,
+          "totalReturn": 0.2529687500000002,
+          "yearlyReturn": 0.0780694678391265,
+          "vsTarget": -0.0719305321608735,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 384.43359375000006,
+          "totalReturn": 0.4238281250000002,
+          "yearlyReturn": 0.125,
+          "vsTarget": -0.024999999999999994,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 430.56562500000007,
+          "totalReturn": 0.5946875000000003,
+          "yearlyReturn": 0.16831117291649855,
+          "vsTarget": 0.018311172916498558,
+          "tone": "good"
+         },
+         {
+          "exitPrice": 492.07500000000005,
+          "totalReturn": 0.8225000000000002,
+          "yearlyReturn": 0.22148792746770796,
+          "vsTarget": 0.07148792746770796,
+          "tone": "good"
+         }
+        ]
+       },
+       {
+        "growth": 0.15,
+        "epsAtExit": 16.425449999999998,
+        "exact": false,
+        "tags": [],
+        "cells": [
+         {
+          "exitPrice": 180.67994999999996,
+          "totalReturn": -0.3308150000000002,
+          "yearlyReturn": -0.12532093402487998,
+          "vsTarget": -0.27532093402488,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 229.95629999999997,
+          "totalReturn": -0.14831000000000016,
+          "yearlyReturn": -0.05210438104403203,
+          "vsTarget": -0.20210438104403203,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 262.80719999999997,
+          "totalReturn": -0.026640000000000108,
+          "yearlyReturn": -0.00896004258533356,
+          "vsTarget": -0.15896004258533356,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 295.6581,
+          "totalReturn": 0.09502999999999995,
+          "yearlyReturn": 0.0307230917081478,
+          "vsTarget": -0.1192769082918522,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 328.50899999999996,
+          "totalReturn": 0.2166999999999999,
+          "yearlyReturn": 0.0675654317309391,
+          "vsTarget": -0.0824345682690609,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 361.3598999999999,
+          "totalReturn": 0.3383699999999996,
+          "yearlyReturn": 0.10202656712444025,
+          "vsTarget": -0.047973432875559746,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 410.63624999999996,
+          "totalReturn": 0.5208749999999998,
+          "yearlyReturn": 0.1499999999999999,
+          "vsTarget": -8.326672684688674e-17,
+          "tone": "warn"
+         },
+         {
+          "exitPrice": 459.91259999999994,
+          "totalReturn": 0.7033799999999997,
+          "yearlyReturn": 0.19427364342575393,
+          "vsTarget": 0.044273643425753934,
+          "tone": "good"
+         },
+         {
+          "exitPrice": 525.6143999999999,
+          "totalReturn": 0.9467199999999998,
+          "yearlyReturn": 0.24863210363365695,
+          "vsTarget": 0.09863210363365696,
+          "tone": "good"
+         }
+        ]
+       },
+       {
+        "growth": 0.15950428064100572,
+        "epsAtExit": 16.836073939478855,
+        "exact": true,
+        "tags": ["weighted"],
+        "cells": [
+         {
+          "exitPrice": 185.1968133342674,
+          "totalReturn": -0.3140858765397504,
+          "yearlyReturn": -0.1180920685345841,
+          "vsTarget": -0.2680920685345841,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 235.70503515270397,
+          "totalReturn": -0.12701838832331858,
+          "yearlyReturn": -0.044270410625825596,
+          "vsTarget": -0.1942704106258256,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 269.3771830316617,
+          "totalReturn": -0.002306729512364214,
+          "yearlyReturn": -0.0007695018186211211,
+          "vsTarget": -0.15076950181862112,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 303.0493309106194,
+          "totalReturn": 0.12240492929859048,
+          "yearlyReturn": 0.039241597383590676,
+          "vsTarget": -0.11075840261640932,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 336.7214787895771,
+          "totalReturn": 0.24711658810954473,
+          "yearlyReturn": 0.07638842430990178,
+          "vsTarget": -0.07361157569009821,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 370.3936266685348,
+          "totalReturn": 0.3718282469204992,
+          "yearlyReturn": 0.11113436692252265,
+          "vsTarget": -0.03886563307747734,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 420.90184848697135,
+          "totalReturn": 0.5588957351369308,
+          "yearlyReturn": 0.15950428064100564,
+          "vsTarget": 0.009504280641005641,
+          "tone": "warn"
+         },
+         {
+          "exitPrice": 471.41007030540794,
+          "totalReturn": 0.7459632233533628,
+          "yearlyReturn": 0.2041438276599059,
+          "vsTarget": 0.05414382765990591,
+          "tone": "good"
+         },
+         {
+          "exitPrice": 538.7543660633233,
+          "totalReturn": 0.9953865409752716,
+          "yearlyReturn": 0.25895153835566,
+          "vsTarget": 0.10895153835565999,
+          "tone": "good"
+         }
+        ]
+       },
+       {
+        "growth": 0.175,
+        "epsAtExit": 17.520131250000002,
+        "exact": false,
+        "tags": ["trailing"],
+        "cells": [
+         {
+          "exitPrice": 192.72144375000002,
+          "totalReturn": -0.2862168749999999,
+          "yearlyReturn": -0.10630617172107293,
+          "vsTarget": -0.25630617172107295,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 245.28183750000002,
+          "totalReturn": -0.09154874999999996,
+          "yearlyReturn": -0.03149795454498916,
+          "vsTarget": -0.18149795454498915,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 280.32210000000003,
+          "totalReturn": 0.03823000000000021,
+          "yearlyReturn": 0.012584304314985362,
+          "vsTarget": -0.13741569568501463,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 315.3623625,
+          "totalReturn": 0.16800875000000004,
+          "yearlyReturn": 0.05313011544093382,
+          "vsTarget": -0.09686988455906617,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 350.40262500000006,
+          "totalReturn": 0.2977875000000003,
+          "yearlyReturn": 0.09077337589900303,
+          "vsTarget": -0.059226624100996966,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 385.44288750000004,
+          "totalReturn": 0.42756625000000015,
+          "yearlyReturn": 0.12598366640975422,
+          "vsTarget": -0.02401633359024577,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 438.00328125000004,
+          "totalReturn": 0.6222343750000001,
+          "yearlyReturn": 0.17500000000000004,
+          "vsTarget": 0.02500000000000005,
+          "tone": "good"
+         },
+         {
+          "exitPrice": 490.56367500000005,
+          "totalReturn": 0.8169025000000001,
+          "yearlyReturn": 0.22023611393500953,
+          "vsTarget": 0.07023611393500953,
+          "tone": "good"
+         },
+         {
+          "exitPrice": 560.6442000000001,
+          "totalReturn": 1.0764600000000004,
+          "yearlyReturn": 0.27577627979960617,
+          "vsTarget": 0.12577627979960618,
+          "tone": "good"
+         }
+        ]
+       },
+       {
+        "growth": 0.2,
+        "epsAtExit": 18.662399999999998,
+        "exact": false,
+        "tags": [],
+        "cells": [
+         {
+          "exitPrice": 205.2864,
+          "totalReturn": -0.23968,
+          "yearlyReturn": -0.08729140941726599,
+          "vsTarget": -0.23729140941726598,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 261.2736,
+          "totalReturn": -0.032320000000000015,
+          "yearlyReturn": -0.010891528045946397,
+          "vsTarget": -0.1608915280459464,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 298.59839999999997,
+          "totalReturn": 0.10591999999999979,
+          "yearlyReturn": 0.03412865121530406,
+          "vsTarget": -0.11587134878469593,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 335.92319999999995,
+          "totalReturn": 0.2441599999999997,
+          "yearlyReturn": 0.0755371391737194,
+          "vsTarget": -0.07446286082628059,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 373.24799999999993,
+          "totalReturn": 0.38239999999999985,
+          "yearlyReturn": 0.11398132006706696,
+          "vsTarget": -0.036018679932933034,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 410.5728,
+          "totalReturn": 0.52064,
+          "yearlyReturn": 0.1499407656950682,
+          "vsTarget": -0.00005923430493179338,
+          "tone": "warn"
+         },
+         {
+          "exitPrice": 466.55999999999995,
+          "totalReturn": 0.7279999999999998,
+          "yearlyReturn": 0.19999999999999996,
+          "vsTarget": 0.04999999999999996,
+          "tone": "good"
+         },
+         {
+          "exitPrice": 522.5472,
+          "totalReturn": 0.93536,
+          "yearlyReturn": 0.2461985844442649,
+          "vsTarget": 0.0961985844442649,
+          "tone": "good"
+         },
+         {
+          "exitPrice": 597.1967999999999,
+          "totalReturn": 1.2118399999999996,
+          "yearlyReturn": 0.30292045596555495,
+          "vsTarget": 0.15292045596555495,
+          "tone": "good"
+         }
+        ]
+       },
+       {
+        "growth": 0.225,
+        "epsAtExit": 19.853268750000005,
+        "exact": false,
+        "tags": [],
+        "cells": [
+         {
+          "exitPrice": 218.38595625000005,
+          "totalReturn": -0.19116312499999977,
+          "yearlyReturn": -0.06827664711345893,
+          "vsTarget": -0.21827664711345893,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 277.94576250000006,
+          "totalReturn": 0.029428750000000115,
+          "yearlyReturn": 0.009714898453096366,
+          "vsTarget": -0.14028510154690363,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 317.6523000000001,
+          "totalReturn": 0.17649000000000026,
+          "yearlyReturn": 0.05567299811562321,
+          "vsTarget": -0.09432700188437679,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 357.3588375000001,
+          "totalReturn": 0.3235512500000004,
+          "yearlyReturn": 0.09794416290650543,
+          "vsTarget": -0.05205583709349457,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 397.06537500000013,
+          "totalReturn": 0.47061250000000054,
+          "yearlyReturn": 0.1371892642351309,
+          "vsTarget": -0.012810735764869102,
+          "tone": "warn"
+         },
+         {
+          "exitPrice": 436.7719125000001,
+          "totalReturn": 0.6176737500000005,
+          "yearlyReturn": 0.17389786498038218,
+          "vsTarget": 0.023897864980382183,
+          "tone": "good"
+         },
+         {
+          "exitPrice": 496.3317187500001,
+          "totalReturn": 0.8382656250000005,
+          "yearlyReturn": 0.2250000000000001,
+          "vsTarget": 0.0750000000000001,
+          "tone": "good"
+         },
+         {
+          "exitPrice": 555.8915250000001,
+          "totalReturn": 1.0588575000000002,
+          "yearlyReturn": 0.2721610549535205,
+          "vsTarget": 0.1221610549535205,
+          "tone": "good"
+         },
+         {
+          "exitPrice": 635.3046000000002,
+          "totalReturn": 1.3529800000000005,
+          "yearlyReturn": 0.3300646321315044,
+          "vsTarget": 0.1800646321315044,
+          "tone": "good"
+         }
+        ]
+       },
+       {
+        "growth": 0.25,
+        "epsAtExit": 21.09375,
+        "exact": false,
+        "tags": ["required"],
+        "cells": [
+         {
+          "exitPrice": 232.03125,
+          "totalReturn": -0.140625,
+          "yearlyReturn": -0.0492618848096521,
+          "vsTarget": -0.1992618848096521,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 295.3125,
+          "totalReturn": 0.09375,
+          "yearlyReturn": 0.03032132495213924,
+          "vsTarget": -0.11967867504786076,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 337.5,
+          "totalReturn": 0.25,
+          "yearlyReturn": 0.07721734501594191,
+          "vsTarget": -0.07278265498405809,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 379.6875,
+          "totalReturn": 0.40625,
+          "yearlyReturn": 0.12035118663929123,
+          "vsTarget": -0.029648813360708764,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 421.875,
+          "totalReturn": 0.5625,
+          "yearlyReturn": 0.16039720840319482,
+          "vsTarget": 0.01039720840319483,
+          "tone": "warn"
+         },
+         {
+          "exitPrice": 464.0625,
+          "totalReturn": 0.71875,
+          "yearlyReturn": 0.19785496426569593,
+          "vsTarget": 0.04785496426569594,
+          "tone": "good"
+         },
+         {
+          "exitPrice": 527.34375,
+          "totalReturn": 0.953125,
+          "yearlyReturn": 0.25,
+          "vsTarget": 0.1,
+          "tone": "good"
+         },
+         {
+          "exitPrice": 590.625,
+          "totalReturn": 1.1875,
+          "yearlyReturn": 0.2981235254627761,
+          "vsTarget": 0.1481235254627761,
+          "tone": "good"
+         },
+         {
+          "exitPrice": 675,
+          "totalReturn": 1.5,
+          "yearlyReturn": 0.35720880829745316,
+          "vsTarget": 0.20720880829745317,
+          "tone": "good"
+         }
+        ]
+       },
+       {
+        "growth": 0.275,
+        "epsAtExit": 22.38485625,
+        "exact": false,
+        "tags": [],
+        "cells": [
+         {
+          "exitPrice": 246.23341875,
+          "totalReturn": -0.08802437500000004,
+          "yearlyReturn": -0.03024712250584516,
+          "vsTarget": -0.18024712250584515,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 313.3879875,
+          "totalReturn": 0.16069624999999998,
+          "yearlyReturn": 0.05092775145118189,
+          "vsTarget": -0.0990722485488181,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 358.1577,
+          "totalReturn": 0.32650999999999986,
+          "yearlyReturn": 0.09876169191626061,
+          "vsTarget": -0.05123830808373939,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 402.92741249999995,
+          "totalReturn": 0.4923237499999997,
+          "yearlyReturn": 0.14275821037207703,
+          "vsTarget": -0.007241789627922962,
+          "tone": "warn"
+         },
+         {
+          "exitPrice": 447.69712499999997,
+          "totalReturn": 0.6581374999999998,
+          "yearlyReturn": 0.18360515257125853,
+          "vsTarget": 0.03360515257125854,
+          "tone": "good"
+         },
+         {
+          "exitPrice": 492.4668375,
+          "totalReturn": 0.8239512499999999,
+          "yearlyReturn": 0.2218120635510099,
+          "vsTarget": 0.07181206355100991,
+          "tone": "good"
+         },
+         {
+          "exitPrice": 559.62140625,
+          "totalReturn": 1.0726718749999997,
+          "yearlyReturn": 0.2749999999999999,
+          "vsTarget": 0.12499999999999992,
+          "tone": "good"
+         },
+         {
+          "exitPrice": 626.775975,
+          "totalReturn": 1.3213925,
+          "yearlyReturn": 0.32408599597203147,
+          "vsTarget": 0.17408599597203148,
+          "tone": "good"
+         },
+         {
+          "exitPrice": 716.3154,
+          "totalReturn": 1.6530199999999997,
+          "yearlyReturn": 0.3843529844634024,
+          "vsTarget": 0.2343529844634024,
+          "tone": "good"
+         }
+        ]
+       },
+       {
+        "growth": 0.3,
+        "epsAtExit": 23.727600000000002,
+        "exact": false,
+        "tags": [],
+        "cells": [
+         {
+          "exitPrice": 261.0036,
+          "totalReturn": -0.033320000000000016,
+          "yearlyReturn": -0.011232360202038216,
+          "vsTarget": -0.1612323602020382,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 332.18640000000005,
+          "totalReturn": 0.23032000000000008,
+          "yearlyReturn": 0.07153417795022476,
+          "vsTarget": -0.07846582204977523,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 379.64160000000004,
+          "totalReturn": 0.4060800000000002,
+          "yearlyReturn": 0.12030603881657953,
+          "vsTarget": -0.029693961183420464,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 427.09680000000003,
+          "totalReturn": 0.5818400000000001,
+          "yearlyReturn": 0.16516523410486283,
+          "vsTarget": 0.01516523410486284,
+          "tone": "good"
+         },
+         {
+          "exitPrice": 474.552,
+          "totalReturn": 0.7576,
+          "yearlyReturn": 0.20681309673932247,
+          "vsTarget": 0.05681309673932247,
+          "tone": "good"
+         },
+         {
+          "exitPrice": 522.0072,
+          "totalReturn": 0.93336,
+          "yearlyReturn": 0.24576916283632388,
+          "vsTarget": 0.09576916283632389,
+          "tone": "good"
+         },
+         {
+          "exitPrice": 593.19,
+          "totalReturn": 1.197,
+          "yearlyReturn": 0.30000000000000004,
+          "vsTarget": 0.15000000000000005,
+          "tone": "good"
+         },
+         {
+          "exitPrice": 664.3728000000001,
+          "totalReturn": 1.4606400000000002,
+          "yearlyReturn": 0.35004846648128707,
+          "vsTarget": 0.20004846648128707,
+          "tone": "good"
+         },
+         {
+          "exitPrice": 759.2832000000001,
+          "totalReturn": 1.8121600000000004,
+          "yearlyReturn": 0.4114971606293514,
+          "vsTarget": 0.26149716062935136,
+          "tone": "good"
+         }
+        ]
+       }
+      ],
+      "you": {"value":{"row":7,"column":4}},
+      "columnSensitivity": {"value":{"growthStep":0.024999999999999994,"returnChange":0.02320794416806371}}
+     }
+    },
+    "earningsPaths": {
+     "value": {
+      "history": [
+       {
+        "label": "Q3 FY23",
+        "periodEnd": "2023-09-30",
+        "ttmEps": {"value":6.199999999999999},
+        "ttmYoy": {"value":null,"reason":"insufficient_history"}
+       },
+       {
+        "label": "Q4 FY23",
+        "periodEnd": "2023-12-31",
+        "ttmEps": {"value":6.549999999999999},
+        "ttmYoy": {"value":0.13913043478260856}
+       },
+       {
+        "label": "Q1 FY24",
+        "periodEnd": "2024-03-31",
+        "ttmEps": {"value":6.75},
+        "ttmYoy": {"value":0.1637931034482758}
+       },
+       {
+        "label": "Q2 FY24",
+        "periodEnd": "2024-06-30",
+        "ttmEps": {"value":7.1000000000000005},
+        "ttmYoy": {"value":0.18333333333333335}
+       },
+       {
+        "label": "Q3 FY24",
+        "periodEnd": "2024-09-30",
+        "ttmEps": {"value":7.6},
+        "ttmYoy": {"value":0.22580645161290325}
+       },
+       {
+        "label": "Q4 FY24",
+        "periodEnd": "2024-12-31",
+        "ttmEps": {"value":8.200000000000001},
+        "ttmYoy": {"value":0.2519083969465652}
+       },
+       {
+        "label": "Q1 FY25",
+        "periodEnd": "2025-03-31",
+        "ttmEps": {"value":8.7},
+        "ttmYoy": {"value":0.28888888888888875}
+       },
+       {
+        "label": "Q2 FY25",
+        "periodEnd": "2025-06-30",
+        "ttmEps": {"value":9},
+        "ttmYoy": {"value":0.26760563380281677}
+       },
+       {
+        "label": "Q3 FY25",
+        "periodEnd": "2025-09-30",
+        "ttmEps": {"value":9.25},
+        "ttmYoy": {"value":0.2171052631578947}
+       },
+       {
+        "label": "Q4 FY25",
+        "periodEnd": "2025-12-31",
+        "ttmEps": {"value":9.85},
+        "ttmYoy": {"value":0.20121951219512169}
+       },
+       {
+        "label": "Q1 FY26",
+        "periodEnd": "2026-03-31",
+        "ttmEps": {"value":10.2},
+        "ttmYoy": {"value":0.1724137931034484}
+       },
+       {
+        "label": "Q2 FY26",
+        "periodEnd": "2026-06-30",
+        "ttmEps": {"value":10.5},
+        "ttmYoy": {"value":0.16666666666666674}
+       },
+       {
+        "label": "Q3 FY26",
+        "periodEnd": "2026-09-30",
+        "ttmEps": {"value":10.8},
+        "ttmYoy": {"value":0.16756756756756763}
+       }
+      ],
+      "future": [
+       {
+        "quartersAhead": 0,
+        "label": "Q3 FY26",
+        "baseline": {"value":10.8},
+        "required": {"value":10.8},
+        "gap": {"value":0}
+       },
+       {
+        "quartersAhead": 1,
+        "label": "Q4 FY26",
+        "baseline": {"value":11.2070638065268},
+        "required": {"value":11.393943196592103},
+        "gap": {"value":-0.18687939006530208}
+       },
+       {
+        "quartersAhead": 2,
+        "label": "Q1 FY27",
+        "baseline": {"value":11.6294702929225},
+        "required": {"value":12.0205501451081},
+        "gap": {"value":-0.3910798521855998}
+       },
+       {
+        "quartersAhead": 3,
+        "label": "Q2 FY27",
+        "baseline": {"value":12.067797741563924},
+        "required": {"value":12.681617180106358},
+        "gap": {"value":-0.6138194385424338}
+       },
+       {
+        "quartersAhead": 4,
+        "label": "Q3 FY27",
+        "baseline": {"value":12.522646230922861},
+        "required": {"value":13.379039425097998},
+        "gap": {"value":-0.856393194175137}
+       },
+       {
+        "quartersAhead": 5,
+        "label": "Q4 FY27",
+        "baseline": {"value":12.994638457084708},
+        "required": {"value":14.114816225419709},
+        "gap": {"value":-1.120177768335001}
+       },
+       {
+        "quartersAhead": 6,
+        "label": "Q1 FY28",
+        "baseline": {"value":13.484420586231048},
+        "required": {"value":14.891056879885992},
+        "gap": {"value":-1.4066362936549446}
+       },
+       {
+        "quartersAhead": 7,
+        "label": "Q2 FY28",
+        "baseline": {"value":13.99266313925323},
+        "required": {"value":15.709986687652135},
+        "gap": {"value":-1.7173235483989053}
+       },
+       {
+        "quartersAhead": 8,
+        "label": "Q3 FY28",
+        "baseline": {"value":14.520061909708014},
+        "required": {"value":16.573953327622828},
+        "gap": {"value":-2.053891417914814}
+       },
+       {
+        "quartersAhead": 9,
+        "label": "Q4 FY28",
+        "baseline": {"value":15.067338916371954},
+        "required": {"value":17.48543358869474},
+        "gap": {"value":-2.418094672322786}
+       },
+       {
+        "quartersAhead": 10,
+        "label": "Q1 FY29",
+        "baseline": {"value":15.635243391698598},
+        "required": {"value":18.44704047012699},
+        "gap": {"value":-2.811797078428391}
+       },
+       {
+        "quartersAhead": 11,
+        "label": "Q2 FY29",
+        "baseline": {"value":16.22455280753173},
+        "required": {"value":19.461530672394684},
+        "gap": {"value":-3.236977864862954}
+       },
+       {
+        "quartersAhead": 12,
+        "label": "Q3 FY29",
+        "baseline": {"value":16.836073939478855},
+        "required": {"value":20.531812499999997},
+        "gap": {"value":-3.695738560521143}
+       }
+      ],
+      "gapTone": {"value":"bad"},
+      "scale": {"min":5,"max":21.353084999999997,"step":5}
+     }
+    },
+    "howDemanding": {
+     "points": [
+      {
+       "label": "Q3 FY23",
+       "periodEnd": "2023-09-30",
+       "today": false,
+       "price": {"value":102},
+       "ttmEps": {"value":6.199999999999999},
+       "pe": {"value":16.451612903225808},
+       "required": {"value":0.07751668191855465},
+       "delivered": {"value":null,"reason":"insufficient_history"}
+      },
+      {
+       "label": "Q4 FY23",
+       "periodEnd": "2023-12-31",
+       "today": false,
+       "price": {"value":128},
+       "ttmEps": {"value":6.549999999999999},
+       "pe": {"value":19.54198473282443},
+       "required": {"value":0.141153495819744},
+       "delivered": {"value":0.13913043478260856}
+      },
+      {
+       "label": "Q1 FY24",
+       "periodEnd": "2024-03-31",
+       "today": false,
+       "price": {"value":148},
+       "ttmEps": {"value":6.75},
+       "pe": {"value":21.925925925925927},
+       "required": {"value":0.1857882865585605},
+       "delivered": {"value":0.1637931034482758}
+      },
+      {
+       "label": "Q2 FY24",
+       "periodEnd": "2024-06-30",
+       "today": false,
+       "price": {"value":162},
+       "ttmEps": {"value":7.1000000000000005},
+       "pe": {"value":22.816901408450704},
+       "required": {"value":0.20163728970058625},
+       "delivered": {"value":0.18333333333333335}
+      },
+      {
+       "label": "Q3 FY24",
+       "periodEnd": "2024-09-30",
+       "today": false,
+       "price": {"value":175},
+       "ttmEps": {"value":7.6},
+       "pe": {"value":23.026315789473685},
+       "required": {"value":0.2053023239677798},
+       "delivered": {"value":0.22580645161290325}
+      },
+      {
+       "label": "Q4 FY24",
+       "periodEnd": "2024-12-31",
+       "today": false,
+       "price": {"value":205},
+       "ttmEps": {"value":8.200000000000001},
+       "pe": {"value":24.999999999999996},
+       "required": {"value":0.23879994676833305},
+       "delivered": {"value":0.2519083969465652}
+      },
+      {
+       "label": "Q1 FY25",
+       "periodEnd": "2025-03-31",
+       "today": false,
+       "price": {"value":210},
+       "ttmEps": {"value":8.7},
+       "pe": {"value":24.13793103448276},
+       "required": {"value":0.22439398999064197},
+       "delivered": {"value":0.28888888888888875}
+      },
+      {
+       "label": "Q2 FY25",
+       "periodEnd": "2025-06-30",
+       "today": false,
+       "price": {"value":205},
+       "ttmEps": {"value":9},
+       "pe": {"value":22.77777777777778},
+       "required": {"value":0.2009500899111687},
+       "delivered": {"value":0.26760563380281677}
+      },
+      {
+       "label": "Q3 FY25",
+       "periodEnd": "2025-09-30",
+       "today": false,
+       "price": {"value":245},
+       "ttmEps": {"value":9.25},
+       "pe": {"value":26.486486486486488},
+       "required": {"value":0.26288157087973385},
+       "delivered": {"value":0.2171052631578947}
+      },
+      {
+       "label": "Q4 FY25",
+       "periodEnd": "2025-12-31",
+       "today": false,
+       "price": {"value":225},
+       "ttmEps": {"value":9.85},
+       "pe": {"value":22.84263959390863},
+       "required": {"value":0.2020889481869066},
+       "delivered": {"value":0.20121951219512169}
+      },
+      {
+       "label": "Q1 FY26",
+       "periodEnd": "2026-03-31",
+       "today": false,
+       "price": {"value":240},
+       "ttmEps": {"value":10.2},
+       "pe": {"value":23.529411764705884},
+       "required": {"value":0.21401727077470079},
+       "delivered": {"value":0.1724137931034484}
+      },
+      {
+       "label": "Q2 FY26",
+       "periodEnd": "2026-06-30",
+       "today": false,
+       "price": {"value":255},
+       "ttmEps": {"value":10.5},
+       "pe": {"value":24.285714285714285},
+       "required": {"value":0.22688767099350904},
+       "delivered": {"value":0.16666666666666674}
+      },
+      {
+       "label": "Q3 FY26",
+       "periodEnd": "2026-09-30",
+       "today": true,
+       "price": {"value":270},
+       "ttmEps": {"value":10.8},
+       "pe": {"value":25},
+       "required": {"value":0.23879994676833305},
+       "delivered": {"value":0.16756756756756763}
+      }
+     ],
+     "scale": {"min":0,"max":0.30000000000000004,"step":0.05},
+     "typicalRequired": {"value":0.2053023239677798},
+     "peak": {"value":{"index":8,"growth":0.26288157087973385}},
+     "requiredAboveDelivered": 8,
+     "compared": 12
+    },
+    "scenarios": {
+     "defaults": false,
+     "cases": [
+      {"name":"Bear","growth":0.05,"exitPe":0,"result":{"value":null,"reason":"needs_positive_eps"}},
+      {"name":"Base","growth":0.1,"exitPe":-5,"result":{"value":null,"reason":"needs_positive_eps"}},
+      {
+       "name": "Bull",
+       "growth": 0.2,
+       "exitPe": 25,
+       "result": {
+        "value": {
+         "eps": 18.662399999999998,
+         "exitPrice": 466.55999999999995,
+         "totalReturn": 0.7279999999999998,
+         "yearlyReturn": 0.19999999999999996,
+         "vsTarget": 0.04999999999999996,
+         "tone": "good",
+         "meetsTarget": true
+        }
+       }
+      }
+     ],
+     "meetingTarget": ["Bull"],
+     "worstYearlyReturn": {"value":0.19999999999999996}
+    },
+    "shareCountEvents": [
+     {
+      "label": "Q4 FY25",
+      "periodEnd": "2025-12-31",
+      "from": 195924668,
+      "to": 191712288,
+      "change": -0.02149999815235104,
+      "kind": "buyback"
+     }
+    ],
+    "priceChart": {"value":null,"reason":"insufficient_history"},
+    "financials": {
+     "quarters": [
+      {"label":"Q4 FY24","periodEnd":"2024-12-31"},
+      {"label":"Q1 FY25","periodEnd":"2025-03-31"},
+      {"label":"Q2 FY25","periodEnd":"2025-06-30"},
+      {"label":"Q3 FY25","periodEnd":"2025-09-30"},
+      {"label":"Q4 FY25","periodEnd":"2025-12-31"},
+      {"label":"Q1 FY26","periodEnd":"2026-03-31"},
+      {"label":"Q2 FY26","periodEnd":"2026-06-30"},
+      {"label":"Q3 FY26","periodEnd":"2026-09-30"}
+     ],
+     "metrics": {
+      "revenue": {
+       "values": [1820000000,1540000000,1760000000,1776000000,2117000000,1810000000,1815000000,1990000000],
+       "yoy": [
+        {"value":null,"reason":"insufficient_history"},
+        {"value":null,"reason":"insufficient_history"},
+        {"value":null,"reason":"insufficient_history"},
+        {"value":null,"reason":"insufficient_history"},
+        {"value":0.16318681318681327},
+        {"value":0.17532467532467533},
+        {"value":0.03125},
+        {"value":0.12049549549549554}
+       ],
+       "yoyTone": [
+        {"value":null,"reason":"insufficient_history"},
+        {"value":null,"reason":"insufficient_history"},
+        {"value":null,"reason":"insufficient_history"},
+        {"value":null,"reason":"insufficient_history"},
+        {"value":"good"},
+        {"value":"good"},
+        {"value":"good"},
+        {"value":"good"}
+       ],
+       "qoq": [
+        {"value":null,"reason":"insufficient_history"},
+        {"value":-0.15384615384615385},
+        {"value":0.1428571428571428},
+        {"value":0.009090909090909038},
+        {"value":0.19200450450450446},
+        {"value":-0.1450165328294757},
+        {"value":0.0027624309392264568},
+        {"value":0.09641873278236912}
+       ],
+       "qoqTone": [
+        {"value":null,"reason":"insufficient_history"},
+        {"value":"bad"},
+        {"value":"good"},
+        {"value":"good"},
+        {"value":"good"},
+        {"value":"bad"},
+        {"value":"good"},
+        {"value":"good"}
+       ],
+       "scale": {"value":{"min":0,"max":2371040000}}
+      },
+      "operatingCosts": {
+       "values": [1300000000,1210000000,1310000000,1319000000,1477000000,1390000000,1310000000,1378000000],
+       "yoy": [
+        {"value":null,"reason":"insufficient_history"},
+        {"value":null,"reason":"insufficient_history"},
+        {"value":null,"reason":"insufficient_history"},
+        {"value":null,"reason":"insufficient_history"},
+        {"value":0.13615384615384607},
+        {"value":0.14876033057851235},
+        {"value":0},
+        {"value":0.04473085670962851}
+       ],
+       "yoyTone": [
+        {"value":null,"reason":"insufficient_history"},
+        {"value":null,"reason":"insufficient_history"},
+        {"value":null,"reason":"insufficient_history"},
+        {"value":null,"reason":"insufficient_history"},
+        {"value":"neutral"},
+        {"value":"neutral"},
+        {"value":"neutral"},
+        {"value":"neutral"}
+       ],
+       "qoq": [
+        {"value":null,"reason":"insufficient_history"},
+        {"value":-0.0692307692307692},
+        {"value":0.0826446280991735},
+        {"value":0.006870229007633677},
+        {"value":0.11978771796815768},
+        {"value":-0.05890318212593093},
+        {"value":-0.05755395683453235},
+        {"value":0.051908396946564794}
+       ],
+       "qoqTone": [
+        {"value":null,"reason":"insufficient_history"},
+        {"value":"good"},
+        {"value":"bad"},
+        {"value":"bad"},
+        {"value":"bad"},
+        {"value":"good"},
+        {"value":"good"},
+        {"value":"bad"}
+       ],
+       "scale": {"value":{"min":0,"max":1654240000.0000002}}
+      },
+      "operatingIncome": {
+       "values": [520000000,330000000,450000000,457000000,640000000,420000000,505000000,612000000],
+       "yoy": [
+        {"value":null,"reason":"insufficient_history"},
+        {"value":null,"reason":"insufficient_history"},
+        {"value":null,"reason":"insufficient_history"},
+        {"value":null,"reason":"insufficient_history"},
+        {"value":0.23076923076923084},
+        {"value":0.2727272727272727},
+        {"value":0.12222222222222223},
+        {"value":0.33916849015317285}
+       ],
+       "yoyTone": [
+        {"value":null,"reason":"insufficient_history"},
+        {"value":null,"reason":"insufficient_history"},
+        {"value":null,"reason":"insufficient_history"},
+        {"value":null,"reason":"insufficient_history"},
+        {"value":"good"},
+        {"value":"good"},
+        {"value":"good"},
+        {"value":"good"}
+       ],
+       "qoq": [
+        {"value":null,"reason":"insufficient_history"},
+        {"value":-0.3653846153846154},
+        {"value":0.36363636363636354},
+        {"value":0.015555555555555545},
+        {"value":0.4004376367614879},
+        {"value":-0.34375},
+        {"value":0.20238095238095233},
+        {"value":0.21188118811881185}
+       ],
+       "qoqTone": [
+        {"value":null,"reason":"insufficient_history"},
+        {"value":"bad"},
+        {"value":"good"},
+        {"value":"good"},
+        {"value":"good"},
+        {"value":"bad"},
+        {"value":"good"},
+        {"value":"good"}
+       ],
+       "scale": {"value":{"min":0,"max":716800000.0000001}}
+      },
+      "eps": {
+       "values": [2.45,2.05,2.3,2.45,3.05,2.4,2.6,2.75],
+       "yoy": [
+        {"value":null,"reason":"insufficient_history"},
+        {"value":null,"reason":"insufficient_history"},
+        {"value":null,"reason":"insufficient_history"},
+        {"value":null,"reason":"insufficient_history"},
+        {"value":0.2448979591836733},
+        {"value":0.17073170731707332},
+        {"value":0.1304347826086958},
+        {"value":0.12244897959183665}
+       ],
+       "yoyTone": [
+        {"value":null,"reason":"insufficient_history"},
+        {"value":null,"reason":"insufficient_history"},
+        {"value":null,"reason":"insufficient_history"},
+        {"value":null,"reason":"insufficient_history"},
+        {"value":"good"},
+        {"value":"good"},
+        {"value":"good"},
+        {"value":"good"}
+       ],
+       "qoq": [
+        {"value":null,"reason":"insufficient_history"},
+        {"value":-0.16326530612244916},
+        {"value":0.12195121951219523},
+        {"value":0.0652173913043479},
+        {"value":0.2448979591836733},
+        {"value":-0.21311475409836067},
+        {"value":0.08333333333333348},
+        {"value":0.05769230769230771}
+       ],
+       "qoqTone": [
+        {"value":null,"reason":"insufficient_history"},
+        {"value":"bad"},
+        {"value":"good"},
+        {"value":"good"},
+        {"value":"good"},
+        {"value":"bad"},
+        {"value":"good"},
+        {"value":"good"}
+       ],
+       "scale": {"value":{"min":0,"max":3.416}}
+      },
+      "freeCashFlow": {
+       "values": [380000000,360000000,160000000,425000000,470000000,390000000,210000000,293000000],
+       "yoy": [
+        {"value":null,"reason":"insufficient_history"},
+        {"value":null,"reason":"insufficient_history"},
+        {"value":null,"reason":"insufficient_history"},
+        {"value":null,"reason":"insufficient_history"},
+        {"value":0.23684210526315796},
+        {"value":0.08333333333333326},
+        {"value":0.3125},
+        {"value":-0.3105882352941176}
+       ],
+       "yoyTone": [
+        {"value":null,"reason":"insufficient_history"},
+        {"value":null,"reason":"insufficient_history"},
+        {"value":null,"reason":"insufficient_history"},
+        {"value":null,"reason":"insufficient_history"},
+        {"value":"good"},
+        {"value":"good"},
+        {"value":"good"},
+        {"value":"bad"}
+       ],
+       "qoq": [
+        {"value":null,"reason":"insufficient_history"},
+        {"value":-0.052631578947368474},
+        {"value":-0.5555555555555556},
+        {"value":1.65625},
+        {"value":0.10588235294117654},
+        {"value":-0.17021276595744683},
+        {"value":-0.46153846153846156},
+        {"value":0.39523809523809517}
+       ],
+       "qoqTone": [
+        {"value":null,"reason":"insufficient_history"},
+        {"value":"bad"},
+        {"value":"bad"},
+        {"value":"good"},
+        {"value":"good"},
+        {"value":"bad"},
+        {"value":"bad"},
+        {"value":"good"}
+       ],
+       "scale": {"value":{"min":0,"max":526400000.00000006}}
+      },
+      "dilutedShares": {
+       "values": [195631075,195728890,195826755,195924668,191712288,191808144,191904048,192000000],
+       "yoy": [
+        {"value":null,"reason":"insufficient_history"},
+        {"value":null,"reason":"insufficient_history"},
+        {"value":null,"reason":"insufficient_history"},
+        {"value":null,"reason":"insufficient_history"},
+        {"value":-0.02003151595420105},
+        {"value":-0.020031513998776562},
+        {"value":-0.020031517143814237},
+        {"value":-0.02003151537814518}
+       ],
+       "yoyTone": [
+        {"value":null,"reason":"insufficient_history"},
+        {"value":null,"reason":"insufficient_history"},
+        {"value":null,"reason":"insufficient_history"},
+        {"value":null,"reason":"insufficient_history"},
+        {"value":"good"},
+        {"value":"good"},
+        {"value":"good"},
+        {"value":"good"}
+       ],
+       "qoq": [
+        {"value":null,"reason":"insufficient_history"},
+        {"value":0.00049999725248151},
+        {"value":0.0005000028355548469},
+        {"value":0.0004999980722757424},
+        {"value":-0.02149999815235104},
+        {"value":0.0004999992488743388},
+        {"value":0.0004999996246248806},
+        {"value":0.0004999998749375401}
+       ],
+       "qoqTone": [
+        {"value":null,"reason":"insufficient_history"},
+        {"value":"bad"},
+        {"value":"bad"},
+        {"value":"bad"},
+        {"value":"good"},
+        {"value":"bad"},
+        {"value":"bad"},
+        {"value":"bad"}
+       ],
+       "scale": {"value":{"min":190237955,"max":197399001}}
+      }
+     },
+     "operatingMargin": [
+      {"value":0.2857142857142857},
+      {"value":0.21428571428571427},
+      {"value":0.2556818181818182},
+      {"value":0.25731981981981983},
+      {"value":0.3023145961265942},
+      {"value":0.23204419889502761},
+      {"value":0.27823691460055094},
+      {"value":0.3075376884422111}
+     ],
+     "costShareOfRevenue": [
+      {"value":0.7142857142857143},
+      {"value":0.7857142857142857},
+      {"value":0.7443181818181818},
+      {"value":0.7426801801801802},
+      {"value":0.6976854038734057},
+      {"value":0.7679558011049724},
+      {"value":0.721763085399449},
+      {"value":0.6924623115577889}
+     ],
+     "tiles": {
+      "value": {
+       "label": "Q3 FY26",
+       "compareLabel": "Q3 FY25",
+       "revenue": {
+        "latest": {"value":1990000000},
+        "change": {"value":0.12049549549549554},
+        "tone": {"value":"good"}
+       },
+       "operatingCosts": {
+        "latest": {"value":1378000000},
+        "change": {"value":0.04473085670962851},
+        "tone": {"value":"neutral"}
+       },
+       "operatingIncome": {"latest":{"value":612000000},"change":{"value":0.33916849015317285},"tone":{"value":"good"}},
+       "operatingMargin": {
+        "latest": {"value":0.3075376884422111},
+        "previous": {"value":0.25731981981981983},
+        "change": {"value":0.05021786862239125},
+        "tone": {"value":"good"}
+       },
+       "eps": {"latest":{"value":2.75},"change":{"value":0.12244897959183665},"tone":{"value":"good"}},
+       "freeCashFlow": {"latest":{"value":293000000},"change":{"value":-0.3105882352941176},"tone":{"value":"bad"}},
+       "dilutedShares": {
+        "latest": {"value":192000000},
+        "change": {"value":-0.02003151537814518},
+        "tone": {"value":"good"}
+       }
+      }
+     },
+     "compare": {
+      "sinceStart": {
+       "revenue": [
+        {"value":0},
+        {"value":-0.15384615384615385},
+        {"value":-0.03296703296703296},
+        {"value":-0.0241758241758242},
+        {"value":0.16318681318681327},
+        {"value":-0.005494505494505475},
+        {"value":-0.0027472527472527375},
+        {"value":0.0934065934065933}
+       ],
+       "operatingCosts": [
+        {"value":0},
+        {"value":-0.0692307692307692},
+        {"value":0.007692307692307665},
+        {"value":0.014615384615384697},
+        {"value":0.13615384615384607},
+        {"value":0.0692307692307692},
+        {"value":0.007692307692307665},
+        {"value":0.06000000000000005}
+       ],
+       "operatingIncome": [
+        {"value":0},
+        {"value":-0.3653846153846154},
+        {"value":-0.13461538461538458},
+        {"value":-0.12115384615384617},
+        {"value":0.23076923076923084},
+        {"value":-0.1923076923076923},
+        {"value":-0.028846153846153855},
+        {"value":0.17692307692307696}
+       ],
+       "eps": [
+        {"value":0},
+        {"value":-0.16326530612244916},
+        {"value":-0.061224489795918546},
+        {"value":0},
+        {"value":0.2448979591836733},
+        {"value":-0.020408163265306256},
+        {"value":0.061224489795918435},
+        {"value":0.12244897959183665}
+       ],
+       "freeCashFlow": [
+        {"value":0},
+        {"value":-0.052631578947368474},
+        {"value":-0.5789473684210527},
+        {"value":0.11842105263157898},
+        {"value":0.23684210526315796},
+        {"value":0.026315789473684292},
+        {"value":-0.4473684210526315},
+        {"value":-0.22894736842105268}
+       ],
+       "dilutedShares": [
+        {"value":0},
+        {"value":0.00049999725248151},
+        {"value":0.0010002500880803566},
+        {"value":0.0015007482834719088},
+        {"value":-0.02003151595420105},
+        {"value":-0.019541532448257515},
+        {"value":-0.019051303582521384},
+        {"value":-0.018560829356992548}
+       ]
+      },
+      "quarterOverQuarter": {
+       "revenue": [
+        {"value":null,"reason":"insufficient_history"},
+        {"value":-0.15384615384615385},
+        {"value":0.1428571428571428},
+        {"value":0.009090909090909038},
+        {"value":0.19200450450450446},
+        {"value":-0.1450165328294757},
+        {"value":0.0027624309392264568},
+        {"value":0.09641873278236912}
+       ],
+       "operatingCosts": [
+        {"value":null,"reason":"insufficient_history"},
+        {"value":-0.0692307692307692},
+        {"value":0.0826446280991735},
+        {"value":0.006870229007633677},
+        {"value":0.11978771796815768},
+        {"value":-0.05890318212593093},
+        {"value":-0.05755395683453235},
+        {"value":0.051908396946564794}
+       ],
+       "operatingIncome": [
+        {"value":null,"reason":"insufficient_history"},
+        {"value":-0.3653846153846154},
+        {"value":0.36363636363636354},
+        {"value":0.015555555555555545},
+        {"value":0.4004376367614879},
+        {"value":-0.34375},
+        {"value":0.20238095238095233},
+        {"value":0.21188118811881185}
+       ],
+       "eps": [
+        {"value":null,"reason":"insufficient_history"},
+        {"value":-0.16326530612244916},
+        {"value":0.12195121951219523},
+        {"value":0.0652173913043479},
+        {"value":0.2448979591836733},
+        {"value":-0.21311475409836067},
+        {"value":0.08333333333333348},
+        {"value":0.05769230769230771}
+       ],
+       "freeCashFlow": [
+        {"value":null,"reason":"insufficient_history"},
+        {"value":-0.052631578947368474},
+        {"value":-0.5555555555555556},
+        {"value":1.65625},
+        {"value":0.10588235294117654},
+        {"value":-0.17021276595744683},
+        {"value":-0.46153846153846156},
+        {"value":0.39523809523809517}
+       ],
+       "dilutedShares": [
+        {"value":null,"reason":"insufficient_history"},
+        {"value":0.00049999725248151},
+        {"value":0.0005000028355548469},
+        {"value":0.0004999980722757424},
+        {"value":-0.02149999815235104},
+        {"value":0.0004999992488743388},
+        {"value":0.0004999996246248806},
+        {"value":0.0004999998749375401}
+       ]
+      },
+      "correlations": [
+       {
+        "a": "revenue",
+        "b": "operatingCosts",
+        "result": {"value":{"correlation":0.935422384412021,"class":"strongSame"}}
+       },
+       {
+        "a": "revenue",
+        "b": "operatingIncome",
+        "result": {"value":{"correlation":0.9673992577876495,"class":"strongSame"}}
+       },
+       {
+        "a": "revenue",
+        "b": "eps",
+        "result": {"value":{"correlation":0.9446134464542113,"class":"strongSame"}}
+       },
+       {
+        "a": "revenue",
+        "b": "freeCashFlow",
+        "result": {"value":{"correlation":0.011174976472134501,"class":"weak"}}
+       },
+       {
+        "a": "revenue",
+        "b": "dilutedShares",
+        "result": {"value":{"correlation":-0.562320302618569,"class":"moderateOpposite"}}
+       },
+       {
+        "a": "operatingCosts",
+        "b": "operatingIncome",
+        "result": {"value":{"correlation":0.8187698774154656,"class":"strongSame"}}
+       },
+       {
+        "a": "operatingCosts",
+        "b": "eps",
+        "result": {"value":{"correlation":0.8131451010119045,"class":"strongSame"}}
+       },
+       {
+        "a": "operatingCosts",
+        "b": "freeCashFlow",
+        "result": {"value":{"correlation":0.08515898729274166,"class":"weak"}}
+       },
+       {
+        "a": "operatingCosts",
+        "b": "dilutedShares",
+        "result": {"value":{"correlation":-0.6321914685878209,"class":"strongOpposite"}}
+       },
+       {
+        "a": "operatingIncome",
+        "b": "eps",
+        "result": {"value":{"correlation":0.9566203908289398,"class":"strongSame"}}
+       },
+       {
+        "a": "operatingIncome",
+        "b": "freeCashFlow",
+        "result": {"value":{"correlation":-0.09154102747164757,"class":"weak"}}
+       },
+       {
+        "a": "operatingIncome",
+        "b": "dilutedShares",
+        "result": {"value":{"correlation":-0.4630635381541659,"class":"moderateOpposite"}}
+       },
+       {
+        "a": "eps",
+        "b": "freeCashFlow",
+        "result": {"value":{"correlation":0.0964243085337264,"class":"weak"}}
+       },
+       {
+        "a": "eps",
+        "b": "dilutedShares",
+        "result": {"value":{"correlation":-0.5930288696911545,"class":"moderateOpposite"}}
+       },
+       {
+        "a": "freeCashFlow",
+        "b": "dilutedShares",
+        "result": {"value":{"correlation":0.014872990547427616,"class":"weak"}}
+       }
+      ],
+      "changes": 7
+     }
+    }
+   },
+   "tolerance": 1e-9,
+   "note": "v1: typical P/E is the conventional median (the mean of the two middle values for an even count); the prototype takes the upper middle value. v1: the return grid has a row at the exact baseline growth, tagged with its baseline, and the YOU cell sits in it; the prototype marks the nearest row. v1: the earnings-path scale covers every plotted point, including intermediate points and negative TTM EPS; the prototype uses only the end points and clamps the minimum at 0. v1: 12-month EPS growth compares the TTM EPS known on a day with the TTM EPS known 365 days earlier; the prototype uses the TTM of four quarters earlier, which is the same value without a reporting lag. v1: the daily P/E is null when TTM EPS is not positive; the prototype divides anyway. v1: the typical required growth over the period is the conventional median, like the typical P/E. v1: the count of quarters where the price asked for more than was delivered compares only quarters with both values. v1: correlations skip quarters where either change is missing; the prototype has no missing data. v1: bar scales include negative values and zero; the prototype assumes positive values. v1: a case with growth of -100% or lower, or a non-positive exit P/E, has no result, and the worst return skips it."
+  },
+  {
    "name": "evaluate a collapse in the latest quarter",
    "fn": "evaluate",
    "input": {
@@ -70489,22 +73022,22 @@
     "peNow": {"value":25},
     "exitPe": {
      "mode": "estimated",
-     "inUse": {"value":{"value":25,"rule":"slowGrowerKeep"}},
-     "estimate": {"value":{"value":25,"rule":"slowGrowerKeep"}},
+     "inUse": {"value":{"pe":25,"rule":"slowGrowerKeep"}},
+     "estimate": {"value":{"pe":25,"rule":"slowGrowerKeep"}},
      "g0": {"value":-2.63265306122449},
      "gExit": {"value":-1.286326530612245},
-     "typical": {"value":{"value":24.642857142857142},"months":36,"points":2},
+     "typical": {"pe":{"value":24.642857142857142},"months":36,"points":2},
      "peNowVsTypical": {"value":"close"},
      "vsNow": {"value":"same"},
      "sliderMax": 45
     },
     "baselines": {
      "active": "weighted",
-     "value": {"value":-2.63265306122449},
+     "growth": {"value":-2.63265306122449},
      "weighted": {"value":-2.63265306122449},
      "today": {"value":-2.63265306122449},
      "trailing": {
-      "value": {"value":null,"reason":"insufficient_history"},
+      "growth": {"value":null,"reason":"insufficient_history"},
       "months": 6,
       "maxMonths": 3,
       "fromTtm": {"value":null,"reason":"insufficient_history"},
@@ -70516,7 +73049,7 @@
     "yearByYear": {"value":null,"reason":"not_applicable"},
     "trajectory": {
      "value": {
-      "rates": [-2.635,-2.635,-2.635],
+      "rates": [-0.5,-0.5,-0.5],
       "slope": 0,
       "previous": {"value":null,"reason":"insufficient_history"},
       "highest": -2.63265306122449,
@@ -71360,7 +73893,7 @@
      ],
      "scale": {"min":0,"max":0.16,"step":0.02},
      "typicalRequired": {"value":0.14447081137806606},
-     "peak": {"value":{"index":4,"value":0.1499999999999999}},
+     "peak": {"value":{"index":4,"growth":0.1499999999999999}},
      "requiredAboveDelivered": 0,
      "compared": 0
     },
@@ -71620,21 +74153,30 @@
       "value": {
        "label": "Q3 FY26",
        "compareLabel": "Q3 FY25",
-       "revenue": {"value":{"value":1990000000},"change":{"value":0.12049549549549554},"tone":{"value":"good"}},
+       "revenue": {
+        "latest": {"value":1990000000},
+        "change": {"value":0.12049549549549554},
+        "tone": {"value":"good"}
+       },
        "operatingCosts": {
-        "value": {"value":1378000000},
+        "latest": {"value":1378000000},
         "change": {"value":0.04473085670962851},
         "tone": {"value":"neutral"}
        },
-       "operatingIncome": {"value":{"value":612000000},"change":{"value":0.33916849015317285},"tone":{"value":"good"}},
+       "operatingIncome": {"latest":{"value":612000000},"change":{"value":0.33916849015317285},"tone":{"value":"good"}},
        "operatingMargin": {
-        "value": {"value":0.3075376884422111},
+        "latest": {"value":0.3075376884422111},
         "previous": {"value":0.25731981981981983},
-        "change": {"value":0.05021786862239125}
+        "change": {"value":0.05021786862239125},
+        "tone": {"value":"good"}
        },
-       "eps": {"value":{"value":-4},"change":{"value":-2.63265306122449},"tone":{"value":"bad"}},
-       "freeCashFlow": {"value":{"value":293000000},"change":{"value":-0.3105882352941176},"tone":{"value":"bad"}},
-       "dilutedShares": {"value":{"value":192000000},"change":{"value":-0.02003151537814518},"tone":{"value":"good"}}
+       "eps": {"latest":{"value":-4},"change":{"value":-2.63265306122449},"tone":{"value":"bad"}},
+       "freeCashFlow": {"latest":{"value":293000000},"change":{"value":-0.3105882352941176},"tone":{"value":"bad"}},
+       "dilutedShares": {
+        "latest": {"value":192000000},
+        "change": {"value":-0.02003151537814518},
+        "tone": {"value":"good"}
+       }
       }
      },
      "compare": {
@@ -71831,22 +74373,22 @@
     "peNow": {"value":25},
     "exitPe": {
      "mode": "estimated",
-     "inUse": {"value":{"value":25,"rule":"slowGrowerKeep"}},
-     "estimate": {"value":{"value":25,"rule":"slowGrowerKeep"}},
+     "inUse": {"value":{"pe":25,"rule":"slowGrowerKeep"}},
+     "estimate": {"value":{"pe":25,"rule":"slowGrowerKeep"}},
      "g0": {"value":null,"reason":"insufficient_history"},
      "gExit": {"value":null,"reason":"insufficient_history"},
-     "typical": {"value":{"value":null,"reason":"insufficient_history"},"months":36,"points":0},
+     "typical": {"pe":{"value":null,"reason":"insufficient_history"},"months":36,"points":0},
      "peNowVsTypical": {"value":null,"reason":"insufficient_history"},
      "vsNow": {"value":"same"},
      "sliderMax": 45
     },
     "baselines": {
      "active": "weighted",
-     "value": {"value":null,"reason":"insufficient_history"},
+     "growth": {"value":null,"reason":"insufficient_history"},
      "weighted": {"value":null,"reason":"insufficient_history"},
      "today": {"value":null,"reason":"insufficient_history"},
      "trailing": {
-      "value": {"value":null,"reason":"insufficient_history"},
+      "growth": {"value":null,"reason":"insufficient_history"},
       "months": 6,
       "maxMonths": 0,
       "fromTtm": {"value":null,"reason":"insufficient_history"},

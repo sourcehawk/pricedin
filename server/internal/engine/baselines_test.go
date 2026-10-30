@@ -90,7 +90,7 @@ func TestTrailingGrowth(t *testing.T) {
 		if got.Months != tt.want || got.MaxMonths != 48 {
 			t.Errorf("TrailingGrowth(%d months) uses %d of %d months, want %d of 48", tt.months, got.Months, got.MaxMonths, tt.want)
 		}
-		near(t, fmt.Sprintf("growth over %d months", tt.months), wantSome(t, "trailing", got.Value), 0.2, 1e-9)
+		near(t, fmt.Sprintf("growth over %d months", tt.months), wantSome(t, "trailing", got.Growth), 0.2, 1e-9)
 	}
 
 	short := TrailingGrowth(quarters(grow(6, 0.2)...), 12)
@@ -98,10 +98,10 @@ func TestTrailingGrowth(t *testing.T) {
 		t.Errorf("short history uses %d of %d months, want 6 of 6", short.Months, short.MaxMonths)
 	}
 	tiny := TrailingGrowth(quarters(grow(5, 0.2)...), 12)
-	wantNone(t, "trailing growth without a start TTM", tiny.Value, ReasonInsufficientHistory)
+	wantNone(t, "trailing growth without a start TTM", tiny.Growth, ReasonInsufficientHistory)
 
 	loss := quarters(-1, -1, -1, -1, 1, 1, 1, 1)
-	wantNone(t, "trailing growth from a loss", TrailingGrowth(loss, 12).Value, ReasonNeedsPositiveEPS)
+	wantNone(t, "trailing growth from a loss", TrailingGrowth(loss, 12).Growth, ReasonNeedsPositiveEPS)
 }
 
 func TestTrajectoryFill(t *testing.T) {
@@ -165,5 +165,22 @@ func TestGrowthScale(t *testing.T) {
 	}
 	if diff := cmp.Diff(Axis{Min: -0.4, Max: 1.0, Step: 0.2}, GrowthScale([]*float64{ptr(0.95), ptr(-0.35)}), opt); diff != "" {
 		t.Errorf("a wide range steps by 20 pp (-want +got):\n%s", diff)
+	}
+}
+
+// The trajectory fills the custom year-by-year rates, so its rates stay
+// within the custom-rate bounds, also when the highest reading is lower.
+func TestTrajectoryFillStaysWithinTheCustomRateBounds(t *testing.T) {
+	tr := wantSome(t, "trajectory", TrajectoryFill(quarters(1, 1, 1, 1, 0.1), 3))
+	for _, r := range tr.Rates {
+		if r != -0.5 {
+			t.Errorf("rate %v, want -50%% when the highest reading is %v", r, tr.Highest)
+		}
+	}
+	up := wantSome(t, "trajectory", TrajectoryFill(quarters(0.1, 0.1, 0.1, 0.1, 1, 1, 1, 1, 10), 3))
+	for _, r := range up.Rates {
+		if r > 2 {
+			t.Errorf("rate %v is above 200%%", r)
+		}
 	}
 }

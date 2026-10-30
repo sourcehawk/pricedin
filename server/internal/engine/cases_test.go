@@ -6,8 +6,10 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"sort"
+	"strings"
 	"testing"
 )
 
@@ -36,6 +38,9 @@ func runner[In any](f func(In) (any, error)) func(json.RawMessage) (any, error) 
 		if err := json.Unmarshal(raw, &in); err != nil {
 			return nil, fmt.Errorf("decode input: %w", err)
 		}
+		if bad := unknownKeys(raw, reflect.TypeFor[In](), "$"); len(bad) > 0 {
+			return nil, fmt.Errorf("input keys that match no JSON field name exactly: %v", bad)
+		}
 		return f(in)
 	}
 }
@@ -59,65 +64,94 @@ var runners = map[string]func(json.RawMessage) (any, error){
 		return Project(in.Investment, in.Growth, in.ExitPE), nil
 	}),
 	"exitPeNeeded": runner(func(in investmentGrowing) (any, error) { return ExitPENeeded(in.Investment, in.Growth), nil }),
-	"tone":         runner(func(in struct{ Diff float64 }) (any, error) { return ToneOf(in.Diff), nil }),
-	"verdict":      runner(func(in struct{ Gap float64 }) (any, error) { return VerdictOf(in.Gap), nil }),
-	"niceStep": runner(func(in struct{ Range, Target float64 }) (any, error) {
+	"tone": runner(func(in struct {
+		Diff float64 `json:"diff"`
+	},
+	) (any, error) {
+		return ToneOf(in.Diff), nil
+	}),
+	"verdict": runner(func(in struct {
+		Gap float64 `json:"gap"`
+	},
+	) (any, error) {
+		return VerdictOf(in.Gap), nil
+	}),
+	"niceStep": runner(func(in struct {
+		Range  float64 `json:"range"`
+		Target float64 `json:"target"`
+	},
+	) (any, error) {
 		return NiceStep(in.Range, in.Target), nil
 	}),
-	"quarterSeries": runner(func(in struct{ Quarters []Quarter }) (any, error) { return QuarterSeries(in.Quarters), nil }),
+	"quarterSeries": runner(func(in struct {
+		Quarters []Quarter `json:"quarters"`
+	},
+	) (any, error) {
+		return QuarterSeries(in.Quarters), nil
+	}),
 	"weightedTrend": runner(func(in struct {
-		Quarters []Quarter
-		At       int
+		Quarters []Quarter `json:"quarters"`
+		At       int       `json:"at"`
 	},
 	) (any, error) {
 		return WeightedTrend(in.Quarters, in.At), nil
 	}),
 	"trailingGrowth": runner(func(in struct {
-		Quarters []Quarter
-		Months   int
+		Quarters []Quarter `json:"quarters"`
+		Months   int       `json:"months"`
 	},
 	) (any, error) {
 		return TrailingGrowth(in.Quarters, in.Months), nil
 	}),
 	"trajectoryFill": runner(func(in struct {
-		Quarters []Quarter
-		Years    int
+		Quarters []Quarter `json:"quarters"`
+		Years    int       `json:"years"`
 	},
 	) (any, error) {
 		return TrajectoryFill(in.Quarters, in.Years), nil
 	}),
 	"yearRates": runner(func(in struct {
-		Custom CustomGrowth
-		Years  int
+		Custom CustomGrowth `json:"custom"`
+		Years  int          `json:"years"`
 	},
 	) (any, error) {
 		return YearRates(in.Custom, in.Years), nil
 	}),
-	"yearlyAverage": runner(func(in struct{ Rates []float64 }) (any, error) { return YearlyAverage(in.Rates), nil }),
+	"yearlyAverage": runner(func(in struct {
+		Rates []float64 `json:"rates"`
+	},
+	) (any, error) {
+		return YearlyAverage(in.Rates), nil
+	}),
 	"baselinePath": runner(func(in struct {
-		EPS         float64 `json:"eps"`
-		Growth      float64
-		Quarters    int
-		YearlyRates []float64
+		EPS         float64   `json:"eps"`
+		Growth      float64   `json:"growth"`
+		Quarters    int       `json:"quarters"`
+		YearlyRates []float64 `json:"yearlyRates"`
 	},
 	) (any, error) {
 		return BaselinePath(in.EPS, in.Growth, in.Quarters, in.YearlyRates), nil
 	}),
-	"growthScale": runner(func(in struct{ Values []*float64 }) (any, error) { return GrowthScale(in.Values), nil }),
+	"growthScale": runner(func(in struct {
+		Values []*float64 `json:"values"`
+	},
+	) (any, error) {
+		return GrowthScale(in.Values), nil
+	}),
 	"typicalPe": runner(func(in struct {
-		Quarters []Quarter
-		Price    float64
-		EPS      float64 `json:"eps"`
-		Months   int
+		Quarters []Quarter `json:"quarters"`
+		Price    float64   `json:"price"`
+		EPS      float64   `json:"eps"`
+		Months   int       `json:"months"`
 	},
 	) (any, error) {
 		return TypicalPE(in.Quarters, in.Price, in.EPS, in.Months), nil
 	}),
 	"estimatedExitPe": runner(func(in struct {
-		Price         float64
-		EPS           float64 `json:"eps"`
-		Years         int
-		WeightedTrend *float64
+		Price         float64  `json:"price"`
+		EPS           float64  `json:"eps"`
+		Years         int      `json:"years"`
+		WeightedTrend *float64 `json:"weightedTrend"`
 		TypicalPE     *float64 `json:"typicalPe"`
 	},
 	) (any, error) {
@@ -129,14 +163,14 @@ var runners = map[string]func(json.RawMessage) (any, error){
 	}),
 	"howDemanding": runner(func(in struct {
 		Investment
-		Quarters []Quarter
-		ExitPE   Number `json:"exitPe"`
+		Quarters []Quarter `json:"quarters"`
+		ExitPE   Number    `json:"exitPe"`
 	},
 	) (any, error) {
 		return HowDemanding(in.Quarters, in.Investment, in.ExitPE), nil
 	}),
 	"defaultScenarios": runner(func(in struct {
-		WeightedTrend *float64
+		WeightedTrend *float64 `json:"weightedTrend"`
 		ExitPE        *float64 `json:"exitPe"`
 	},
 	) (any, error) {
@@ -144,29 +178,60 @@ var runners = map[string]func(json.RawMessage) (any, error){
 	}),
 	"scenarios": runner(func(in struct {
 		Investment
-		Cases []ScenarioCase
+		Cases []ScenarioCase `json:"cases"`
 	},
 	) (any, error) {
 		return Scenarios(in.Investment, in.Cases), nil
 	}),
-	"shareCountEvents": runner(func(in struct{ Quarters []Quarter }) (any, error) {
+	"shareCountEvents": runner(func(in struct {
+		Quarters []Quarter `json:"quarters"`
+	},
+	) (any, error) {
 		return ShareCountEvents(in.Quarters), nil
 	}),
-	"correlation": runner(func(in struct{ Xs, Ys []float64 }) (any, error) { return Correlation(in.Xs, in.Ys), nil }),
-	"peBands":     runner(func(in struct{ Points []PricePoint }) (any, error) { return PEBands(in.Points), nil }),
+	"correlation": runner(func(in struct {
+		Xs []float64 `json:"xs"`
+		Ys []float64 `json:"ys"`
+	},
+	) (any, error) {
+		return Correlation(in.Xs, in.Ys), nil
+	}),
+	"peBands": runner(func(in struct {
+		Points []PricePoint `json:"points"`
+	},
+	) (any, error) {
+		return PEBands(in.Points), nil
+	}),
 	"priceChart": runner(func(in struct {
-		Daily    []PricePoint
-		Quarters []Quarter
-		Range    ChartRange
+		Daily    []PricePoint `json:"daily"`
+		Quarters []Quarter    `json:"quarters"`
+		Range    ChartRange   `json:"range"`
 	},
 	) (any, error) {
 		return PriceChart(in.Daily, in.Quarters, in.Range), nil
 	}),
-	"financials":   runner(func(in struct{ Quarters []Quarter }) (any, error) { return Financials(in.Quarters), nil }),
-	"compareScale": runner(func(in struct{ Values []*float64 }) (any, error) { return CompareScale(in.Values), nil }),
+	"bandPrice": runner(func(in struct {
+		TTMEPS   *float64 `json:"ttmEps"`
+		Multiple float64  `json:"multiple"`
+	},
+	) (any, error) {
+		return BandPrice(in.TTMEPS, in.Multiple), nil
+	}),
+	"financials": runner(func(in struct {
+		Quarters []Quarter `json:"quarters"`
+	},
+	) (any, error) {
+		return Financials(in.Quarters), nil
+	}),
+	"compareScale": runner(func(in struct {
+		Values []*float64 `json:"values"`
+	},
+	) (any, error) {
+		return CompareScale(in.Values), nil
+	}),
 	"evaluate": runner(func(in struct {
-		History History
-		Levers  Levers
+		History History `json:"history"`
+		Levers  Levers  `json:"levers"`
 	},
 	) (any, error) {
 		return Evaluate(in.History, in.Levers)
@@ -187,6 +252,77 @@ func loadCases(t *testing.T) caseFile {
 		t.Fatalf("cases version = %d, want 1", f.Version)
 	}
 	return f
+}
+
+// unknownKeys returns the path of each object key in raw that is not the
+// exact JSON name of a field of t. encoding/json matches names without
+// regard to case; the TypeScript engine does not, so the cases must use the
+// exact names.
+func unknownKeys(raw json.RawMessage, t reflect.Type, path string) []string {
+	for t.Kind() == reflect.Pointer {
+		t = t.Elem()
+	}
+	if reflect.PointerTo(t).Implements(reflect.TypeFor[json.Unmarshaler]()) {
+		return nil
+	}
+	var bad []string
+	switch t.Kind() {
+	case reflect.Struct:
+		var obj map[string]json.RawMessage
+		if json.Unmarshal(raw, &obj) != nil {
+			return nil
+		}
+		fields := jsonFields(t)
+		for k, v := range obj {
+			ft, ok := fields[k]
+			if !ok {
+				bad = append(bad, path+"."+k)
+				continue
+			}
+			bad = append(bad, unknownKeys(v, ft, path+"."+k)...)
+		}
+	case reflect.Slice, reflect.Array:
+		var items []json.RawMessage
+		if json.Unmarshal(raw, &items) != nil {
+			return nil
+		}
+		for i, v := range items {
+			bad = append(bad, unknownKeys(v, t.Elem(), fmt.Sprintf("%s[%d]", path, i))...)
+		}
+	case reflect.Map:
+		var obj map[string]json.RawMessage
+		if json.Unmarshal(raw, &obj) != nil {
+			return nil
+		}
+		for k, v := range obj {
+			bad = append(bad, unknownKeys(v, t.Elem(), path+"."+k)...)
+		}
+	default:
+	}
+	return bad
+}
+
+// jsonFields maps the exact JSON name of each field of struct t, including
+// the fields of embedded structs, to its type.
+func jsonFields(t reflect.Type) map[string]reflect.Type {
+	out := map[string]reflect.Type{}
+	for i := range t.NumField() {
+		f := t.Field(i)
+		tag := f.Tag.Get("json")
+		name, _, _ := strings.Cut(tag, ",")
+		switch {
+		case name == "-" || (!f.IsExported() && !f.Anonymous):
+		case f.Anonymous && tag == "":
+			for k, v := range jsonFields(f.Type) {
+				out[k] = v
+			}
+		case name == "":
+			out[f.Name] = f.Type
+		default:
+			out[name] = f.Type
+		}
+	}
+	return out
 }
 
 // TestSharedCases runs every case of testdata/engine/cases.json.
@@ -311,4 +447,18 @@ func joinLines(lines []string) string {
 		s += "  " + l + "\n"
 	}
 	return s
+}
+
+func TestUnknownKeysAreCaseExact(t *testing.T) {
+	raw := json.RawMessage(`{"Price": 1, "eps": 2, "nested": [{"Label": "x"}]}`)
+	type in struct {
+		Price  float64   `json:"price"`
+		EPS    float64   `json:"eps"`
+		Nested []Quarter `json:"nested"`
+	}
+	got := unknownKeys(raw, reflect.TypeFor[in](), "$")
+	slices.Sort(got)
+	if want := []string{"$.Price", "$.nested[0].Label"}; !slices.Equal(got, want) {
+		t.Errorf("unknownKeys = %v, want %v", got, want)
+	}
 }

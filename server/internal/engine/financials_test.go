@@ -55,6 +55,9 @@ func TestFinancialsTones(t *testing.T) {
 	if tone := wantSome(t, "costs tile", tiles.OperatingCosts.Tone); tone != ToneWarn {
 		t.Errorf("costs tile tone = %q, want warn", tone)
 	}
+	if tone := wantSome(t, "margin tile", tiles.OperatingMargin.Tone); tone != ToneBad {
+		t.Errorf("margin tile tone = %q, want bad for a falling margin", tone)
+	}
 
 	scale := wantSome(t, "revenue scale", f.Metrics[MetricRevenue].Scale)
 	near(t, "revenue scale minimum", scale.Min, 0, 0)

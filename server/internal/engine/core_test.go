@@ -172,3 +172,16 @@ func TestNiceStep(t *testing.T) {
 		near(t, "NiceStep", NiceStep(tt.rng, 5), tt.want, 1e-12)
 	}
 }
+
+// A growth above 1000% a year comes from a near-zero EPS base; compounding
+// it over ten years could overflow.
+func TestGrowthAbove1000PercentIsOutOfRange(t *testing.T) {
+	wantNone(t, "exit P/E needed", ExitPENeeded(grmn, 10.01), ReasonGrowthOutOfRange)
+	near(t, "exit P/E needed at 1000%", wantSome(t, "exit P/E needed", ExitPENeeded(grmn, 10)), 270*1.15*1.15*1.15/(10.8*11*11*11), 1e-12)
+	grid := wantSome(t, "grid", ReturnGrid(gridAt(BaselineWeighted, Some(1e30))))
+	wantNone(t, "YOU cell", grid.You, ReasonGrowthOutOfRange)
+	paths := wantSome(t, "paths", EarningsPaths(PathsInput{EPS: 5, Years: 10, Baseline: Some(1e30), Required: Some(0.1)}))
+	wantNone(t, "baseline path", paths.Future[40].Baseline, ReasonGrowthOutOfRange)
+	set := Scenarios(grmn, []ScenarioCase{{Name: "Bull", Growth: 1e30, ExitPE: 20}})
+	wantNone(t, "case", set.Cases[0].Result, ReasonGrowthOutOfRange)
+}

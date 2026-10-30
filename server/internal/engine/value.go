@@ -24,7 +24,7 @@ const (
 	ReasonMissingData Reason = "missing_data"
 	// ReasonNonPositiveBase: a change against a base that is zero or negative.
 	ReasonNonPositiveBase Reason = "non_positive_base"
-	// ReasonGrowthOutOfRange: a growth rate of -100% or lower.
+	// ReasonGrowthOutOfRange: a growth rate of -100% or lower, or above 1000%.
 	ReasonGrowthOutOfRange Reason = "growth_out_of_range"
 	// ReasonTooFewPoints: a correlation needs at least 20 points.
 	ReasonTooFewPoints Reason = "too_few_points"

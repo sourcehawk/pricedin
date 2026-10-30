@@ -95,7 +95,7 @@ type Tiles struct {
 
 // Tile is one metric of the tiles.
 type Tile struct {
-	Value  Number      `json:"value"`
+	Latest Number      `json:"latest"`
 	Change Number      `json:"change"`
 	Tone   Maybe[Tone] `json:"tone"`
 }
@@ -103,9 +103,10 @@ type Tile struct {
 // MarginTile is the operating margin tile; Change is in fractions (0.01 is
 // one pp).
 type MarginTile struct {
-	Value    Number `json:"value"`
-	Previous Number `json:"previous"`
-	Change   Number `json:"change"`
+	Latest   Number      `json:"latest"`
+	Previous Number      `json:"previous"`
+	Change   Number      `json:"change"`
+	Tone     Maybe[Tone] `json:"tone"`
 }
 
 // Compare is the compare view: each metric's change since the first
@@ -332,9 +333,9 @@ func tiles(w []Quarter, rev []*float64, values func(Metric) []*float64, margin [
 	revChange := change(rev[i], rev[j])
 	tile := func(m Metric) Tile {
 		d := values(m)
-		t := Tile{Value: None[float64](ReasonMissingData), Change: change(d[i], d[j])}
+		t := Tile{Latest: None[float64](ReasonMissingData), Change: change(d[i], d[j])}
 		if d[i] != nil {
-			t.Value = Some(*d[i])
+			t.Latest = Some(*d[i])
 		}
 		switch c := t.Change; {
 		case !c.Ok():
@@ -351,9 +352,14 @@ func tiles(w []Quarter, rev []*float64, values func(Metric) []*float64, margin [
 		}
 		return t
 	}
-	mt := MarginTile{Value: margin[i], Previous: margin[j], Change: None[float64](reasonOf(margin[i], margin[j]))}
+	mt := MarginTile{Latest: margin[i], Previous: margin[j], Change: None[float64](reasonOf(margin[i], margin[j]))}
+	mt.Tone = None[Tone](mt.Change.Reason)
 	if margin[i].Ok() && margin[j].Ok() {
 		mt.Change = Some(margin[i].Get() - margin[j].Get())
+		mt.Tone = Some(ToneNeutral)
+		if math.Abs(mt.Change.Get()) >= 1e-9 {
+			mt.Tone = Some(riseTone(MetricRevenue, mt.Change.Get()))
+		}
 	}
 	return Some(Tiles{
 		Label:           w[i].Label,

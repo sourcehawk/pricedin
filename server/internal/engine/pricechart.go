@@ -143,8 +143,8 @@ type BandPair struct {
 }
 
 // PEBands returns the P/E bands for the visible points, about 5 of them.
-// The day's line of a band is that day's TTM EPS times its multiple. The
-// bands are missing when no point has a positive TTM EPS.
+// BandPrice gives the line of a band on each day. The bands are missing
+// when no point has a positive TTM EPS.
 func PEBands(points []PricePoint) Maybe[Bands] {
 	lo, hi := math.Inf(1), math.Inf(-1)
 	for _, d := range points {
@@ -229,6 +229,19 @@ func PEBands(points []PricePoint) Maybe[Bands] {
 		}
 	}
 	return Some(out)
+}
+
+// BandPrice returns the price on the line of a P/E band on one day: the
+// day's TTM EPS times the band's multiple. It is missing when the TTM EPS
+// is null (missing_data) or not positive (needs_positive_eps).
+func BandPrice(ttmEPS *float64, multiple float64) Number {
+	switch {
+	case ttmEPS == nil:
+		return None[float64](ReasonMissingData)
+	case !(*ttmEPS > 0):
+		return None[float64](ReasonNeedsPositiveEPS)
+	}
+	return Some(*ttmEPS * multiple)
 }
 
 // pointPE is the P/E of a daily point; it needs a positive TTM EPS.

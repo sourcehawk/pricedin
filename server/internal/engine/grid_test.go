@@ -10,7 +10,7 @@ func gridAt(mode BaselineMode, g Number) GridInput {
 		Investment: grmn,
 		ExitPE:     20,
 		Required:   Some(0.2388),
-		Baseline:   ActiveBaseline{Mode: mode, Value: g},
+		Baseline:   ActiveBaseline{Mode: mode, Growth: g},
 		Weighted:   Some(0.1595),
 		Today:      Some(0.1224),
 		Trailing:   Some(0.1676),

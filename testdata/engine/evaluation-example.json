@@ -1015,22 +1015,22 @@
   "peNow": {"value":25},
   "exitPe": {
    "mode": "estimated",
-   "inUse": {"value":{"value":20,"rule":"fade"}},
-   "estimate": {"value":{"value":20,"rule":"fade"}},
+   "inUse": {"value":{"pe":20,"rule":"fade"}},
+   "estimate": {"value":{"pe":20,"rule":"fade"}},
    "g0": {"value":0.15950428064100572},
    "gExit": {"value":0.10975214032050286},
-   "typical": {"value":{"value":23.026315789473685},"months":36,"points":13},
+   "typical": {"pe":{"value":23.026315789473685},"months":36,"points":13},
    "peNowVsTypical": {"value":"close"},
    "vsNow": {"value":"lower"},
    "sliderMax": 45
   },
   "baselines": {
    "active": "weighted",
-   "value": {"value":0.15950428064100572},
+   "growth": {"value":0.15950428064100572},
    "weighted": {"value":0.15950428064100572},
    "today": {"value":0.12244897959183665},
    "trailing": {
-    "value": {"value":0.16756756756756763},
+    "growth": {"value":0.16756756756756763},
     "months": 12,
     "maxMonths": 45,
     "fromTtm": {"value":9.25},
@@ -2579,7 +2579,7 @@
    ],
    "scale": {"min":0,"max":0.30000000000000004,"step":0.05},
    "typicalRequired": {"value":0.2053023239677798},
-   "peak": {"value":{"index":8,"value":0.26288157087973385}},
+   "peak": {"value":{"index":8,"growth":0.26288157087973385}},
    "requiredAboveDelivered": 8,
    "compared": 12
   },
@@ -9275,21 +9275,22 @@
     "value": {
      "label": "Q3 FY26",
      "compareLabel": "Q3 FY25",
-     "revenue": {"value":{"value":1990000000},"change":{"value":0.12049549549549554},"tone":{"value":"good"}},
+     "revenue": {"latest":{"value":1990000000},"change":{"value":0.12049549549549554},"tone":{"value":"good"}},
      "operatingCosts": {
-      "value": {"value":1378000000},
+      "latest": {"value":1378000000},
       "change": {"value":0.04473085670962851},
       "tone": {"value":"neutral"}
      },
-     "operatingIncome": {"value":{"value":612000000},"change":{"value":0.33916849015317285},"tone":{"value":"good"}},
+     "operatingIncome": {"latest":{"value":612000000},"change":{"value":0.33916849015317285},"tone":{"value":"good"}},
      "operatingMargin": {
-      "value": {"value":0.3075376884422111},
+      "latest": {"value":0.3075376884422111},
       "previous": {"value":0.25731981981981983},
-      "change": {"value":0.05021786862239125}
+      "change": {"value":0.05021786862239125},
+      "tone": {"value":"good"}
      },
-     "eps": {"value":{"value":2.75},"change":{"value":0.12244897959183665},"tone":{"value":"good"}},
-     "freeCashFlow": {"value":{"value":293000000},"change":{"value":-0.3105882352941176},"tone":{"value":"bad"}},
-     "dilutedShares": {"value":{"value":192000000},"change":{"value":-0.02003151537814518},"tone":{"value":"good"}}
+     "eps": {"latest":{"value":2.75},"change":{"value":0.12244897959183665},"tone":{"value":"good"}},
+     "freeCashFlow": {"latest":{"value":293000000},"change":{"value":-0.3105882352941176},"tone":{"value":"bad"}},
+     "dilutedShares": {"latest":{"value":192000000},"change":{"value":-0.02003151537814518},"tone":{"value":"good"}}
     }
    },
    "compare": {

@@ -139,53 +139,77 @@ func isFinite(v float64) bool {
 	return !math.IsNaN(v) && !math.IsInf(v, 0)
 }
 
-// Validate reports the first lever that Evaluate cannot use. EPS and the
-// custom exit P/E may be zero or negative: those give values with reason
-// needs_positive_eps instead of an error.
+// The bounds of the levers, from the prototype's own input limits, and of
+// the history. Within them no computed value overflows.
+const (
+	maxTargetReturn = 0.5  // a 50% target return
+	minCustomGrowth = -0.5 // a custom rate of -50%
+	maxCustomGrowth = 2.0  // a custom rate of 200%
+	maxCustomExitPE = 1000 // the highest custom exit P/E
+	maxScenarioPE   = 1e4  // the highest exit P/E of a bear, base or bull case
+	maxMonths       = 120  // the longest look-back that a lever can ask for
+	maxPerShare     = 1e6  // the largest price, EPS or dividend per share
+	minPerShare     = 1e-4 // the smallest EPS or price per share other than zero
+	maxAmount       = 1e15 // the largest share count or dollar amount
+	minAmount       = 1e-6 // the smallest share count or dollar amount other than zero
+)
+
+// Validate reports the first lever that Evaluate cannot use. The price is
+// 0.0001 to 1,000,000; EPS is zero or 0.0001 to 1,000,000 in size; the
+// dividend is 0 to 1,000,000. The target return is 0 to 50%, the holding
+// period 1 to 10 years, a custom exit P/E above 0 and up to 1000, custom
+// rates -50% to 200%, and look-backs 0 (the default) to 120 months. A case
+// has growth above -100% and up to 1000%, and an exit P/E of at most 10,000
+// in size. EPS and a case exit P/E may be zero or negative: those give
+// values with reason needs_positive_eps instead of an error.
 func (l Levers) Validate() error {
+	if err := validPerShare("price", l.Price, false); err != nil {
+		return err
+	}
+	if err := validPerShare("ttmEps", l.TTMEPS, true); err != nil {
+		return err
+	}
 	switch {
-	case !isFinite(l.Price) || l.Price <= 0:
-		return invalid("price must be positive, got %v", l.Price)
-	case !isFinite(l.TTMEPS):
-		return invalid("ttmEps must be finite, got %v", l.TTMEPS)
-	case !isFinite(l.Dividend) || l.Dividend < 0:
-		return invalid("dividend must be zero or more, got %v", l.Dividend)
-	case !isFinite(l.TargetReturn) || l.TargetReturn <= -1:
-		return invalid("targetReturn must be above -1, got %v", l.TargetReturn)
+	case !isFinite(l.Dividend) || l.Dividend < 0 || l.Dividend > maxPerShare:
+		return invalid("dividend must be 0 to %g, got %v", maxPerShare, l.Dividend)
+	case !isFinite(l.TargetReturn) || l.TargetReturn < 0 || l.TargetReturn > maxTargetReturn:
+		return invalid("targetReturn must be 0 to %g, got %v", maxTargetReturn, l.TargetReturn)
 	case l.HoldingYears < 1 || l.HoldingYears > 10:
 		return invalid("holdingYears must be 1 to 10, got %d", l.HoldingYears)
 	}
 	switch l.ExitPE.Mode {
 	case ExitPEEstimated, ExitPEToday, ExitPETrailing:
 	case ExitPECustom:
-		if !isFinite(l.ExitPE.Custom) {
-			return invalid("exitPe.custom must be finite, got %v", l.ExitPE.Custom)
+		if c := l.ExitPE.Custom; !isFinite(c) || c <= 0 || c > maxCustomExitPE {
+			return invalid("exitPe.custom must be above 0 and at most %d, got %v", maxCustomExitPE, c)
 		}
 	default:
 		return invalid("unknown exitPe.mode %q", l.ExitPE.Mode)
 	}
-	if l.ExitPE.TrailingMonths < 0 || l.Baseline.TrailingMonths < 0 {
-		return invalid("trailingMonths must not be negative")
+	for name, m := range map[string]int{"exitPe.trailingMonths": l.ExitPE.TrailingMonths, "baseline.trailingMonths": l.Baseline.TrailingMonths} {
+		if m < 0 || m > maxMonths {
+			return invalid("%s must be 0 to %d, got %d", name, maxMonths, m)
+		}
 	}
 	switch l.Baseline.Mode {
 	case BaselineWeighted, BaselineToday, BaselineTrailing, BaselineCustom:
 	default:
 		return invalid("unknown baseline.mode %q", l.Baseline.Mode)
 	}
-	if err := validGrowth("baseline.custom.rate", l.Baseline.Custom.Rate); err != nil {
+	if err := validCustomRate("baseline.custom.rate", l.Baseline.Custom.Rate); err != nil {
 		return err
 	}
 	for i, r := range l.Baseline.Custom.Rates {
-		if err := validGrowth(fmt.Sprintf("baseline.custom.rates[%d]", i), r); err != nil {
+		if err := validCustomRate(fmt.Sprintf("baseline.custom.rates[%d]", i), r); err != nil {
 			return err
 		}
 	}
 	for i, c := range l.Scenarios {
-		if err := validGrowth(fmt.Sprintf("scenarios[%d].growth", i), c.Growth); err != nil {
-			return err
+		if !isFinite(c.Growth) || !growthInRange(c.Growth) {
+			return invalid("scenarios[%d].growth must be above -1 and at most %g, got %v", i, float64(maxGrowth), c.Growth)
 		}
-		if !isFinite(c.ExitPE) {
-			return invalid("scenarios[%d].exitPe must be finite, got %v", i, c.ExitPE)
+		if !isFinite(c.ExitPE) || math.Abs(c.ExitPE) > maxScenarioPE {
+			return invalid("scenarios[%d].exitPe must be at most %g in size, got %v", i, maxScenarioPE, c.ExitPE)
 		}
 	}
 	switch l.ChartRange {
@@ -196,22 +220,75 @@ func (l Levers) Validate() error {
 	return nil
 }
 
-func validGrowth(name string, g float64) error {
-	if !isFinite(g) || g <= -1 {
-		return invalid("%s must be above -1, got %v", name, g)
+func validCustomRate(name string, g float64) error {
+	if !isFinite(g) || g < minCustomGrowth || g > maxCustomGrowth {
+		return invalid("%s must be %g to %g, got %v", name, minCustomGrowth, maxCustomGrowth, g)
 	}
 	return nil
 }
 
-// Validate reports a history that Evaluate cannot use: daily points out of
-// order or with a non-positive close.
+// validPerShare checks a per-share value: positive (or, with signed, any
+// sign or zero), and zero or 0.0001 to 1,000,000 in size.
+func validPerShare(name string, v float64, signed bool) error {
+	a := math.Abs(v)
+	switch {
+	case !isFinite(v):
+		return invalid("%s must be finite, got %v", name, v)
+	case !signed && v <= 0:
+		return invalid("%s must be positive, got %v", name, v)
+	case v != 0 && (a < minPerShare || a > maxPerShare):
+		return invalid("%s must be zero or %g to %g in size, got %v", name, minPerShare, maxPerShare, v)
+	}
+	return nil
+}
+
+// validAmount checks a share count or dollar amount: zero or 0.000001 to
+// 10^15 in size.
+func validAmount(name string, v float64) error {
+	a := math.Abs(v)
+	if !isFinite(v) || (v != 0 && (a < minAmount || a > maxAmount)) {
+		return invalid("%s must be zero or %g to %g in size, got %v", name, minAmount, maxAmount, v)
+	}
+	return nil
+}
+
+// Validate reports a history that Evaluate cannot use: an EPS, close or TTM
+// EPS outside the per-share bounds of Levers.Validate, a close that is not
+// positive, a share count or dollar amount that is not zero or 0.000001 to
+// 10^15 in size, or a daily date that is not after the one before it.
 func (h History) Validate() error {
+	for i, q := range h.Quarters {
+		at := fmt.Sprintf("quarters[%d]", i)
+		if q.EPS != nil {
+			if err := validPerShare(at+".eps", *q.EPS, true); err != nil {
+				return err
+			}
+		}
+		if q.Close != nil {
+			if err := validPerShare(at+".close", *q.Close, false); err != nil {
+				return err
+			}
+		}
+		for name, v := range map[string]*float64{"dilutedShares": q.DilutedShares, "revenue": q.Revenue, "operatingIncome": q.OperatingIncome, "operatingCosts": q.OperatingCosts, "freeCashFlow": q.FreeCashFlow} {
+			if v != nil {
+				if err := validAmount(at+"."+name, *v); err != nil {
+					return err
+				}
+			}
+		}
+	}
 	for i, d := range h.Daily {
-		if !isFinite(d.Close) || d.Close <= 0 {
-			return invalid("daily[%d].close must be positive, got %v", i, d.Close)
+		at := fmt.Sprintf("daily[%d]", i)
+		if err := validPerShare(at+".close", d.Close, false); err != nil {
+			return err
+		}
+		if d.TTMEPS != nil {
+			if err := validPerShare(at+".ttmEps", *d.TTMEPS, true); err != nil {
+				return err
+			}
 		}
 		if i > 0 && !h.Daily[i-1].Date.Before(d.Date) {
-			return invalid("daily[%d].date %s is not after %s", i, d.Date, h.Daily[i-1].Date)
+			return invalid("%s.date %s is not after %s", at, d.Date, h.Daily[i-1].Date)
 		}
 	}
 	return nil

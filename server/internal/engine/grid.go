@@ -18,8 +18,8 @@ type GridInput struct {
 
 // ActiveBaseline is the baseline in use and its growth rate.
 type ActiveBaseline struct {
-	Mode  BaselineMode `json:"mode"`
-	Value Number       `json:"value"`
+	Mode   BaselineMode `json:"mode"`
+	Growth Number       `json:"growth"`
 }
 
 // GridTag marks the row of a growth rate.
@@ -95,7 +95,7 @@ func ReturnGrid(in GridInput) Maybe[Grid] {
 		return None[Grid](ReasonNeedsPositiveEPS)
 	}
 	pe := in.ExitPE
-	g := in.Baseline.Value
+	g := in.Baseline.Growth
 	lo, hi := 0.0, 0.3
 	for _, m := range []Number{in.Required, in.Today, in.Weighted, in.Trailing, g} {
 		if m.Ok() {
@@ -118,7 +118,7 @@ func ReturnGrid(in GridInput) Maybe[Grid] {
 	cols := gridColumns(pe)
 	youCol := slices.Index(cols, pe)
 
-	gOk := g.Ok() && g.Get() > -1
+	gOk := g.Ok() && growthInRange(g.Get())
 	rows := make([]GridRow, 0, len(regular)+1)
 	for _, v := range regular {
 		rows = append(rows, GridRow{Growth: v})

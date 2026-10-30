@@ -58,7 +58,7 @@ type ScenarioResult struct {
 
 // Scenarios returns the outcome of each case. A result is missing when EPS
 // or the case's exit P/E is not positive, or when its growth is -100% or
-// lower; WorstYearlyReturn skips missing results.
+// lower or above 1000%; WorstYearlyReturn skips missing results.
 func Scenarios(inv Investment, cases []ScenarioCase) ScenarioSet {
 	out := ScenarioSet{Cases: make([]ScenarioOutcome, len(cases)), MeetingTarget: []string{}}
 	worst := math.Inf(1)
@@ -67,7 +67,7 @@ func Scenarios(inv Investment, cases []ScenarioCase) ScenarioSet {
 		switch {
 		case !(inv.EPS > 0):
 			continue
-		case !(c.Growth > -1):
+		case !growthInRange(c.Growth):
 			out.Cases[i].Result = None[ScenarioResult](ReasonGrowthOutOfRange)
 			continue
 		case !(c.ExitPE > 0):

@@ -6,7 +6,7 @@ import "math"
 // look-back, with today's P/E (the price and TTM EPS levers) as the last
 // point.
 type Typical struct {
-	Value Number `json:"value"`
+	PE Number `json:"pe"`
 	// Months is the look-back: the requested months rounded to a multiple
 	// of 3, from 6 to 36. A shorter history uses every quarter it has.
 	Months int `json:"months"`
@@ -41,7 +41,7 @@ func (s series) typical(price, eps float64, months int) Typical {
 			pes = append(pes, p/e.Get())
 		}
 	}
-	return Typical{Value: median(pes), Months: m, Points: len(pes)}
+	return Typical{PE: median(pes), Months: m, Points: len(pes)}
 }
 
 // ExitPERule names the rule that set an exit P/E.
@@ -66,8 +66,8 @@ const (
 
 // Estimate is the estimated exit P/E with the numbers that explain it.
 type Estimate struct {
-	Value Number      `json:"value"`
-	Rule  *ExitPERule `json:"rule"` // nil when Value is missing
+	PE    Number      `json:"pe"`
+	Rule  *ExitPERule `json:"rule"` // nil when PE is missing
 	G0    Number      `json:"g0"`   // the weighted trend the estimate starts from
 	GExit Number      `json:"gExit"`
 }
@@ -91,7 +91,7 @@ func EstimatedExitPE(price, eps float64, years int, weighted, typical *float64) 
 	}
 	now := price / eps
 	if !(eps > 0) || !(now > 0) {
-		out.Value = None[float64](ReasonNeedsPositiveEPS)
+		out.PE = None[float64](ReasonNeedsPositiveEPS)
 		return out
 	}
 	slow := weighted == nil || *weighted <= growthFloor
@@ -107,15 +107,15 @@ func EstimatedExitPE(price, eps float64, years int, weighted, typical *float64) 
 	default:
 		pe, rule = peBase+(now-peBase)*(gExit-growthFloor)/(*weighted-growthFloor), RuleFade
 	}
-	out.Value = Some(math.Max(6, roundHalf(pe)))
+	out.PE = Some(math.Max(6, roundHalf(pe)))
 	out.Rule = &rule
 	return out
 }
 
 // ExitPE is the exit P/E in use with its rule.
 type ExitPE struct {
-	Value float64    `json:"value"`
-	Rule  ExitPERule `json:"rule"`
+	PE   float64    `json:"pe"`
+	Rule ExitPERule `json:"rule"`
 }
 
 // ExitPEView is everything the page shows about the exit P/E.
@@ -137,39 +137,39 @@ type ExitPEView struct {
 
 func (s series) exitPE(l Levers, peNow Number) ExitPEView {
 	typ := s.typical(l.Price, l.TTMEPS, l.ExitPE.TrailingMonths)
-	est := EstimatedExitPE(l.Price, l.TTMEPS, l.HoldingYears, s.weighted().Value, typ.Value.Value)
-	estimate := None[ExitPE](est.Value.Reason)
-	if est.Value.Ok() {
-		estimate = Some(ExitPE{Value: est.Value.Get(), Rule: *est.Rule})
+	est := EstimatedExitPE(l.Price, l.TTMEPS, l.HoldingYears, s.weighted().Value, typ.PE.Value)
+	estimate := None[ExitPE](est.PE.Reason)
+	if est.PE.Ok() {
+		estimate = Some(ExitPE{PE: est.PE.Get(), Rule: *est.Rule})
 	}
 	var inUse Maybe[ExitPE]
 	switch l.ExitPE.Mode {
 	case ExitPEToday:
 		inUse = None[ExitPE](ReasonNeedsPositiveEPS)
 		if l.TTMEPS > 0 {
-			inUse = Some(ExitPE{Value: roundHalf(l.Price / l.TTMEPS), Rule: RuleToday})
+			inUse = Some(ExitPE{PE: roundHalf(l.Price / l.TTMEPS), Rule: RuleToday})
 		}
 	case ExitPETrailing:
-		inUse = None[ExitPE](typ.Value.Reason)
-		if typ.Value.Ok() {
-			inUse = Some(ExitPE{Value: roundHalf(typ.Value.Get()), Rule: RuleTrailing})
+		inUse = None[ExitPE](typ.PE.Reason)
+		if typ.PE.Ok() {
+			inUse = Some(ExitPE{PE: roundHalf(typ.PE.Get()), Rule: RuleTrailing})
 		}
 	case ExitPECustom:
-		inUse = Some(ExitPE{Value: l.ExitPE.Custom, Rule: RuleCustom})
+		inUse = Some(ExitPE{PE: l.ExitPE.Custom, Rule: RuleCustom})
 	default:
 		inUse = estimate
 	}
-	if inUse.Ok() && !(inUse.Get().Value > 0) {
+	if inUse.Ok() && !(inUse.Get().PE > 0) {
 		inUse = None[ExitPE](ReasonNeedsPositiveEPS)
 	}
 	v := ExitPEView{Mode: l.ExitPE.Mode, InUse: inUse, Estimate: estimate, G0: est.G0, GExit: est.GExit, Typical: typ}
 	switch {
 	case !peNow.Ok():
 		v.PENowVsTypical = None[string](peNow.Reason)
-	case !typ.Value.Ok():
-		v.PENowVsTypical = None[string](typ.Value.Reason)
+	case !typ.PE.Ok():
+		v.PENowVsTypical = None[string](typ.PE.Reason)
 	default:
-		now, t := peNow.Get(), typ.Value.Get()
+		now, t := peNow.Get(), typ.PE.Get()
 		v.PENowVsTypical = Some(classify(now > t*1.1, now < t*0.9, "above", "below", "close"))
 	}
 	switch {
@@ -178,15 +178,15 @@ func (s series) exitPE(l Levers, peNow Number) ExitPEView {
 	case !inUse.Ok():
 		v.VsNow = None[string](inUse.Reason)
 	default:
-		now, pe := peNow.Get(), inUse.Get().Value
+		now, pe := peNow.Get(), inUse.Get().PE
 		v.VsNow = Some(classify(pe < now-0.25, pe > now+0.25, "lower", "higher", "same"))
 	}
 	top := 0.0
 	if l.TTMEPS > 0 {
 		top = l.Price / l.TTMEPS
 	}
-	if inUse.Ok() && inUse.Get().Value > top {
-		top = inUse.Get().Value
+	if inUse.Ok() && inUse.Get().PE > top {
+		top = inUse.Get().PE
 	}
 	v.SliderMax = math.Max(45, math.Min(400, math.Ceil(top*1.3/5)*5))
 	return v

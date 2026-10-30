@@ -34,9 +34,9 @@
 //	         scenarios: [{name, growth, exitPe}],   empty means the defaults
 //	         chartRange: 6M|1Y|3Y}
 //
-// Invalid levers or history give an error that wraps [ErrInvalidInput].
-// Zero or negative EPS is valid: it gives values with reason
-// needs_positive_eps.
+// Invalid levers or history give an error that wraps [ErrInvalidInput];
+// [Levers.Validate] and [History.Validate] list the bounds. Zero or
+// negative EPS is valid: it gives values with reason needs_positive_eps.
 //
 // # Output
 //
@@ -64,11 +64,41 @@
 //
 // testdata/engine/evaluation-example.json holds a full input and output.
 //
+// # What the UI does with the output
+//
+//   - Default cases: when levers.scenarios is empty, the bear, base and bull
+//     cases are the defaults around the weighted trend and the exit P/E in
+//     use, so they change when the exit P/E changes. The UI pins them: after
+//     a stock pick or Reset, it copies the defaults of the first evaluation
+//     into levers.scenarios and keeps them until the next pick or Reset.
+//   - P/E band lines: the panel draws each band line with bandPrice of the
+//     TypeScript engine ([BandPrice] here), one point per day.
+//   - Compare chart: its axis depends on the metrics the user selects, so
+//     the panel calls compareScale of the TypeScript engine ([CompareScale]
+//     here) with the selected series.
+//
 // # Shared cases
 //
-// testdata/engine/cases.json holds the expected outputs of every exported
-// function for fixed inputs. tools/engine-oracle computes them from the
-// prototype's own code (prototype/pricedin.html), and both engines must
-// reproduce them. Where v1 corrects the prototype, the case says so in its
-// note.
+// testdata/engine/cases.json holds the expected outputs of Evaluate and of
+// each exported calculation function for fixed inputs. make
+// generate-engine-cases writes the file with tools/engine-oracle, which
+// computes the expected outputs from the prototype's own code
+// (prototype/pricedin.html) with the v1 corrections, except a few
+// hand-written reference values; both engines must reproduce them. Its
+// format:
+//
+//	{"version": 1, "cases": [{"name", "fn", "input", "expected", "tolerance", "note"?, "select"?}]}
+//
+// The fields:
+//
+//   - fn is the TypeScript function name; input is an object of its
+//     arguments, with keys that match the JSON field names exactly (a
+//     runner fails on any other key).
+//   - The output, as JSON, must equal expected: numbers within the
+//     absolute tolerance, null only with null, objects with the same keys,
+//     arrays of the same length.
+//   - select, when present, names one field of the output object; only
+//     that field is compared with expected.
+//   - note says where v1 corrects the prototype for this case, or where a
+//     hand-written expected value comes from.
 package engine

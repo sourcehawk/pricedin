@@ -96,13 +96,13 @@ func Project(inv Investment, g, exitPE float64) Projection {
 
 // ExitPENeeded returns the exit P/E at which EPS growth g reaches the target
 // return. It is missing with needs_positive_eps when EPS is not positive,
-// growth_out_of_range when g is -100% or lower, and dividends_reach_target
-// when any exit P/E would do.
+// growth_out_of_range when g is -100% or lower or above 1000%, and
+// dividends_reach_target when any exit P/E would do.
 func ExitPENeeded(inv Investment, g float64) Number {
 	switch {
 	case !(inv.EPS > 0):
 		return None[float64](ReasonNeedsPositiveEPS)
-	case !(g > -1):
+	case !growthInRange(g):
 		return None[float64](ReasonGrowthOutOfRange)
 	}
 	t := inv.neededFromExit()
@@ -110,6 +110,17 @@ func ExitPENeeded(inv Investment, g float64) Number {
 		return None[float64](ReasonDividendsReachTarget)
 	}
 	return Some(t / (inv.EPS * math.Pow(1+g, float64(inv.Years))))
+}
+
+// maxGrowth is the highest growth rate that the engine compounds over the
+// holding period: 1000% a year. A baseline above it comes from a near-zero
+// EPS base and would overflow the projections.
+const maxGrowth = 10
+
+// growthInRange reports whether the engine can compound g: above -100% and
+// at most 1000% a year.
+func growthInRange(g float64) bool {
+	return g > -1 && g <= maxGrowth
 }
 
 // toneBand is the distance from a target that still counts as close to it.

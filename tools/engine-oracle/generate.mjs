@@ -281,7 +281,7 @@ add(
   "trajectory fill when the highest reading is below -50%",
   "trajectoryFill",
   { quarters: withEps(short(gq, 5), 4, 0.245), years: 3 },
-  "The cap at the highest reading wins over the -50% floor, as in the prototype.",
+  N.trajectoryBounds,
 );
 
 add(
@@ -434,7 +434,7 @@ const gridBase = {
   dividend: 0,
   exitPe: 22,
   required: { value: 0.14953 },
-  baseline: { mode: "weighted", value: { value: 0.12981 } },
+  baseline: { mode: "weighted", growth: { value: 0.12981 } },
   weighted: { value: 0.12981 },
   today: { value: 0.12245 },
   trailing: { value: 0.11869 },
@@ -443,25 +443,25 @@ add("return grid with the weighted trend", "returnGrid", gridBase, N.exactRow);
 add(
   "return grid with today's growth",
   "returnGrid",
-  { ...gridBase, baseline: { mode: "today", value: { value: 0.12245 } } },
+  { ...gridBase, baseline: { mode: "today", growth: { value: 0.12245 } } },
   N.exactRow,
 );
 add(
   "return grid with trailing growth",
   "returnGrid",
-  { ...gridBase, baseline: { mode: "trailing", value: { value: 0.11869 } } },
+  { ...gridBase, baseline: { mode: "trailing", growth: { value: 0.11869 } } },
   N.exactRow,
 );
 add(
   "return grid with a custom rate on a row",
   "returnGrid",
-  { ...gridBase, baseline: { mode: "custom", value: { value: 0.1 } } },
+  { ...gridBase, baseline: { mode: "custom", growth: { value: 0.1 } } },
   N.exactRow,
 );
 add(
   "return grid with a custom rate between rows",
   "returnGrid",
-  { ...gridBase, baseline: { mode: "custom", value: { value: 0.333 } } },
+  { ...gridBase, baseline: { mode: "custom", growth: { value: 0.333 } } },
   N.exactRow,
 );
 add(
@@ -480,7 +480,7 @@ add(
   "returnGrid",
   {
     ...gridBase,
-    baseline: { mode: "trailing", value: { value: null, reason: "insufficient_history" } },
+    baseline: { mode: "trailing", growth: { value: null, reason: "insufficient_history" } },
     trailing: { value: null, reason: "insufficient_history" },
   },
   N.exactRow,
@@ -495,7 +495,7 @@ add(
     price: 180,
     eps: 0.6,
     required: { value: 0.52 },
-    baseline: { mode: "weighted", value: { value: 0.71 } },
+    baseline: { mode: "weighted", growth: { value: 0.71 } },
     weighted: { value: 0.71 },
     today: { value: 0.95 },
     trailing: { value: 0.66 },
@@ -511,7 +511,7 @@ add(
     price: 70,
     eps: 2.1,
     required: { value: 0.31 },
-    baseline: { mode: "weighted", value: { value: -0.62 } },
+    baseline: { mode: "weighted", growth: { value: -0.62 } },
     weighted: { value: -0.62 },
     today: { value: -0.7 },
     trailing: { value: -0.4 },
@@ -682,7 +682,9 @@ add("correlation of weakly linked series", "correlation", {
 });
 
 const tail = (d, k) => d.slice(d.length - k);
-add("P/E bands over the last year", "peBands", { points: tail(GRMN.history.daily, 52) });
+add("P/E bands over the last year", "peBands", {
+  points: tail(GRMN.history.daily, 52),
+});
 add("P/E bands over three years", "peBands", { points: GRMN.history.daily });
 add(
   "P/E bands without today's EPS",
@@ -694,6 +696,9 @@ add(
   },
   N.nullData,
 );
+add("band price on a day", "bandPrice", { ttmEps: 10.8, multiple: 22.5 });
+add("band price without EPS", "bandPrice", { ttmEps: null, multiple: 20 });
+add("band price at a loss", "bandPrice", { ttmEps: -1, multiple: 20 });
 const nearZero = (eps) =>
   lin(10, (i) => ({
     date: `2026-01-${String(i + 1).padStart(2, "0")}`,
@@ -883,10 +888,22 @@ add(
   [...evalNotes, N.trailingHistory, N.typicalHistory],
 );
 add(
-  "evaluate a custom exit P/E of zero",
+  "evaluate today's P/E that rounds to zero",
   "evaluate",
-  ev(noDaily(GRMN), { exitPe: { mode: "custom", custom: 0, trailingMonths: 36 } }),
+  ev(noDaily(GRMN), { price: 1, ttmEps: 10, exitPe: { mode: "today", trailingMonths: 36 } }),
   [...evalNotes, N.exitPePositive],
+);
+add(
+  "evaluate user cases with a zero and a negative exit P/E",
+  "evaluate",
+  ev(noDaily(GRMN), {
+    scenarios: [
+      { name: "Bear", growth: 0.05, exitPe: 0 },
+      { name: "Base", growth: 0.1, exitPe: -5 },
+      { name: "Bull", growth: 0.2, exitPe: 25 },
+    ],
+  }),
+  [...evalNotes, N.scenarioRange],
 );
 add(
   "evaluate a collapse in the latest quarter",
@@ -930,6 +947,7 @@ for (const fn of [
   "scenarios",
   "shareCountEvents",
   "correlation",
+  "bandPrice",
   "peBands",
   "priceChart",
   "financials",

@@ -45,7 +45,9 @@ export const NOTES = {
   yearRatesPad:
     "v1: missing year-by-year rates repeat the last rate, or the flat rate when there is none; filling from the trajectory is a UI action.",
   growthRange:
-    "v1: a growth of -100% or lower gives null with reason growth_out_of_range for values that compound it.",
+    "v1: a growth of -100% or lower, or above 1000%, gives null with reason growth_out_of_range for values that compound it.",
+  trajectoryBounds:
+    "v1: the trajectory rates stay within -50% to 200%, the bounds of a custom rate, so that they can fill the custom rates; the prototype lets the cap at the highest reading go below -50%.",
   bandSteps:
     "v1: the band step search widens its powers of ten when the P/E span needs it, and the bands stop at 50; the prototype searches 0.1 to 5000 only, which never ends for a near-zero EPS.",
   peChangeNeedsEps:
@@ -209,12 +211,15 @@ export function project({ price, eps, growth, years, exitPe, dividend }) {
 
 export function exitPeNeeded({ price, eps, targetReturn, years, growth, dividend }) {
   if (!(eps > 0)) return none("needs_positive_eps");
-  if (!(growth > -1)) return none("growth_out_of_range");
+  if (!inRange(growth)) return none("growth_out_of_range");
   // v1: a non-positive numerator means the dividends alone reach the target.
   if (!(price * Math.pow(1 + targetReturn, years) - dividend * years > 0))
     return none("dividends_reach_target");
   return val(coreMath().reqPe(price, eps, targetReturn, years, growth, dividend));
 }
+
+// v1: the engine compounds growth above -100% and up to 1000% a year.
+const inRange = (g) => g > -1 && g <= 10;
 
 export function tone({ diff }) {
   return coreMath().tone(diff);
@@ -254,19 +259,21 @@ export function trailingGrowth({ quarters, months }) {
       b = to.value;
     value = a > 0 && b > 0 ? val(Math.pow(b / a, 12 / m) - 1) : none("needs_positive_eps");
   }
-  return { value, months: m, maxMonths, fromTtm: from, toTtm: to };
+  return { growth: value, months: m, maxMonths, fromTtm: from, toTtm: to };
 }
 
 export function trajectoryFill({ quarters, years }) {
   const s = series(quarters);
   if (s.WTD == null) return none("insufficient_history");
   const t = s.math.trajInfo(years);
+  // v1: the rates stay within the bounds of a custom rate, -50% to 200%.
+  const rates = t.rates.map((v) => Math.max(-50, Math.min(200, v)));
   return val({
-    rates: t.rates.map((v) => v / 100),
+    rates: rates.map((v) => v / 100),
     slope: t.slope,
     previous: fin(t.prev) ? val(t.prev) : none("insufficient_history"),
     highest: t.hi,
-    capped: t.capped,
+    capped: t.slope > 0 && rates.some((v) => Math.abs(v / 100 - t.hi) < 0.006),
   });
 }
 
@@ -329,7 +336,7 @@ export function typicalPe({ quarters, price, eps, months }) {
   // v1: the conventional median.
   const med = median(v);
   return {
-    value: med == null ? none("insufficient_history") : val(med),
+    pe: med == null ? none("insufficient_history") : val(med),
     months: m,
     points: v.length,
   };
@@ -349,7 +356,7 @@ export function estimatedExitPe({ price, eps, years, weightedTrend: wtd, typical
   const gExit = gExitRaw == null ? none("insufficient_history") : val(gExitRaw);
   // v1: zero EPS gives an infinite P/E, which the prototype lets through.
   if (!(eps > 0) || !(now > 0))
-    return { value: none("needs_positive_eps"), rule: null, g0: g0v, gExit };
+    return { pe: none("needs_positive_eps"), rule: null, g0: g0v, gExit };
   const slow = g0 == null || g0 <= G_FLOOR;
   let pe, rule;
   if (slow && TP != null && now > TP * 1.05) {
@@ -362,7 +369,7 @@ export function estimatedExitPe({ price, eps, years, weightedTrend: wtd, typical
     pe = PE_BASE + ((now - PE_BASE) * (gExitRaw - G_FLOOR)) / (g0 - G_FLOOR);
     rule = "fade";
   }
-  return { value: val(Math.max(6, Math.round(pe * 2) / 2)), rule, g0: g0v, gExit };
+  return { pe: val(Math.max(6, Math.round(pe * 2) / 2)), rule, g0: g0v, gExit };
 }
 
 // ------------------------------------------------------------------ the grid
@@ -386,7 +393,7 @@ export function returnGrid({
   if (!(pe > 0)) return none("needs_positive_eps");
   const num = (m) => (has(m) ? m.value : NaN);
   const R = num(required),
-    g = num(baseline.value),
+    g = num(baseline.growth),
     WTD = num(weighted),
     RECENT = num(today),
     LT = num(trailing);
@@ -438,7 +445,9 @@ export function returnGrid({
     }),
   }));
   // The "Move down a column" step of the grid walkthrough, on the regular rows.
-  let columnSensitivity = none(has(baseline.value) ? "growth_out_of_range" : baseline.value.reason);
+  let columnSensitivity = none(
+    has(baseline.growth) ? "growth_out_of_range" : baseline.growth.reason,
+  );
   if (gOk) {
     const selR = h.near(regular, g);
     const at = (ri) => math.proj(Pp, E, regular[ri], n, h.cols[h.selC], D).cagr;
@@ -455,7 +464,7 @@ export function returnGrid({
     you:
       youRow >= 0
         ? val({ row: youRow, column: h.selC })
-        : none(has(baseline.value) ? "growth_out_of_range" : baseline.value.reason),
+        : none(has(baseline.growth) ? "growth_out_of_range" : baseline.growth.reason),
     columnSensitivity,
   });
 }
@@ -499,7 +508,7 @@ export function earningsPaths({
     });
   }
   const F = 4 * n;
-  const gOk = has(g) && g.value > -1;
+  const gOk = has(g) && inRange(g.value);
   const bp = (k) => baselinePath({ eps: E, growth: g.value, quarters: k, yearlyRates });
   // Line 1250 (drawTraj): the required path; v1 drops it when there is no requirement.
   const fr = (k) => E * Math.pow(1 + R.value, k / 4);
@@ -603,7 +612,7 @@ export function howDemanding({
     // wins, so that rounding noise cannot move the peak.
     const top = Math.max(...finite);
     const index = reqs.findIndex((v) => fin(v) && v >= top - 1e-9);
-    peak = val({ index, value: reqs[index] });
+    peak = val({ index, growth: reqs[index] });
   }
   let above = 0,
     compared = 0;
@@ -645,7 +654,7 @@ export function scenarios({ price: Pp, eps: E, targetReturn: r, years: n, divide
   const math = coreMath();
   const out = cases.map((c) => {
     if (!(E > 0)) return { ...c, result: none("needs_positive_eps") };
-    if (!(c.growth > -1)) return { ...c, result: none("growth_out_of_range") };
+    if (!inRange(c.growth)) return { ...c, result: none("growth_out_of_range") };
     if (!(c.exitPe > 0)) return { ...c, result: none("needs_positive_eps") };
     // Lines 1323-1324 (drawScen).
     const p = math.proj(Pp, E, c.growth, n, c.exitPe, D),
@@ -788,6 +797,14 @@ function bandsV1(D) {
     ? ms.reduce((b, m) => (Math.abs(m - nowPe) < Math.abs(b - nowPe) ? m : b), ms[0])
     : null;
   return { ms, nowPe, mu, md, first: D[0].p / D[0].e, near };
+}
+
+// Line 1046 (drawPx): a band's price on one day is the day's TTM EPS times
+// the multiple.
+export function bandPrice({ ttmEps, multiple }) {
+  if (ttmEps == null) return none("missing_data");
+  if (!(ttmEps > 0)) return none("needs_positive_eps");
+  return val(ttmEps * multiple);
 }
 
 export function peBands({ points }) {
@@ -1050,7 +1067,7 @@ export function financials({ quarters }) {
           t = val(TILE_TONE[P.tileClass(PROTO_KEY[k], chg.value, FIN, { bad: BAD[k] }, i, j)]);
         }
       }
-      return { value: d[i] == null ? none("missing_data") : val(d[i]), change: chg, tone: t };
+      return { latest: d[i] == null ? none("missing_data") : val(d[i]), change: chg, tone: t };
     };
     const m = operatingMargin[i],
       mp = operatingMargin[j];
@@ -1060,11 +1077,15 @@ export function financials({ quarters }) {
       revenue: tile("revenue"),
       operatingCosts: tile("operatingCosts"),
       operatingIncome: tile("operatingIncome"),
-      operatingMargin: {
-        value: m,
-        previous: mp,
-        change: has(m) && has(mp) ? val(m.value - mp.value) : none(has(m) ? mp.reason : m.reason),
-      },
+      operatingMargin: (() => {
+        const change =
+          has(m) && has(mp) ? val(m.value - mp.value) : none(has(m) ? mp.reason : m.reason);
+        // Line 1388 (drawFin): tile('margin', ..., m-mp) colors the change.
+        const t = has(change)
+          ? val(TILE_TONE[P.tileClass("margin", change.value, FIN, { bad: false }, i, j)])
+          : none(change.reason);
+        return { latest: m, previous: mp, change, tone: t };
+      })(),
       eps: tile("eps"),
       freeCashFlow: tile("freeCashFlow"),
       dilutedShares: tile("dilutedShares"),
@@ -1164,7 +1185,7 @@ export function evaluate({ history, levers }) {
       });
     } else customValue = val(custom.rate);
   }
-  const g = { weighted, today, trailing: trailing.value, custom: customValue }[mode];
+  const g = { weighted, today, trailing: trailing.growth, custom: customValue }[mode];
 
   // Exit P/E.
   const typical = typicalPe({ quarters, price: Pp, eps: E, months: levers.exitPe.trailingMonths });
@@ -1173,30 +1194,26 @@ export function evaluate({ history, levers }) {
     eps: E,
     years: n,
     weightedTrend: s.WTD,
-    typicalPe: typical.value.value,
+    typicalPe: typical.pe.value,
   });
-  const estimate = has(est.value)
-    ? val({ value: est.value.value, rule: est.rule })
-    : none(est.value.reason);
+  const estimate = has(est.pe) ? val({ pe: est.pe.value, rule: est.rule }) : none(est.pe.reason);
   let inUse;
   const pm = levers.exitPe.mode;
   if (pm === "estimated") inUse = estimate;
   else if (pm === "today")
     inUse =
-      E > 0
-        ? val({ value: Math.round((Pp / E) * 2) / 2, rule: "today" })
-        : none("needs_positive_eps");
+      E > 0 ? val({ pe: Math.round((Pp / E) * 2) / 2, rule: "today" }) : none("needs_positive_eps");
   else if (pm === "trailing")
-    inUse = has(typical.value)
-      ? val({ value: Math.round(typical.value.value * 2) / 2, rule: "trailing" })
-      : none(typical.value.reason);
-  else inUse = val({ value: levers.exitPe.custom, rule: "custom" });
-  if (has(inUse) && !(inUse.value.value > 0)) inUse = none("needs_positive_eps");
-  const pe = has(inUse) ? val(inUse.value.value) : none(inUse.reason);
-  let peNowVsTypical = none(has(peNow) ? typical.value.reason : peNow.reason);
-  if (has(peNow) && has(typical.value)) {
+    inUse = has(typical.pe)
+      ? val({ pe: Math.round(typical.pe.value * 2) / 2, rule: "trailing" })
+      : none(typical.pe.reason);
+  else inUse = val({ pe: levers.exitPe.custom, rule: "custom" });
+  if (has(inUse) && !(inUse.value.pe > 0)) inUse = none("needs_positive_eps");
+  const pe = has(inUse) ? val(inUse.value.pe) : none(inUse.reason);
+  let peNowVsTypical = none(has(peNow) ? typical.pe.reason : peNow.reason);
+  if (has(peNow) && has(typical.pe)) {
     const now = peNow.value,
-      t = typical.value.value;
+      t = typical.pe.value;
     peNowVsTypical = val(now > t * 1.1 ? "above" : now < t * 0.9 ? "below" : "close");
   }
   let vsNow = none(has(peNow) ? pe.reason : peNow.reason);
@@ -1252,7 +1269,7 @@ export function evaluate({ history, levers }) {
   if (!(E > 0)) atBaseline = none("needs_positive_eps");
   else if (!has(pe)) atBaseline = none(pe.reason);
   else if (!has(g)) atBaseline = none(g.reason);
-  else if (!(g.value > -1)) atBaseline = none("growth_out_of_range");
+  else if (!inRange(g.value)) atBaseline = none("growth_out_of_range");
   else {
     const p = project({
       price: Pp,
@@ -1331,10 +1348,10 @@ export function evaluate({ history, levers }) {
         dividend: D,
         exitPe: pe.value,
         required: R,
-        baseline: { mode, value: g },
+        baseline: { mode, growth: g },
         weighted,
         today,
-        trailing: trailing.value,
+        trailing: trailing.growth,
       })
     : none(E > 0 ? pe.reason : "needs_positive_eps");
 
@@ -1354,7 +1371,15 @@ export function evaluate({ history, levers }) {
   return {
     peNow,
     exitPe,
-    baselines: { active: mode, value: g, weighted, today, trailing, custom: customValue, yoyShift },
+    baselines: {
+      active: mode,
+      growth: g,
+      weighted,
+      today,
+      trailing,
+      custom: customValue,
+      yoyShift,
+    },
     yearByYear,
     trajectory,
     required,
@@ -1372,7 +1397,7 @@ export function evaluate({ history, levers }) {
       weightedTrend: s.weightedTrend[i],
     })),
     growthScale: growthScale({
-      values: [R.value, today.value, weighted.value, trailing.value.value, g.value],
+      values: [R.value, today.value, weighted.value, trailing.growth.value, g.value],
     }),
     returnGrid: returnGridV,
     earningsPaths: earningsPaths({
