@@ -37,7 +37,7 @@ If one of these ports is in use, change it in `.env` (`PRICEDIN_WEB_PORT`, `PRIC
 | `make lint` | golangci-lint, ESLint, the TypeScript type check, Prettier, actionlint and shellcheck |
 | `make test` | The Go unit tests (`make test-server`) and the web unit tests (`make test-web`) |
 | `make test-integration` | The Go tests with the `integration` build tag |
-| `make test-e2e` | Builds the images, starts the Compose stack, runs Playwright, and stops the stack |
+| `make test-e2e` | Builds the images, starts a separate Compose stack (project `pricedin-e2e`, web on port 3100, API on port 8180), runs Playwright, and removes that stack. The stack of `make up` is not touched |
 | `make ci` | Everything that CI runs, in the CI order |
 
 `make` without a target lists every target. CI calls the same targets, so a green `make ci` predicts a green CI run.

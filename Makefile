@@ -32,10 +32,16 @@ DOCKER_BUILD_FLAGS ?=
 # Extra flags for `playwright install`; CI adds --with-deps.
 PLAYWRIGHT_INSTALL_FLAGS ?=
 
-PRICEDIN_WEB_PORT ?= 3000
-PRICEDIN_API_PORT ?= 8080
-PRICEDIN_E2E_BASE_URL ?= http://localhost:$(PRICEDIN_WEB_PORT)
-PRICEDIN_E2E_API_URL  ?= http://localhost:$(PRICEDIN_API_PORT)
+# The end-to-end stack is its own Compose project with its own host ports,
+# so it runs beside the stack of `make up` and its teardown never removes
+# that stack's database.
+PRICEDIN_E2E_PROJECT      ?= pricedin-e2e
+PRICEDIN_E2E_WEB_PORT     ?= 3100
+PRICEDIN_E2E_API_PORT     ?= 8180
+PRICEDIN_E2E_METRICS_PORT ?= 9190
+PRICEDIN_E2E_DB_PORT      ?= 5532
+PRICEDIN_E2E_BASE_URL     ?= http://localhost:$(PRICEDIN_E2E_WEB_PORT)
+PRICEDIN_E2E_API_URL      ?= http://localhost:$(PRICEDIN_E2E_API_PORT)
 
 SHELL_SCRIPTS := $(shell git ls-files --cached --others --exclude-standard '*.sh' 2>/dev/null)
 
@@ -118,8 +124,13 @@ test-web: ## Run the web unit tests
 	$(PNPM) --filter @pricedin/web test
 
 .PHONY: test-e2e
-test-e2e: images ## Start the Compose stack, run Playwright, stop the stack
-	COMPOSE='$(COMPOSE)' PNPM='$(PNPM)' PRICEDIN_E2E_BASE_URL='$(PRICEDIN_E2E_BASE_URL)' PRICEDIN_E2E_API_URL='$(PRICEDIN_E2E_API_URL)' scripts/e2e.sh
+test-e2e: images ## Start a separate Compose stack, run Playwright, remove that stack
+	COMPOSE='$(COMPOSE)' PNPM='$(PNPM)' \
+	PRICEDIN_E2E_PROJECT='$(PRICEDIN_E2E_PROJECT)' \
+	PRICEDIN_WEB_PORT='$(PRICEDIN_E2E_WEB_PORT)' PRICEDIN_API_PORT='$(PRICEDIN_E2E_API_PORT)' \
+	PRICEDIN_METRICS_PORT='$(PRICEDIN_E2E_METRICS_PORT)' PRICEDIN_DB_PORT='$(PRICEDIN_E2E_DB_PORT)' \
+	PRICEDIN_E2E_BASE_URL='$(PRICEDIN_E2E_BASE_URL)' PRICEDIN_E2E_API_URL='$(PRICEDIN_E2E_API_URL)' \
+	scripts/e2e.sh
 
 # --- Build --------------------------------------------------------------------
 .PHONY: build
