@@ -21,8 +21,9 @@ func TestLoadDefaults(t *testing.T) {
 		t.Fatalf("Load() error = %v", err)
 	}
 	want := config.Config{
-		HTTP: config.HTTP{Addr: ":8080", MetricsAddr: ":9090"},
-		Log:  config.Log{Level: slog.LevelInfo, Format: config.LogFormatJSON},
+		HTTP:    config.HTTP{Addr: ":8080", MetricsAddr: ":9090"},
+		Log:     config.Log{Level: slog.LevelInfo, Format: config.LogFormatJSON},
+		Massive: config.Massive{BaseURL: "https://api.massive.com", RateLimit: 20},
 	}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("Load() mismatch (-want +got):\n%s", diff)
@@ -31,11 +32,14 @@ func TestLoadDefaults(t *testing.T) {
 
 func TestLoadReadsEveryVariable(t *testing.T) {
 	got, err := config.Load(env(map[string]string{
-		"PRICEDIN_HTTP_ADDR":    "127.0.0.1:8181",
-		"PRICEDIN_METRICS_ADDR": "127.0.0.1:9191",
-		"PRICEDIN_DATABASE_URL": "postgres://u:p@db:5432/pricedin?sslmode=disable",
-		"PRICEDIN_LOG_LEVEL":    "debug",
-		"PRICEDIN_LOG_FORMAT":   "text",
+		"PRICEDIN_HTTP_ADDR":          "127.0.0.1:8181",
+		"PRICEDIN_METRICS_ADDR":       "127.0.0.1:9191",
+		"PRICEDIN_DATABASE_URL":       "postgres://u:p@db:5432/pricedin?sslmode=disable",
+		"PRICEDIN_LOG_LEVEL":          "debug",
+		"PRICEDIN_LOG_FORMAT":         "text",
+		"PRICEDIN_MASSIVE_BASE_URL":   "http://fixtures:8090",
+		"PRICEDIN_MASSIVE_API_KEY":    "test-key",
+		"PRICEDIN_MASSIVE_RATE_LIMIT": "2.5",
 	}))
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
@@ -44,6 +48,7 @@ func TestLoadReadsEveryVariable(t *testing.T) {
 		HTTP:     config.HTTP{Addr: "127.0.0.1:8181", MetricsAddr: "127.0.0.1:9191"},
 		Database: config.Database{URL: "postgres://u:p@db:5432/pricedin?sslmode=disable"},
 		Log:      config.Log{Level: slog.LevelDebug, Format: config.LogFormatText},
+		Massive:  config.Massive{BaseURL: "http://fixtures:8090", APIKey: "test-key", RateLimit: 2.5},
 	}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("Load() mismatch (-want +got):\n%s", diff)
@@ -93,6 +98,13 @@ func TestLoadRejectsInvalidValues(t *testing.T) {
 		{"database port out of range", map[string]string{"PRICEDIN_DATABASE_HOST": "db", "PRICEDIN_DATABASE_PORT": "70000"}, "PRICEDIN_DATABASE_PORT"},
 		{"database password without a user", map[string]string{"PRICEDIN_DATABASE_HOST": "db", "PRICEDIN_DATABASE_PASSWORD": "secret"}, "PRICEDIN_DATABASE_USER"},
 		{"unknown database sslmode", map[string]string{"PRICEDIN_DATABASE_HOST": "db", "PRICEDIN_DATABASE_SSLMODE": "always"}, "PRICEDIN_DATABASE_SSLMODE"},
+		{"massive base url with other scheme", map[string]string{"PRICEDIN_MASSIVE_BASE_URL": "ftp://api.massive.com"}, "PRICEDIN_MASSIVE_BASE_URL"},
+		{"massive base url without host", map[string]string{"PRICEDIN_MASSIVE_BASE_URL": "https://"}, "PRICEDIN_MASSIVE_BASE_URL"},
+		{"massive base url with a query", map[string]string{"PRICEDIN_MASSIVE_BASE_URL": "https://api.massive.com?apiKey=x"}, "PRICEDIN_MASSIVE_BASE_URL"},
+		{"massive rate limit that is not a number", map[string]string{"PRICEDIN_MASSIVE_RATE_LIMIT": "fast"}, "PRICEDIN_MASSIVE_RATE_LIMIT"},
+		{"massive rate limit of zero", map[string]string{"PRICEDIN_MASSIVE_RATE_LIMIT": "0"}, "PRICEDIN_MASSIVE_RATE_LIMIT"},
+		{"negative massive rate limit", map[string]string{"PRICEDIN_MASSIVE_RATE_LIMIT": "-1"}, "PRICEDIN_MASSIVE_RATE_LIMIT"},
+		{"infinite massive rate limit", map[string]string{"PRICEDIN_MASSIVE_RATE_LIMIT": "Inf"}, "PRICEDIN_MASSIVE_RATE_LIMIT"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -177,6 +189,17 @@ func TestDatabaseRequire(t *testing.T) {
 	var verr *config.VarError
 	if !errors.As(err, &verr) || verr.Var != "PRICEDIN_DATABASE_URL" {
 		t.Errorf("Require() without a URL error = %v, want a VarError for PRICEDIN_DATABASE_URL", err)
+	}
+}
+
+func TestMassiveRequire(t *testing.T) {
+	if err := (config.Massive{APIKey: "test-key"}).Require(); err != nil {
+		t.Errorf("Require() with a key error = %v, want nil", err)
+	}
+	err := config.Massive{}.Require()
+	var verr *config.VarError
+	if !errors.As(err, &verr) || verr.Var != "PRICEDIN_MASSIVE_API_KEY" || !errors.Is(err, config.ErrMissing) {
+		t.Errorf("Require() without a key error = %v, want a VarError for PRICEDIN_MASSIVE_API_KEY that wraps ErrMissing", err)
 	}
 }
 

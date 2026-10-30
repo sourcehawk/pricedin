@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"math"
 	"net"
 	"net/url"
 	"strconv"
@@ -17,6 +18,7 @@ type Config struct {
 	HTTP     HTTP
 	Database Database
 	Log      Log
+	Massive  Massive
 }
 
 // Load reads the configuration through getenv, which is os.Getenv outside
@@ -28,11 +30,12 @@ func Load(getenv func(string) string) (Config, error) {
 	httpCfg, httpErrs := loadHTTP(getenv)
 	db, dbErrs := loadDatabase(getenv)
 	logCfg, logErrs := loadLog(getenv)
+	massive, massiveErrs := loadMassive(getenv)
 
-	if errs := concat(httpErrs, dbErrs, logErrs); len(errs) > 0 {
+	if errs := concat(httpErrs, dbErrs, logErrs, massiveErrs); len(errs) > 0 {
 		return Config{}, errors.Join(errs...)
 	}
-	return Config{HTTP: httpCfg, Database: db, Log: logCfg}, nil
+	return Config{HTTP: httpCfg, Database: db, Log: logCfg, Massive: massive}, nil
 }
 
 // VarError reports an environment variable that is missing or invalid.
@@ -235,6 +238,54 @@ func loadLog(getenv func(string) string) (Log, []error) {
 	}
 
 	return cfg, errs
+}
+
+// Massive configures the Massive (formerly Polygon.io) price provider.
+type Massive struct {
+	// BaseURL is the http or https URL of the API, without a query.
+	// Default "https://api.massive.com".
+	BaseURL string
+	// APIKey authenticates every request. Empty when unset.
+	APIKey string
+	// RateLimit is the most requests a second that the client sends.
+	// Default 20.
+	RateLimit float64
+}
+
+const (
+	envMassiveBaseURL   = "PRICEDIN_MASSIVE_BASE_URL"
+	envMassiveAPIKey    = "PRICEDIN_MASSIVE_API_KEY"
+	envMassiveRateLimit = "PRICEDIN_MASSIVE_RATE_LIMIT"
+)
+
+func loadMassive(getenv func(string) string) (Massive, []error) {
+	cfg := Massive{
+		BaseURL:   withDefault(getenv(envMassiveBaseURL), "https://api.massive.com"),
+		APIKey:    getenv(envMassiveAPIKey),
+		RateLimit: 20,
+	}
+	var errs []error
+	if u, err := url.Parse(cfg.BaseURL); err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.RawQuery != "" {
+		errs = append(errs, &VarError{Var: envMassiveBaseURL, Err: errors.New("want an http:// or https:// URL with a host and no query")})
+	}
+	if s := getenv(envMassiveRateLimit); s != "" {
+		limit, err := strconv.ParseFloat(s, 64)
+		if err != nil || limit <= 0 || math.IsInf(limit, 0) || math.IsNaN(limit) {
+			errs = append(errs, &VarError{Var: envMassiveRateLimit, Err: fmt.Errorf("want a positive number of requests a second, got %q", s)})
+		} else {
+			cfg.RateLimit = limit
+		}
+	}
+	return cfg, errs
+}
+
+// Require returns a *VarError that wraps ErrMissing when the API key is not
+// set.
+func (m Massive) Require() error {
+	if m.APIKey == "" {
+		return &VarError{Var: envMassiveAPIKey, Err: ErrMissing}
+	}
+	return nil
 }
 
 func concat(lists ...[]error) []error {
