@@ -110,7 +110,7 @@ type Series struct {
 	// fiscal year end or a year whose quarters the filings do not bound.
 	Quarters []Quarter
 	// Splits are the confirmed splits, oldest first: the provider events,
-	// and the SEC split-ratio evidence that no provider event matches.
+	// and the SEC split-ratio evidence with no provider event near its date.
 	Splits []domain.Split
 	// Conflicts are the reconciliation problems that the data page lists.
 	Conflicts []Conflict
@@ -133,8 +133,9 @@ const (
 	// used.
 	ConflictShareScale ConflictKind = "share_scale"
 	// ConflictSplitEvidence is a split that SEC data gives and that no
-	// provider event matches, although provider events were passed. The
-	// split is still applied.
+	// provider event matches, although provider events were passed. When a
+	// provider event of another ratio lies near its date, only the provider
+	// event is applied. Otherwise the SEC split is applied too.
 	ConflictSplitEvidence ConflictKind = "split_evidence"
 )
 

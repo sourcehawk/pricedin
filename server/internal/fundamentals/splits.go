@@ -40,16 +40,21 @@ func confirmSplits(cik domain.CIK, ratios []domain.Fact, opts Options) ([]domain
 				evidence = *f
 			}
 		}
-		if slices.ContainsFunc(splits[:provider], func(p domain.Split) bool {
-			return math.Abs(p.Ratio()-r) <= 1e-6*r && abs(daysIn(p.Date, date)-1) <= sameSplitDays
-		}) {
-			continue
-		}
 		split := domain.Split{CIK: cik, Date: date, From: 1, To: r, Source: "sec", Evidence: evidence.Accession}
 		if r < 1 {
 			split.From, split.To = 1/r, 1
 		}
-		splits = append(splits, split)
+		// A provider event near the same date is the same split, and its
+		// date and ratio win. Applying both would compound the ratios.
+		i := slices.IndexFunc(splits[:provider], func(p domain.Split) bool {
+			return abs(daysIn(p.Date, date)-1) <= sameSplitDays
+		})
+		if i >= 0 && math.Abs(splits[i].Ratio()-r) <= 1e-6*r {
+			continue
+		}
+		if i < 0 {
+			splits = append(splits, split)
+		}
 		if len(opts.Splits) > 0 {
 			conflicts = append(conflicts, Conflict{
 				Kind:        ConflictSplitEvidence,

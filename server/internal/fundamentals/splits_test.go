@@ -256,3 +256,21 @@ func TestDeriveAcceptsARestatedSumOfSeparatelyRoundedQuarters(t *testing.T) {
 		t.Errorf("Conflicts = %+v, want none", s.Conflicts)
 	}
 }
+
+func TestDeriveLetsTheProviderEventWinOverSECEvidenceWithAnotherRatio(t *testing.T) {
+	var facts []domain.Fact
+	y25 := splitYears(t, &facts, 0)
+	y25.q2.add(sec.StockholdersEquityNoteStockSplitConversionRatio1, "", "2025-06-10", 2)
+	split := providerSplit(t, "2025-06-10", 3)
+
+	s := derive(t, facts, fundamentals.Options{Splits: []domain.Split{split}})
+	if diff := cmp.Diff([]domain.Split{split}, s.Splits); diff != "" {
+		t.Errorf("Splits (-want +got):\n%s", diff)
+	}
+	if v := value(t, s, "Q1 FY24", fundamentals.EPSDiluted); !near(v.V, 2.0/3, 1e-12) {
+		t.Errorf("Q1 FY24 EPS = %v, want 2/3: the 3-for-1 provider split only", v.V)
+	}
+	if n := countConflicts(s, fundamentals.ConflictSplitEvidence); n != 1 {
+		t.Errorf("%d split_evidence conflicts, want 1: %+v", n, s.Conflicts)
+	}
+}
