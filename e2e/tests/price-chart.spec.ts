@@ -1,7 +1,6 @@
 import type { Locator, Page } from "@playwright/test";
 import { expect, isPhone, test, type Api, type Chart } from "./support/fixtures";
 import { day, signedPct, times, usd } from "./support/format";
-import { fixture } from "./support/stack";
 import { evaluateAsPage, pickStock, pricedInPanel, savedLevers } from "./support/stock";
 
 /** literal escapes text for a regular expression. */
@@ -100,6 +99,7 @@ test("each overlay chip switches its line on and off", async ({ page }) => {
       await press(page, button);
       await expect(button).toHaveAttribute("aria-pressed", String(on));
       // No seeded stock has a share-count change of 2% in the chart, so its markers have nothing to draw.
+      // The load test checks the markers of the company it loads.
       if (name !== "Share changes") {
         if (on) {
           await expect(svg.locator(layer)).not.toHaveCount(0);
@@ -192,50 +192,6 @@ test("hovering a P/E band names it in the caption above the chart, not in a tool
   await expect(caption).toContainText(`${String(multiple)}× band:`);
   await expect(caption).toContainText(usd(want?.priceToday.value));
   await expect(page.getByRole("tooltip")).toHaveCount(0);
-});
-
-test("a share-count marker of a dilution never takes the good tone", async ({ page, api }) => {
-  const withEvents: string[] = [];
-  for (const ticker of fixture.loaded) {
-    const ev = await api.evaluate(ticker, {
-      targetReturn: 0.15,
-      holdingYears: 3,
-      chartRange: "3Y",
-    });
-    const chart = ev.evaluation.priceChart;
-    if (chart.value !== null && chart.value.shareCountEvents.length > 0) {
-      withEvents.push(ticker);
-    }
-  }
-  test.skip(
-    withEvents.length === 0,
-    "no seeded stock has a share-count change of 2% in its 3Y chart; PriceChartPanel.test.tsx covers the tones",
-  );
-  for (const ticker of withEvents) {
-    await page.goto("/");
-    await pickStock(page, ticker, ticker);
-    await pickRange(page, "3Y");
-    const events = (await chartAsPage(page, api)).shareCountEvents;
-    const markers = chartPanel(page).locator(".pxev");
-    await expect(markers).toHaveCount(events.length);
-    const tones = await page.evaluate(() => {
-      const probe = document.createElement("i");
-      document.body.append(probe);
-      const tone = (v: string) => {
-        probe.style.color = `var(${v})`;
-        return getComputedStyle(probe).color;
-      };
-      const out = { good: tone("--good"), bad: tone("--bad") };
-      probe.remove();
-      return out;
-    });
-    for (const e of events) {
-      const marker = chartPanel(page).locator(`.pxev[aria-label^="${e.label}: "]`);
-      await expect(marker).toHaveClass(new RegExp(`\\b${e.kind}\\b`));
-      const stroke = await marker.locator("rect").evaluate((r) => getComputedStyle(r).stroke);
-      expect(stroke).toBe(e.kind === "dilution" ? tones.bad : tones.good);
-    }
-  }
 });
 
 test("the walkthrough shows every line while it runs and then puts the chips back", async ({
