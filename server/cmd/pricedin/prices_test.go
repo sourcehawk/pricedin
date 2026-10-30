@@ -47,11 +47,11 @@ func fakeMassive(t *testing.T, grmnCIK string, onlyAfterSplit bool) *httptest.Se
 	})
 	mux.HandleFunc("/stocks/v1/dividends", func(w http.ResponseWriter, _ *http.Request) {
 		json(w, `{"status":"OK","results":[
-			{"id":"E1","ticker":"KO","ex_dividend_date":"2023-11-30","pay_date":"2023-12-15","cash_amount":0.46,"currency":"USD","frequency":4,"distribution_type":"recurring"},
-			{"id":"E2","ticker":"KO","ex_dividend_date":"2024-03-14","pay_date":"2024-04-01","cash_amount":0.485,"currency":"USD","frequency":4,"distribution_type":"recurring"},
-			{"id":"E3","ticker":"KO","ex_dividend_date":"2024-06-14","pay_date":"2024-07-01","cash_amount":0.485,"currency":"USD","frequency":4,"distribution_type":"recurring"},
-			{"id":"E4","ticker":"KO","ex_dividend_date":"2024-09-13","pay_date":"2024-10-01","cash_amount":0.485,"currency":"USD","frequency":4,"distribution_type":"recurring"},
-			{"id":"E5","ticker":"KO","ex_dividend_date":"2024-11-29","pay_date":"2024-12-16","cash_amount":0.485,"currency":"USD","frequency":4,"distribution_type":"recurring"},
+			{"id":"E1","ticker":"KO","ex_dividend_date":"2023-11-30","pay_date":"2023-12-15","cash_amount":0.11,"currency":"USD","frequency":4,"distribution_type":"recurring"},
+			{"id":"E2","ticker":"KO","ex_dividend_date":"2024-03-14","pay_date":"2024-04-01","cash_amount":0.12,"currency":"USD","frequency":4,"distribution_type":"recurring"},
+			{"id":"E3","ticker":"KO","ex_dividend_date":"2024-06-14","pay_date":"2024-07-01","cash_amount":0.13,"currency":"USD","frequency":4,"distribution_type":"recurring"},
+			{"id":"E4","ticker":"KO","ex_dividend_date":"2024-09-13","pay_date":"2024-10-01","cash_amount":0.14,"currency":"USD","frequency":4,"distribution_type":"recurring"},
+			{"id":"E5","ticker":"KO","ex_dividend_date":"2024-11-29","pay_date":"2024-12-16","cash_amount":0.15,"currency":"USD","frequency":4,"distribution_type":"special"},
 			{"id":"E6","ticker":"KO","ex_dividend_date":"2099-03-14","cash_amount":9.99,"currency":"USD","frequency":4,"distribution_type":"recurring"}]}`)
 	})
 	mux.HandleFunc("/v3/reference/tickers/GRMN", func(w http.ResponseWriter, _ *http.Request) {
@@ -87,20 +87,21 @@ func TestPricesVerifyReportsEveryCheck(t *testing.T) {
 		t.Fatalf("prices verify error = %v\n%s", err, out)
 	}
 	for _, want := range []string{
-		"2024-06-10  1 -> 10  (ratio 10)  id Enew",
-		"2024-06-07  1150.0000  10  115.0000  115.0000  yes",
-		"2024-06-10  116.0000  1  116.0000  116.0000  yes",
-		"2024-03-14  2024-04-01  0.4850  USD  4  recurring",
-		"2024-11-29  2024-12-16  0.4850  USD  4  recurring",
-		"Massive: 0001121788",
-		"SEC:  0001121788",
+		"Split event:  2024-06-10  1 -> 10  (ratio 10)",
+		"2024-06-07  10  yes",
+		"2024-06-10  1  yes",
+		"2024-03-14  2024-04-01  4  recurring",
+		"2024-11-29  2024-12-16  4  special",
+		"Massive CIK equals the SEC value 0001121788: yes",
 		"All checks passed.",
 	} {
 		if !strings.Contains(squeeze(out), want) {
 			t.Errorf("output lacks %q:\n%s", want, out)
 		}
 	}
-	for _, unwanted := range []string{"2023-11-30", "2099-03-14", verifyKey} {
+	// Dates before the last four dividends and after today, the key, the
+	// split id, closes and dividend amounts stay out of the output.
+	for _, unwanted := range []string{"2023-11-30", "2099-03-14", verifyKey, "Enew", "1150", "115", "116", "0.1", "9.99"} {
 		if strings.Contains(out, unwanted) {
 			t.Errorf("output contains %q:\n%s", unwanted, out)
 		}

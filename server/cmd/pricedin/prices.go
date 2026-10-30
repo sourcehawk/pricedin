@@ -25,10 +25,11 @@ func newPricesCmd(getenv func(string) string, stdout io.Writer) *cobra.Command {
 	cmd.AddCommand(&cobra.Command{
 		Use:   "verify",
 		Short: "Check the live Massive API: the NVDA split, KO dividends and the GRMN CIK",
-		Long: "verify calls the live Massive API with PRICEDIN_MASSIVE_API_KEY. It prints the raw\n" +
-			"NVDA closes around the 10-for-1 split of 2024-06-10, the closes that AdjustForSplits\n" +
-			"computes and Massive's own adjusted closes, the last four KO dividends, and the GRMN\n" +
-			"CIK compared with the SEC value. It exits with an error when a check fails.",
+		Long: "verify calls the live Massive API with PRICEDIN_MASSIVE_API_KEY. It checks the NVDA\n" +
+			"10-for-1 split of 2024-06-10: the split event, and that the closes from AdjustForSplits\n" +
+			"match Massive's own adjusted closes. It lists the dates of the last four KO dividends,\n" +
+			"and checks the GRMN CIK against the SEC value. It prints dates, ratios, factors and\n" +
+			"results, but no prices and no dividend amounts. It exits with an error when a check fails.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			cfg, err := config.Load(getenv)
@@ -112,7 +113,7 @@ func verifySplit(ctx context.Context, w io.Writer, c *massive.Client, today doma
 	for _, s := range splits {
 		if s.Date == nvdaSplitDate {
 			found = true
-			_, _ = fmt.Fprintf(w, "  Split event:\t%s\t%g -> %g\t(ratio %g)\tid %s\n", s.Date, s.From, s.To, s.Ratio(), s.Evidence)
+			_, _ = fmt.Fprintf(w, "  Split event:\t%s\t%g -> %g\t(ratio %g)\n", s.Date, s.From, s.To, s.Ratio())
 			if s.Ratio() != nvdaSplitRatio {
 				fail("the NVDA split of %s has ratio %g, want %d", s.Date, s.Ratio(), nvdaSplitRatio)
 			}
@@ -139,7 +140,7 @@ func verifySplit(ctx context.Context, w io.Writer, c *massive.Client, today doma
 		massiveClose[b.Date] = b.Close
 	}
 
-	_, _ = fmt.Fprintln(w, "  Date\tRaw close\tFactor\tAdjustForSplits\tMassive adjusted\tMatch")
+	_, _ = fmt.Fprintln(w, "  Date\tFactor\tAdjustForSplits matches Massive")
 	var before, after int
 	for _, b := range ours {
 		if b.Bar.Date.Before(nvdaSplitDate) {
@@ -149,7 +150,7 @@ func verifySplit(ctx context.Context, w io.Writer, c *massive.Client, today doma
 		}
 		want, ok := massiveClose[b.Bar.Date]
 		match := ok && math.Abs(b.Close-want) <= closeTolerance
-		_, _ = fmt.Fprintf(w, "  %s\t%.4f\t%g\t%.4f\t%s\t%s\n", b.Bar.Date, b.Bar.Close, b.Factor, b.Close, formatClose(want, ok), yesNo(match))
+		_, _ = fmt.Fprintf(w, "  %s\t%g\t%s\n", b.Bar.Date, b.Factor, yesNo(match))
 		if !match {
 			fail("the NVDA close of %s adjusted by AdjustForSplits does not match Massive's adjusted close", b.Bar.Date)
 		}
@@ -179,7 +180,7 @@ func verifyDividends(ctx context.Context, w io.Writer, c *massive.Client, today 
 	if len(past) == 0 {
 		fail("no KO dividends")
 	} else {
-		_, _ = fmt.Fprintln(w, "  Ex-date\tPay date\tAmount\tCurrency\tFrequency\tType")
+		_, _ = fmt.Fprintln(w, "  Ex-date\tPay date\tFrequency\tType")
 	}
 	for i := range past {
 		d := &past[i]
@@ -187,7 +188,7 @@ func verifyDividends(ctx context.Context, w io.Writer, c *massive.Client, today 
 		if d.PayDate != nil {
 			pay = d.PayDate.String()
 		}
-		_, _ = fmt.Fprintf(w, "  %s\t%s\t%.4f\t%s\t%d\t%s\n", d.ExDate, pay, d.CashAmount, d.Currency, d.Frequency, d.Type)
+		_, _ = fmt.Fprintf(w, "  %s\t%s\t%d\t%s\n", d.ExDate, pay, d.Frequency, d.Type)
 	}
 	_, _ = fmt.Fprintln(w)
 	return nil
@@ -203,20 +204,13 @@ func verifyCIK(ctx context.Context, w io.Writer, c *massive.Client, fail func(st
 	case err != nil:
 		return fmt.Errorf("prices verify: %w", err)
 	default:
-		_, _ = fmt.Fprintf(w, "  Massive: %s\n  SEC:     %s\n", t.CIK, grmnSECCIK)
+		_, _ = fmt.Fprintf(w, "  Massive CIK equals the SEC value %s: %s\n", grmnSECCIK, yesNo(t.CIK == grmnSECCIK))
 		if t.CIK != grmnSECCIK {
 			fail("the GRMN CIK from Massive does not match the SEC value")
 		}
 	}
 	_, _ = fmt.Fprintln(w)
 	return nil
-}
-
-func formatClose(v float64, ok bool) string {
-	if !ok {
-		return "missing"
-	}
-	return fmt.Sprintf("%.4f", v)
 }
 
 func yesNo(ok bool) string {
