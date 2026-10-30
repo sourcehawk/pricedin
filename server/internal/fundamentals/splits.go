@@ -78,9 +78,9 @@ func confirmSplits(cik domain.CIK, ratios []domain.Fact, opts Options) ([]domain
 // are dropped.
 func groupRatios(ratios []domain.Fact) [][]domain.Fact {
 	var valid []domain.Fact
-	for i := range ratios {
-		if f := &ratios[i]; f.Value > 0 && f.Value != 1 {
-			valid = append(valid, *f)
+	for _, f := range latestByPeriod(ratios) {
+		if f.Value > 0 && f.Value != 1 {
+			valid = append(valid, f)
 		}
 	}
 	slices.SortFunc(valid, func(a, b domain.Fact) int {
@@ -99,6 +99,29 @@ func groupRatios(ratios []domain.Fact) [][]domain.Fact {
 		groups = append(groups, []domain.Fact{*f})
 	}
 	return groups
+}
+
+// latestByPeriod keeps the latest filing of each split-ratio period, so an
+// amendment that corrects a ratio replaces it and does not add a split.
+func latestByPeriod(ratios []domain.Fact) []domain.Fact {
+	type period struct{ start, end domain.Date }
+	latest := map[period]domain.Fact{}
+	for i := range ratios {
+		f := &ratios[i]
+		k := period{end: f.PeriodEnd}
+		if f.PeriodStart != nil {
+			k.start = *f.PeriodStart
+		}
+		cur, ok := latest[k]
+		if !ok || f.Filed.After(cur.Filed) || (f.Filed.Equal(cur.Filed) && f.Accession > cur.Accession) {
+			latest[k] = *f
+		}
+	}
+	out := make([]domain.Fact, 0, len(latest))
+	for _, f := range latest {
+		out = append(out, f)
+	}
+	return out
 }
 
 func abs(n int) int {

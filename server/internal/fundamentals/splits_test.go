@@ -326,3 +326,21 @@ func TestDeriveIgnoresAnAnnouncedSECSplitDatedAfterAsOf(t *testing.T) {
 		t.Errorf("Q1 FY24 EPS = %v, want 2.00 as filed", v.V)
 	}
 }
+
+func TestDeriveLetsAnAmendedSplitRatioReplaceTheOriginal(t *testing.T) {
+	// The 10-Q gives the split as 2-for-1. Its amendment corrects the same
+	// period to 3-for-1: one split of 3, not two splits.
+	var facts []domain.Fact
+	y25 := splitYears(t, &facts, 0)
+	y25.q2.add(sec.StockholdersEquityNoteStockSplitConversionRatio1, "", "2025-06-10", 2)
+	newFiling(t, &facts, "q2a-2025", "10-Q/A", "2025-08-15", 2025, "Q2").add(sec.StockholdersEquityNoteStockSplitConversionRatio1, "", "2025-06-10", 3)
+
+	s := derive(t, facts, fundamentals.Options{})
+	want := []domain.Split{{CIK: testCIK, Date: day(t, "2025-06-10"), From: 1, To: 3, Source: "sec", Evidence: "q2a-2025"}}
+	if diff := cmp.Diff(want, s.Splits); diff != "" {
+		t.Errorf("Splits (-want +got):\n%s", diff)
+	}
+	if v := value(t, s, "Q1 FY24", fundamentals.EPSDiluted); !near(v.V, 2.0/3, 1e-12) {
+		t.Errorf("Q1 FY24 EPS = %v, want 2/3", v.V)
+	}
+}
