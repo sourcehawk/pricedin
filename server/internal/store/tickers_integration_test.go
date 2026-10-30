@@ -221,3 +221,85 @@ func TestSearchTickers(t *testing.T) {
 		})
 	}
 }
+
+func TestSyncTickersOfOneSourceRunOneAfterTheOther(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	s, pool := newStore(t)
+	mustUpsertCompanies(t, s, acme, globex)
+	day := date(t, "2026-01-02")
+
+	second := make(chan error, 1)
+	err := s.WithTx(ctx, func(tx *store.Store) error {
+		if _, err := tx.SyncTickers(ctx, store.TickerSourceSEC, day, []domain.Ticker{{Symbol: "ACME", CIK: acme.CIK}}); err != nil {
+			return err
+		}
+		go func() {
+			_, err := s.SyncTickers(ctx, store.TickerSourceSEC, day, []domain.Ticker{{Symbol: "GBX", CIK: globex.CIK}})
+			second <- err
+		}()
+		waitForBlockedQuery(t, pool)
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("first SyncTickers() error = %v", err)
+	}
+	if err := <-second; err != nil {
+		t.Fatalf("second SyncTickers() error = %v", err)
+	}
+
+	// The list that synced last is the whole current mapping.
+	_, err = s.GetCurrentTicker(ctx, "ACME")
+	wantNotFound(t, "GetCurrentTicker(ACME)", err)
+	if _, err := s.GetCurrentTicker(ctx, "GBX"); err != nil {
+		t.Errorf("GetCurrentTicker(GBX) error = %v, want the mapping of the last sync", err)
+	}
+}
+
+func TestSyncTickersRejectsADateBeforeTheLastSync(t *testing.T) {
+	tests := []struct {
+		name  string
+		syncs []struct {
+			day     string
+			tickers []domain.Ticker
+		}
+	}{
+		{
+			// The March sync closed ACME, so no current row starts after
+			// the February date.
+			name: "after a sync that closed the symbol",
+			syncs: []struct {
+				day     string
+				tickers []domain.Ticker
+			}{
+				{"2026-01-02", []domain.Ticker{{Symbol: "ACME", CIK: acme.CIK}}},
+				{"2026-03-02", nil},
+			},
+		},
+		{
+			name: "after a sync that changed nothing",
+			syncs: []struct {
+				day     string
+				tickers []domain.Ticker
+			}{
+				{"2026-01-02", []domain.Ticker{{Symbol: "ACME", CIK: acme.CIK}}},
+				{"2026-03-02", []domain.Ticker{{Symbol: "ACME", CIK: acme.CIK}}},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			s, _ := newStore(t)
+			mustUpsertCompanies(t, s, acme, globex)
+			for _, sync := range tt.syncs {
+				mustSyncTickers(t, s, store.TickerSourceSEC, date(t, sync.day), sync.tickers...)
+			}
+			_, err := s.SyncTickers(context.Background(), store.TickerSourceSEC, date(t, "2026-02-02"),
+				[]domain.Ticker{{Symbol: "ACME", CIK: globex.CIK}})
+			if err == nil {
+				t.Error("SyncTickers() with a date before the last sync error = nil, want an error")
+			}
+		})
+	}
+}

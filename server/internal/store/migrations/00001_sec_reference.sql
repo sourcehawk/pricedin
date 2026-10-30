@@ -33,6 +33,14 @@ CREATE UNIQUE INDEX tickers_one_open_row ON tickers (source, symbol) WHERE valid
 CREATE INDEX tickers_symbol ON tickers (symbol) WHERE valid_to IS NULL;
 CREATE INDEX tickers_cik ON tickers (cik);
 
+-- The date of the last complete list of each source. A sync locks its row,
+-- and an older list is rejected even when it would change nothing.
+CREATE TABLE ticker_syncs (
+    source    text PRIMARY KEY,
+    synced_on date NOT NULL,
+    synced_at timestamptz NOT NULL DEFAULT now()
+);
+
 CREATE TABLE filings (
     accession        text PRIMARY KEY,
     cik              bigint NOT NULL REFERENCES companies (cik),
@@ -47,6 +55,7 @@ CREATE INDEX filings_cik_filed ON filings (cik, filed);
 
 -- +goose Down
 DROP TABLE filings;
+DROP TABLE ticker_syncs;
 DROP TABLE tickers;
 DROP TABLE companies;
 DROP EXTENSION IF EXISTS pg_trgm;

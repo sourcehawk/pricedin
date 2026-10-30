@@ -54,8 +54,9 @@ var tickerStage = stage{
 // closes its row with ValidTo asOf, the first day it no longer held, and
 // opens a new one. A symbol that is not in current closes. Rows of other
 // sources stay as they are. Each CIK must be a stored company. asOf must
-// not be earlier than the start of any current row of the source. Running
-// the same sync again changes nothing.
+// not be earlier than the last sync of the source, or SyncTickers returns an
+// error and changes nothing. Syncs of one source run one after the other.
+// Running the same sync again changes nothing.
 func (s *Store) SyncTickers(ctx context.Context, source string, asOf domain.Date, current []domain.Ticker) (TickerChanges, error) {
 	rows := make([][]any, len(current))
 	for i, t := range current {
@@ -64,14 +65,20 @@ func (s *Store) SyncTickers(ctx context.Context, source string, asOf domain.Date
 	day := pgDate(asOf)
 	var changes TickerChanges
 	err := s.inTx(ctx, func(tx pgx.Tx) error {
-		var later bool
-		if err := tx.QueryRow(ctx,
-			`SELECT EXISTS (SELECT 1 FROM tickers WHERE source = $1 AND valid_to IS NULL AND valid_from > $2)`,
-			source, day).Scan(&later); err != nil {
+		// The row lock makes a concurrent sync of the source wait, also on
+		// its first sync.
+		if _, err := tx.Exec(ctx,
+			`INSERT INTO ticker_syncs (source, synced_on) VALUES ($1, $2) ON CONFLICT (source) DO NOTHING`,
+			source, day); err != nil {
 			return err
 		}
-		if later {
-			return fmt.Errorf("%s has current rows that start after %s", source, asOf)
+		var last pgtype.Date
+		if err := tx.QueryRow(ctx,
+			`SELECT synced_on FROM ticker_syncs WHERE source = $1 FOR UPDATE`, source).Scan(&last); err != nil {
+			return err
+		}
+		if fromPgDate(last).After(asOf) {
+			return fmt.Errorf("%s synced on %s, after %s", source, fromPgDate(last), asOf)
 		}
 		if err := tickerStage.load(ctx, tx, rows); err != nil {
 			return err
@@ -109,6 +116,10 @@ func (s *Store) SyncTickers(ctx context.Context, source string, asOf domain.Date
 				return err
 			}
 			*step.count += tag.RowsAffected()
+		}
+		if _, err := tx.Exec(ctx,
+			`UPDATE ticker_syncs SET synced_on = $2, synced_at = now() WHERE source = $1`, source, day); err != nil {
+			return err
 		}
 		if _, err := tx.Exec(ctx, `DROP TABLE want_tickers`); err != nil {
 			return err

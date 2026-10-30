@@ -27,6 +27,7 @@ var wantTables = []string{
 	"quarterly_fundamentals",
 	"sessions",
 	"stock_splits",
+	"ticker_syncs",
 	"tickers",
 }
 
