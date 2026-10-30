@@ -1,6 +1,7 @@
 import type { Page } from "@playwright/test";
 import { expect, test } from "./support/fixtures";
 import { apiURL, newClientIP, owner } from "./support/stack";
+import { pickStock, pricedInPanel } from "./support/stock";
 
 test.use({ storageState: { cookies: [], origins: [] } });
 
@@ -73,6 +74,23 @@ test("logging out ends the session and returns to the login page", async ({ page
   expect((await page.request.get("/api/v1/stocks/NVDA")).status()).toBe(401);
   await page.goto("/");
   await expect(page).toHaveURL(/\/login\?next=%2F$/);
+});
+
+test("a new login opens the stock that was open before the logout", async ({ page }) => {
+  await page.goto("/login");
+  await logIn(page, owner.password);
+  await expect(page.getByRole("heading", { name: "Pick a stock" })).toBeVisible();
+  await pickStock(page, "KO", "KO");
+  const company = page.locator("header.top .co");
+  await expect(company).toContainText("KO");
+  const name = await company.locator("b").innerText();
+
+  await page.getByRole("button", { name: "Log out" }).click();
+  await expect(page).toHaveURL(/\/login$/);
+  await logIn(page, owner.password);
+  await expect(pricedInPanel(page)).toBeVisible();
+  await expect(company.locator("b")).toHaveText(name);
+  await expect(company.locator("span")).toHaveText(/(^| · )KO$/);
 });
 
 test("the page follows the color scheme of the system", async ({ page }) => {
