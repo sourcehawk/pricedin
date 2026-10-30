@@ -61,8 +61,7 @@ export function TopBar() {
   const p = profile.data;
   const price = levers?.price ?? p?.latestClose?.value ?? null;
   const eps = levers?.ttmEps ?? p?.ttmEps?.value ?? null;
-  // The engine's P/E is null for EPS that is not positive; the profile's
-  // P/E stands in only before the levers exist.
+  // A null P/E from the engine means that the EPS in use is not positive.
   const pe =
     evaluation !== null ? evaluation.peNow.value : levers === null ? (p?.pe?.value ?? null) : null;
   return (
