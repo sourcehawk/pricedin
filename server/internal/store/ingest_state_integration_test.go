@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 
 	"github.com/sourcehawk/pricedin/server/internal/domain"
 	"github.com/sourcehawk/pricedin/server/internal/store"
@@ -300,37 +299,50 @@ func TestFundamentalsPendingKeepsAMarkThatALaterChangeRaised(t *testing.T) {
 	}
 }
 
-func TestListSymbolsWithSplitsBetween(t *testing.T) {
+func TestBarsThatReachASplitMarkTheCompanyPending(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	s, _ := newStore(t)
-	if _, err := s.UpsertPriceSplits(ctx, []domain.Split{
-		{Symbol: "NVDA", Date: date(t, "2024-06-10"), From: 1, To: 10, Source: "massive", Evidence: "a"},
-		{Symbol: "KO", Date: date(t, "2026-11-02"), From: 1, To: 2, Source: "massive", Evidence: "b"},
+	mustUpsertCompanies(t, s, acme, globex)
+	if _, err := s.SyncTickers(ctx, store.TickerSourceSEC, date(t, "2026-10-30"), []domain.Ticker{
+		{Symbol: "ACME", CIK: acme.CIK, Exchange: "NYSE"}, {Symbol: "GLBX", CIK: globex.CIK, Exchange: "NYSE"},
 	}); err != nil {
 		t.Fatal(err)
 	}
-	tests := []struct {
-		after, upTo string
-		want        []string
-	}{
-		{"", "2026-10-29", []string{"NVDA"}},
-		{"2024-06-10", "2026-11-02", []string{"KO"}},
-		{"2024-06-09", "2026-11-02", []string{"KO", "NVDA"}},
-		{"2024-06-10", "2026-10-29", []string{}},
+	if _, err := s.UpsertPriceSplits(ctx, []domain.Split{
+		{Symbol: "ACME", Date: date(t, "2026-10-28"), From: 1, To: 2, Source: "massive", Evidence: "a"},
+		{Symbol: "GLBX", Date: date(t, "2024-06-10"), From: 1, To: 10, Source: "massive", Evidence: "b"},
+	}); err != nil {
+		t.Fatal(err)
 	}
-	for _, tt := range tests {
-		var after domain.Date
-		if tt.after != "" {
-			after = date(t, tt.after)
-		}
-		got, err := s.ListSymbolsWithSplitsBetween(ctx, after, date(t, tt.upTo))
-		if err != nil {
-			t.Fatal(err)
-		}
-		if diff := cmp.Diff(tt.want, got, cmpopts.EquateEmpty()); diff != "" {
-			t.Errorf("(%s, %s] (-want +got):\n%s", tt.after, tt.upTo, diff)
-		}
+	bar := func(symbol, d string) domain.PriceBar {
+		return domain.PriceBar{Symbol: symbol, Date: date(t, d), Open: 1, High: 1, Low: 1, Close: 1, Volume: 1, Source: "massive"}
+	}
+	if _, err := s.UpsertPriceBars(ctx, []domain.PriceBar{bar("ACME", "2026-10-27"), bar("GLBX", "2026-10-27")}); err != nil {
+		t.Fatal(err)
+	}
+
+	// The bars of 2026-10-29 reach ACME's split, which the stored bars did
+	// not; GLBX's split is older than its stored bars.
+	if err := s.MarkFundamentalsPendingForSplitsReached(ctx, []domain.PriceBar{bar("ACME", "2026-10-29"), bar("GLBX", "2026-10-29")}); err != nil {
+		t.Fatalf("MarkFundamentalsPendingForSplitsReached() error = %v", err)
+	}
+	pending, err := s.ListPendingFundamentals(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if diff := cmp.Diff([]domain.CIK{acme.CIK}, pending); diff != "" {
+		t.Errorf("pending (-want +got):\n%s", diff)
+	}
+	// Bars that stop before a split mark nothing.
+	if err := s.ClearFundamentalsPending(ctx, acme.CIK, 1); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.MarkFundamentalsPendingForSplitsReached(ctx, []domain.PriceBar{bar("ACME", "2026-10-27")}); err != nil {
+		t.Fatal(err)
+	}
+	if pending, _ := s.ListPendingFundamentals(ctx); len(pending) != 0 {
+		t.Errorf("pending after bars before the split = %v, want none", pending)
 	}
 }
 

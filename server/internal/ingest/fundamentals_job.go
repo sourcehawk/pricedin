@@ -116,11 +116,19 @@ func (r *Runner) rebuild(ctx context.Context, cik domain.CIK) (FundamentalsResul
 		if err != nil {
 			return err
 		}
-		splits, checked, err := r.providerSplits(ctx, tx, cik)
+		splits, checked, basis, err := r.providerSplits(ctx, tx, cik)
 		if err != nil {
 			return err
 		}
-		series, err := fundamentals.Derive(cik, facts, fundamentals.Options{Splits: splits, ProviderChecked: checked})
+		// The view prices_adjusted applies a split only once the symbol has
+		// a bar on or after the split's date. Without bars there are no
+		// prices, and today still keeps out the announced splits.
+		if basis.IsZero() {
+			basis = r.today()
+		}
+		series, err := fundamentals.Derive(cik, facts, fundamentals.Options{
+			Splits: splits, ProviderChecked: checked, SplitsAsOf: &basis,
+		})
 		if err != nil {
 			return fmt.Errorf("derive %s: %w", cik, err)
 		}
@@ -158,24 +166,33 @@ func (r *Runner) rebuild(ctx context.Context, cik domain.CIK) (FundamentalsResul
 }
 
 // providerSplits returns the provider's split events of the company's
-// current SEC symbols that are dated on or before the symbol's newest bar,
-// and none for a symbol without bars. It also reports whether any symbol
-// was checked with the provider. Share classes split together, so an event
-// that two symbols share counts once.
-func (r *Runner) providerSplits(ctx context.Context, tx *store.Store, cik domain.CIK) ([]domain.Split, bool, error) {
+// current SEC symbols, whether any symbol was checked with the provider,
+// and the date of the newest bar of those symbols, zero when they have
+// none. Share classes split together, so an event that two symbols share
+// counts once.
+func (r *Runner) providerSplits(ctx context.Context, tx *store.Store, cik domain.CIK) ([]domain.Split, bool, domain.Date, error) {
 	records, err := tx.ListTickers(ctx, cik)
 	if err != nil {
-		return nil, false, err
+		return nil, false, domain.Date{}, err
 	}
 	checked := false
+	var basis domain.Date
 	byDate := map[domain.Date]domain.Split{}
 	for _, t := range records {
 		if t.Source != store.TickerSourceSEC || t.ValidTo != nil {
 			continue
 		}
+		newest, err := tx.GetLatestPriceDate(ctx, t.Symbol)
+		switch {
+		case errors.Is(err, store.ErrNotFound):
+		case err != nil:
+			return nil, false, domain.Date{}, err
+		case newest.After(basis):
+			basis = newest
+		}
 		ok, err := tx.IsPriceReferenceChecked(ctx, t.Symbol)
 		if err != nil {
-			return nil, false, err
+			return nil, false, domain.Date{}, err
 		}
 		if !ok {
 			continue
@@ -183,28 +200,16 @@ func (r *Runner) providerSplits(ctx context.Context, tx *store.Store, cik domain
 		checked = true
 		splits, err := tx.ListPriceSplits(ctx, t.Symbol)
 		if err != nil {
-			return nil, false, err
-		}
-		// The view prices_adjusted applies a split only once the symbol has
-		// a bar on or after the split's date.
-		basis, err := tx.GetLatestPriceDate(ctx, t.Symbol)
-		if errors.Is(err, store.ErrNotFound) {
-			continue
-		}
-		if err != nil {
-			return nil, false, err
+			return nil, false, domain.Date{}, err
 		}
 		for _, s := range splits {
-			if s.Date.After(basis) {
-				continue
-			}
 			if _, dup := byDate[s.Date]; !dup {
 				byDate[s.Date] = s
 			}
 		}
 	}
 	out := slices.SortedFunc(maps.Values(byDate), func(a, b domain.Split) int { return a.Date.Time().Compare(b.Date.Time()) })
-	return out, checked, nil
+	return out, checked, basis, nil
 }
 
 // quarterlyValues flattens a series into stored values, quarter by

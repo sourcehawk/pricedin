@@ -231,22 +231,41 @@ func (s *Store) LockCompanyFundamentals(ctx context.Context, cik domain.CIK) err
 	return nil
 }
 
-// ListSymbolsWithSplitsBetween returns the symbols with a provider split
-// that executed after after and on or before upTo, sorted. A zero after
-// means no lower bound.
-func (s *Store) ListSymbolsWithSplitsBetween(ctx context.Context, after, upTo domain.Date) ([]string, error) {
-	rows, err := s.db.Query(ctx, `
-		SELECT DISTINCT symbol FROM price_splits
-		WHERE ($1::date IS NULL OR execution_date > $1) AND execution_date <= $2
-		ORDER BY symbol`, pgDate(after), pgDate(upTo))
-	if err != nil {
-		return nil, fmt.Errorf("list symbols with splits: %w", err)
+// MarkFundamentalsPendingForSplitsReached marks pending the companies of
+// the symbols whose bars, about to be stored, reach a provider split that
+// no stored bar of the symbol reached yet: the split is dated after the
+// symbol's newest stored bar and on or before the newest of bars. Call it
+// in the transaction that stores bars, before it stores them.
+func (s *Store) MarkFundamentalsPendingForSplitsReached(ctx context.Context, bars []domain.PriceBar) error {
+	newest := map[string]domain.Date{}
+	for _, b := range bars {
+		if d, ok := newest[b.Symbol]; !ok || b.Date.After(d) {
+			newest[b.Symbol] = b.Date
+		}
 	}
-	out, err := pgx.CollectRows(rows, pgx.RowTo[string])
-	if err != nil {
-		return nil, fmt.Errorf("list symbols with splits: %w", err)
+	if len(newest) == 0 {
+		return nil
 	}
-	return out, nil
+	symbols := make([]string, 0, len(newest))
+	dates := make([]domain.Date, 0, len(newest))
+	for sym, d := range newest {
+		symbols = append(symbols, sym)
+		dates = append(dates, d)
+	}
+	_, err := s.db.Exec(ctx, `
+		INSERT INTO fundamentals_pending (cik)
+		SELECT DISTINCT t.cik
+		FROM unnest($1::text[], $2::date[]) AS b(symbol, upto)
+		JOIN price_splits sp ON sp.symbol = b.symbol AND sp.execution_date <= b.upto
+		  AND sp.execution_date > coalesce((SELECT max(p.date) FROM prices_daily p WHERE p.symbol = b.symbol), '-infinity')
+		JOIN tickers t ON t.symbol = b.symbol AND t.source = '`+TickerSourceSEC+`' AND t.valid_to IS NULL
+		ORDER BY t.cik
+		ON CONFLICT (cik) DO UPDATE SET version = fundamentals_pending.version + 1, marked_at = now()`,
+		symbols, pgDates(dates))
+	if err != nil {
+		return fmt.Errorf("mark fundamentals pending for splits: %w", err)
+	}
+	return nil
 }
 
 // GetEarliestGroupedPriceDate returns the oldest date whose grouped daily
