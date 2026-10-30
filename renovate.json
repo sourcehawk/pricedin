@@ -11,6 +11,31 @@
   },
   "packageRules": [
     {
+      "description": "Non-major updates of the GitHub Actions share one pull request. The named groups below take their packages out of it.",
+      "groupName": "GitHub Actions",
+      "matchManagers": ["github-actions"],
+      "matchUpdateTypes": ["minor", "patch", "digest", "pinDigest"]
+    },
+    {
+      "description": "Non-major updates of the Go modules share one pull request. The named groups below take their packages out of it.",
+      "groupName": "Go modules",
+      "matchManagers": ["gomod"],
+      "matchUpdateTypes": ["minor", "patch", "digest"]
+    },
+    {
+      "description": "Non-major updates of the npm development tools share one pull request. The named groups below take their packages out of it.",
+      "groupName": "npm development tools",
+      "matchManagers": ["npm"],
+      "matchDepTypes": ["devDependencies"],
+      "matchUpdateTypes": ["minor", "patch"]
+    },
+    {
+      "description": "New digests of the container images share one pull request. The named groups below take their images out of it.",
+      "groupName": "container image digests",
+      "matchManagers": ["dockerfile", "docker-compose"],
+      "matchUpdateTypes": ["digest", "pinDigest"]
+    },
+    {
       "description": "Next.js and React move together.",
       "groupName": "Next.js and React",
       "matchPackageNames": [
