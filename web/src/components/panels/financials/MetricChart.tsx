@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useState, type FocusEvent, type PointerEvent, type ReactNode } from "react";
 import type { SourcedNumber } from "@/api/types";
 import { pct, signedPct } from "@/components/format";
 import { filingLink, newestFiling, SourceTip } from "@/components/Sourced";
@@ -188,6 +188,9 @@ export function MetricChart({
         name={`${q.label} ${info.name}: ${fmt(v)}`}
         sourced={sources[i] ?? null}
         tip={() => tip(i)}
+        onHover={(on) => {
+          setHover(on ? i : null);
+        }}
       />,
     );
   });
@@ -255,6 +258,7 @@ function ValueLabel({
   name,
   sourced,
   tip,
+  onHover,
 }: {
   x: number;
   y: number;
@@ -263,8 +267,33 @@ function ValueLabel({
   name: string;
   sourced: SourcedNumber | null;
   tip: () => ReactNode;
+  /** Gets true while the value has the pointer or the focus, so the chart keeps the quarter's guide line. */
+  onHover: (on: boolean) => void;
 }) {
-  const handlers = useTipHandlers(tip);
+  const tipHandlers = useTipHandlers(tip);
+  const handlers = {
+    ...tipHandlers,
+    onPointerEnter: (e: PointerEvent) => {
+      if (e.pointerType !== "touch") {
+        onHover(true);
+      }
+      tipHandlers.onPointerEnter(e);
+    },
+    onPointerLeave: (e: PointerEvent) => {
+      if (e.pointerType !== "touch") {
+        onHover(false);
+      }
+      tipHandlers.onPointerLeave(e);
+    },
+    onFocus: (e: FocusEvent) => {
+      onHover(true);
+      tipHandlers.onFocus(e);
+    },
+    onBlur: (e: FocusEvent) => {
+      onHover(false);
+      tipHandlers.onBlur(e);
+    },
+  };
   const label = (
     <text x={x} y={y} textAnchor="middle" className={styles.value}>
       {text}

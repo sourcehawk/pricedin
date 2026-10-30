@@ -133,6 +133,19 @@ describe("FinancialsPanel metric chart", () => {
     expect(container.querySelector("line.col-guide")).not.toBeInTheDocument();
   });
 
+  it("keeps the guide line on a quarter while its value has the pointer or the focus", async () => {
+    const { container } = await renderPanel();
+    const link = screen.getByRole("link", { name: /^Q3 FY26 Revenue/ });
+    fireEvent.pointerEnter(link, { pointerType: "mouse", clientX: 5, clientY: 5 });
+    expect(container.querySelector("line.col-guide")).toBeInTheDocument();
+    fireEvent.pointerLeave(link, { pointerType: "mouse" });
+    expect(container.querySelector("line.col-guide")).not.toBeInTheDocument();
+    act(() => {
+      link.focus();
+    });
+    expect(container.querySelector("line.col-guide")).toBeInTheDocument();
+  });
+
   it("shows the operating margin of a quarter in the operating income tooltip", async () => {
     const { container } = await renderPanel();
     await pick("Op. income");
