@@ -134,6 +134,7 @@ test-web: ## Run the web unit tests
 test-e2e: images ## Start a separate Compose stack, run Playwright, remove that stack
 	COMPOSE='$(COMPOSE)' PNPM='$(PNPM)' \
 	PRICEDIN_E2E_PROJECT='$(PRICEDIN_E2E_PROJECT)' \
+	PRICEDIN_SERVER_IMAGE='$(SERVER_IMAGE)' PRICEDIN_WEB_IMAGE='$(WEB_IMAGE)' \
 	PRICEDIN_WEB_PORT='$(PRICEDIN_E2E_WEB_PORT)' PRICEDIN_API_PORT='$(PRICEDIN_E2E_API_PORT)' \
 	PRICEDIN_METRICS_PORT='$(PRICEDIN_E2E_METRICS_PORT)' PRICEDIN_DB_PORT='$(PRICEDIN_E2E_DB_PORT)' \
 	PRICEDIN_E2E_BASE_URL='$(PRICEDIN_E2E_BASE_URL)' PRICEDIN_E2E_API_URL='$(PRICEDIN_E2E_API_URL)' \
@@ -153,6 +154,7 @@ images: ## Build the server and web Docker images
 # --- Local stack --------------------------------------------------------------
 .PHONY: up
 up: ## Build and start the Compose stack in the background
+	PRICEDIN_SERVER_IMAGE='$(SERVER_IMAGE)' PRICEDIN_WEB_IMAGE='$(WEB_IMAGE)' \
 	$(COMPOSE) up --detach --build --wait
 
 .PHONY: down

@@ -29,7 +29,7 @@ services:
   server:
     build:
       context: server
-    image: pricedin-server:dev
+    image: ${PRICEDIN_SERVER_IMAGE:-pricedin-server:dev}
     environment:
       # The parts need no URL encoding, so the credentials can hold any
       # character. The empty URL overrides one that .env sets for the host.
@@ -62,7 +62,7 @@ services:
     build:
       context: .
       dockerfile: web/Dockerfile
-    image: pricedin-web:dev
+    image: ${PRICEDIN_WEB_IMAGE:-pricedin-web:dev}
     environment:
       PRICEDIN_API_URL: http://server:8080
     env_file:
