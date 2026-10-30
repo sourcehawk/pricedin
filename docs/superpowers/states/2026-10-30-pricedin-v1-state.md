@@ -28,12 +28,12 @@ status: consumer-wave
 | --- | --- | --- | --- | --- |
 | planning | docs/pricedin-v1-plan | (main checkout) | #18 → main | self-merged |
 | #2 | chore/project-foundation | (removed) | #19 → main | self-merged |
-| #3 | feat/go-engine | .claude/worktrees/go-engine | → main | in-progress |
-| #4 | feat/database-store | .claude/worktrees/database-store | → main | in-progress |
-| #5 | feat/sec-client | .claude/worktrees/sec-client | → main | in-progress |
-| #6 | feat/massive-prices | .claude/worktrees/massive-prices | → main | in-progress |
+| #3 | feat/go-engine | .claude/worktrees/go-engine | #21 → main | ready |
+| #4 | feat/database-store | (removed) | #23 → main | self-merged |
+| #5 | feat/sec-client | (removed) | #20 → main | self-merged |
+| #6 | feat/massive-prices | (removed) | #22 → main | self-merged |
 | #7 | feat/ts-engine | .claude/worktrees/ts-engine | → main | not-started |
-| #8 | feat/quarter-derivation | .claude/worktrees/quarter-derivation | → main | not-started |
+| #8 | feat/quarter-derivation | .claude/worktrees/quarter-derivation | → main | in-progress |
 | #9 | feat/ingestion-jobs | .claude/worktrees/ingestion-jobs | → main | not-started |
 | #10 | feat/http-api | .claude/worktrees/http-api | → main | not-started |
 | #11 | feat/web-shell | .claude/worktrees/web-shell | → main | not-started |
@@ -51,8 +51,8 @@ status: consumer-wave
 | `domain-types` | pre-merge stub (inside #2) | #19 | locked |
 | `engine-io` | data-only (cases file) | #3 | pending |
 | `engine-cases` | data-only | #3 | pending |
-| `raw-recorder` | data-only | #5, #6 | pending |
-| `price-provider` | data-only (sequential) | #6 | pending |
+| `raw-recorder` | data-only | #20, #22 | locked |
+| `price-provider` | data-only (sequential) | #22 | locked |
 | `fundamentals-series` | data-only (sequential) | #8 | pending |
 | `openapi` | data-only (sequential) | #10 | pending |
 | `walkthrough-api` | data-only (sequential) | #11 | pending |
@@ -60,6 +60,7 @@ status: consumer-wave
 
 ## Bubble-up log
 
+- 2026-10-30: #20, #22 and #23 merged after Copilot loops and independent reviews. Decisions: SEC calls run sequentially per process; the SEC bulk job fetches submissions through the API instead of submissions.zip (255 MB central directory); price fixtures shrank to 28 files (grouped window plus aggs) and get SEC-anchored prices in #9; `prices verify` prints no provider values; prices_daily stores raw closes only; production runs as a non-owner Postgres role (#12). Session notes for later PRs live in the scratchpad file notes-for-later.md.
 - 2026-10-30: #19 merged (946668d). A `main` ruleset now requires the `ci-ok` check, blocks force-pushes and deletion, and runs Copilot code review on every push, so the review loop waits for the push-triggered review instead of re-requesting.
 - 2026-10-30: Wave 2 (#3-#6) started before #19 merged, from foundation head 140abf3. Each agent waits for #19 on main, then runs `git rebase --onto origin/main 140abf3` before opening its PR.
 - 2026-10-30: Copilot review of the planning PR (#18) added the spec section "Corrections to the prototype" (median, exact-baseline grid row, chart scales, band hover layering, scenario walkthrough), the `raw-recorder` contract with dated, hashed keys, the duration-weighted Q4 share rule, explicit dated split evidence, and the narrowed Origin check. Wave-2 briefs carry them.
