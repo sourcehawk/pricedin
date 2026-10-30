@@ -73,8 +73,9 @@ func TestEvaluateRejectsInvalidInput(t *testing.T) {
 		{"negative dividend", func(l *Levers, _ *History) { l.Dividend = -1 }},
 		{"negative target", func(l *Levers, _ *History) { l.TargetReturn = -0.01 }},
 		{"target above 50%", func(l *Levers, _ *History) { l.TargetReturn = 0.51 }},
-		{"price above a million", func(l *Levers, _ *History) { l.Price = 2e6 }},
+		{"price above 10^8", func(l *Levers, _ *History) { l.Price = 1e8 + 1 }},
 		{"EPS too close to zero", func(l *Levers, _ *History) { l.TTMEPS = 1e-9 }},
+		{"EPS above a million", func(l *Levers, _ *History) { l.TTMEPS = 2e6 }},
 		{"dividend above a million", func(l *Levers, _ *History) { l.Dividend = 2e6 }},
 		{"zero custom exit P/E", func(l *Levers, _ *History) { l.ExitPE = ExitPELever{Mode: ExitPECustom} }},
 		{"custom exit P/E below 0.5", func(l *Levers, _ *History) { l.ExitPE = ExitPELever{Mode: ExitPECustom, Custom: 1e-310} }},
@@ -98,6 +99,8 @@ func TestEvaluateRejectsInvalidInput(t *testing.T) {
 		{"unknown chart range", func(l *Levers, _ *History) { l.ChartRange = "5Y" }},
 		{"days out of order", func(_ *Levers, h *History) { h.Daily[3].Date = h.Daily[2].Date }},
 		{"a zero close", func(_ *Levers, h *History) { h.Daily[5].Close = 0 }},
+		{"a daily close above 10^8", func(_ *Levers, h *History) { h.Daily[5].Close = 1e8 + 1 }},
+		{"a quarter-end close above 10^8", func(_ *Levers, h *History) { h.Quarters[3].Close = ptr(1e8 + 1) }},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -247,17 +250,17 @@ func TestEvaluateMarshalsExtremeValidInputs(t *testing.T) {
 		qs := make([]Quarter, n)
 		for i := range qs {
 			qs[i] = Quarter{
-				Label: "Q1 FY20", PeriodEnd: domain.NewDate(2020, 3, 31).AddDays(91 * i), EPS: ptr(perShare()), Close: ptr(pick(1e-4, 1e6, 3)),
+				Label: "Q1 FY20", PeriodEnd: domain.NewDate(2020, 3, 31).AddDays(91 * i), EPS: ptr(perShare()), Close: ptr(pick(1e-4, 1e8, 3)),
 				DilutedShares: ptr(pick(0, 1e-6, 1e15)), Revenue: ptr(pick(0, 1e-6, -1e-6, 1e15, -1e15)), OperatingIncome: ptr(pick(1e-6, -1e15, 1e15)),
 				OperatingCosts: ptr(pick(0, 1e15)), FreeCashFlow: ptr(pick(-1e15, 1e-6)),
 			}
 		}
 		daily := make([]PricePoint, 30+rnd.IntN(500))
 		for i := range daily {
-			daily[i] = PricePoint{Date: domain.NewDate(2023, 1, 1).AddDays(i), Close: pick(1e-4, 1e6, 7), TTMEPS: ptr(perShare())}
+			daily[i] = PricePoint{Date: domain.NewDate(2023, 1, 1).AddDays(i), Close: pick(1e-4, 1e8, 7), TTMEPS: ptr(perShare())}
 		}
 		l := Levers{
-			Price: pick(1e-4, 1e6, 1), TTMEPS: perShare(), Dividend: pick(0, 1e6), TargetReturn: pick(0, 0.5),
+			Price: pick(1e-4, 1e8, 1), TTMEPS: perShare(), Dividend: pick(0, 1e6), TargetReturn: pick(0, 0.5),
 			HoldingYears: 1 + rnd.IntN(10),
 			ExitPE: ExitPELever{
 				Mode:   []ExitPEMode{ExitPEEstimated, ExitPEToday, ExitPETrailing, ExitPECustom}[rnd.IntN(4)],
@@ -292,10 +295,10 @@ func TestEvaluateMarshalsExtremeValidInputs(t *testing.T) {
 	}
 }
 
-// A TTM EPS that cancels to near zero gives a trailing P/E near 1e14; the
+// A TTM EPS that cancels to near zero gives a trailing P/E near 1e16; the
 // default cases built on it must still pass when the UI pins them.
 func TestEvaluateAcceptsPinnedDefaultsAtAHugeTrailingPE(t *testing.T) {
-	q := withCloses(quarters(0, 1.0001e-4, -1e-4, 0, 0, 1), 0, 0, 0, 1e6, 1e6, 0)
+	q := withCloses(quarters(0, 1.0001e-4, -1e-4, 0, 0, 1), 0, 0, 0, 1e8, 1e8, 0)
 	l := Levers{Price: 1, TTMEPS: 1, TargetReturn: 0.15, HoldingYears: 3, ExitPE: ExitPELever{Mode: ExitPETrailing}, Baseline: BaselineLever{Mode: BaselineWeighted}}
 	ev, err := Evaluate(History{Quarters: q}, l)
 	if err != nil {

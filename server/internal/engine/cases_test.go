@@ -2,6 +2,7 @@ package engine
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"os"
@@ -229,13 +230,24 @@ var runners = map[string]func(json.RawMessage) (any, error){
 	) (any, error) {
 		return CompareScale(in.Values), nil
 	}),
-	"evaluate": runner(func(in struct {
-		History History `json:"history"`
-		Levers  Levers  `json:"levers"`
-	},
-	) (any, error) {
+	"evaluate": runner(func(in evaluateInput) (any, error) {
 		return Evaluate(in.History, in.Levers)
 	}),
+	// evaluateAccepts gives false for input that Evaluate rejects as
+	// invalid, so that a case can name a bound without the error text,
+	// which differs between the engines.
+	"evaluateAccepts": runner(func(in evaluateInput) (any, error) {
+		_, err := Evaluate(in.History, in.Levers)
+		if err != nil && !errors.Is(err, ErrInvalidInput) {
+			return nil, err
+		}
+		return err == nil, nil
+	}),
+}
+
+type evaluateInput struct {
+	History History `json:"history"`
+	Levers  Levers  `json:"levers"`
 }
 
 func loadCases(t *testing.T) caseFile {

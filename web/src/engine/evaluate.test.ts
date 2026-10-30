@@ -53,7 +53,8 @@ describe("evaluate", () => {
     ["zero price", (l) => ({ ...l, price: 0 })],
     ["NaN EPS", (l) => ({ ...l, ttmEps: NaN })],
     ["EPS too close to zero", (l) => ({ ...l, ttmEps: 1e-9 })],
-    ["price above a million", (l) => ({ ...l, price: 2e6 })],
+    ["EPS above a million", (l) => ({ ...l, ttmEps: 2e6 })],
+    ["price above 10^8", (l) => ({ ...l, price: 1e8 + 1 })],
     ["negative dividend", (l) => ({ ...l, dividend: -1 })],
     ["dividend above a million", (l) => ({ ...l, dividend: 2e6 })],
     ["negative target", (l) => ({ ...l, targetReturn: -0.01 })],
@@ -159,6 +160,20 @@ describe("evaluate", () => {
       "a zero close",
       (l, h) => {
         h.daily[5] = { date: h.daily[5]?.date ?? "", close: 0, ttmEps: 1 };
+        return l;
+      },
+    ],
+    [
+      "a daily close above 10^8",
+      (l, h) => {
+        h.daily[5] = { date: h.daily[5]?.date ?? "", close: 1e8 + 1, ttmEps: 1 };
+        return l;
+      },
+    ],
+    [
+      "a quarter-end close above 10^8",
+      (l, h) => {
+        h.quarters[3] = { ...quarter(3, 1), close: 1e8 + 1 };
         return l;
       },
     ],
@@ -312,7 +327,7 @@ describe("evaluate at the edges of the input bounds", () => {
     for (let run = 0; run < 300; run++) {
       const quarters = Array.from({ length: 2 + int(20) }, (_, i): Quarter => ({
         ...quarter(i, perShare()),
-        close: pick(1e-4, 1e6, 3),
+        close: pick(1e-4, 1e8, 3),
         dilutedShares: pick(0, 1e-6, 1e15),
         revenue: pick(0, 1e-6, -1e-6, 1e15, -1e15),
         operatingIncome: pick(1e-6, -1e15, 1e15),
@@ -322,11 +337,11 @@ describe("evaluate at the edges of the input bounds", () => {
       const start = Date.UTC(2023, 0, 1);
       const daily = Array.from({ length: 30 + int(500) }, (_, i): PricePoint => ({
         date: new Date(start + i * 86400000).toISOString().slice(0, 10),
-        close: pick(1e-4, 1e6, 7),
+        close: pick(1e-4, 1e8, 7),
         ttmEps: perShare(),
       }));
       const l: Levers = {
-        price: pick(1e-4, 1e6, 1),
+        price: pick(1e-4, 1e8, 1),
         ttmEps: perShare(),
         dividend: pick(0, 1e6),
         targetReturn: pick(0, 0.5),
