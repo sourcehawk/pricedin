@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net"
@@ -243,6 +244,47 @@ pricedin_http_requests_total{code="404",method="OTHER",route="unmatched"} 3
 	}
 	if n, err := testutil.GatherAndCount(reg, "pricedin_http_request_duration_seconds"); err != nil || n != 2 {
 		t.Errorf("duration histogram series = %d (%v), want 2", n, err)
+	}
+}
+
+func TestObserveRecordsTheFinalStatus(t *testing.T) {
+	tests := []struct {
+		name  string
+		codes []int
+		want  int
+	}{
+		{"early hints before the final status", []int{http.StatusEarlyHints, http.StatusOK}, http.StatusOK},
+		{"two informational statuses", []int{http.StatusContinue, http.StatusEarlyHints, http.StatusCreated}, http.StatusCreated},
+		{"switching protocols is final", []int{http.StatusSwitchingProtocols}, http.StatusSwitchingProtocols},
+		{"a second final status is ignored", []int{http.StatusAccepted, http.StatusInternalServerError}, http.StatusAccepted},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var buf bytes.Buffer
+			reg := prometheus.NewRegistry()
+			h := httpserver.Observe(slog.New(slog.NewJSONHandler(&buf, nil)), reg)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				for _, code := range tt.codes {
+					w.WriteHeader(code)
+				}
+			}))
+			h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", http.NoBody))
+
+			var line map[string]any
+			if err := json.Unmarshal(buf.Bytes(), &line); err != nil {
+				t.Fatalf("log line %q is not one JSON object: %v", buf.String(), err)
+			}
+			if line["status"] != float64(tt.want) {
+				t.Errorf("logged status = %v, want %d", line["status"], tt.want)
+			}
+			want := fmt.Sprintf(`
+# HELP pricedin_http_requests_total HTTP requests by method, route pattern and status code.
+# TYPE pricedin_http_requests_total counter
+pricedin_http_requests_total{code="%d",method="GET",route="unmatched"} 1
+`, tt.want)
+			if err := testutil.GatherAndCompare(reg, strings.NewReader(want), "pricedin_http_requests_total"); err != nil {
+				t.Error(err)
+			}
+		})
 	}
 }
 

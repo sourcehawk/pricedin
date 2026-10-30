@@ -75,7 +75,9 @@ type recorder struct {
 }
 
 func (r *recorder) WriteHeader(code int) {
-	if !r.wroteHeader {
+	// A 1xx status other than 101 is informational: the final status follows.
+	final := code >= http.StatusOK || code == http.StatusSwitchingProtocols
+	if !r.wroteHeader && final {
 		r.status = code
 		r.wroteHeader = true
 	}
