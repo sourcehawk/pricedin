@@ -168,9 +168,10 @@ var priceSplitStage = stage{
 
 // UpsertPriceSplits stores the provider's splits. A split is identified by
 // its symbol and execution date (Split.Date); Split.Evidence holds the
-// provider's identifier. A stored split changes only when the provider's
-// values differ. From and To must be positive. It returns the number of
-// splits added or changed.
+// provider's identifier. A split whose identifier is stored under another
+// date replaces that row, so a corrected date never counts twice. A stored
+// split changes only when the provider's values differ. From and To must be
+// positive. It returns the number of splits added or changed.
 func (s *Store) UpsertPriceSplits(ctx context.Context, splits []domain.Split) (int64, error) {
 	rows := make([][]any, len(splits))
 	for i, sp := range splits {
@@ -179,17 +180,39 @@ func (s *Store) UpsertPriceSplits(ctx context.Context, splits []domain.Split) (i
 		}
 		rows[i] = []any{i, sp.Symbol, pgDate(sp.Date), sp.From, sp.To, sp.Evidence, sp.Source}
 	}
-	n, err := s.copyInsert(ctx, priceSplitStage, rows, `
-		INSERT INTO price_splits (symbol, execution_date, split_from, split_to, provider_id, source)
-		SELECT DISTINCT ON (symbol, execution_date) symbol, execution_date, split_from, split_to, provider_id, source
-		FROM stage_price_splits
-		ORDER BY symbol, execution_date, ord DESC
-		ON CONFLICT (symbol, execution_date) DO UPDATE SET
-			split_from = excluded.split_from, split_to = excluded.split_to,
-			provider_id = excluded.provider_id, source = excluded.source, loaded_at = now()
-		WHERE (price_splits.split_from, price_splits.split_to, price_splits.provider_id, price_splits.source)
-		      IS DISTINCT FROM
-		      (excluded.split_from, excluded.split_to, excluded.provider_id, excluded.source)`)
+	if len(rows) == 0 {
+		return 0, nil
+	}
+	var n int64
+	err := s.inTx(ctx, func(tx pgx.Tx) error {
+		if err := priceSplitStage.load(ctx, tx, rows); err != nil {
+			return err
+		}
+		// A separate statement, so that the INSERT sees the freed
+		// provider IDs.
+		if _, err := tx.Exec(ctx, `
+			DELETE FROM price_splits p USING stage_price_splits st
+			WHERE st.provider_id <> '' AND p.source = st.source AND p.provider_id = st.provider_id
+			  AND (p.symbol, p.execution_date) IS DISTINCT FROM (st.symbol, st.execution_date)`); err != nil {
+			return err
+		}
+		tag, err := tx.Exec(ctx, `
+			INSERT INTO price_splits (symbol, execution_date, split_from, split_to, provider_id, source)
+			SELECT DISTINCT ON (symbol, execution_date) symbol, execution_date, split_from, split_to, provider_id, source
+			FROM stage_price_splits
+			ORDER BY symbol, execution_date, ord DESC
+			ON CONFLICT (symbol, execution_date) DO UPDATE SET
+				split_from = excluded.split_from, split_to = excluded.split_to,
+				provider_id = excluded.provider_id, source = excluded.source, loaded_at = now()
+			WHERE (price_splits.split_from, price_splits.split_to, price_splits.provider_id, price_splits.source)
+			      IS DISTINCT FROM
+			      (excluded.split_from, excluded.split_to, excluded.provider_id, excluded.source)`)
+		if err != nil {
+			return err
+		}
+		n = tag.RowsAffected()
+		return priceSplitStage.drop(ctx, tx)
+	})
 	if err != nil {
 		return 0, fmt.Errorf("upsert price splits: %w", err)
 	}

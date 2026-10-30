@@ -316,3 +316,28 @@ func TestUpsertDividendsRejectsAnEmptyProviderID(t *testing.T) {
 		t.Error("INSERT of an empty provider_id error = nil, want a check violation")
 	}
 }
+
+func TestUpsertPriceSplitsMovesASplitWhoseDateTheProviderCorrected(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	s, _ := newStore(t)
+	first := domain.Split{Symbol: "NVDA", Date: date(t, "2024-06-07"), From: 1, To: 10, Source: "massive", Evidence: "P1"}
+	corrected := first
+	corrected.Date = date(t, "2024-06-10")
+	unnamed := domain.Split{Symbol: "NVDA", Date: date(t, "2021-07-20"), From: 1, To: 4, Source: "massive"}
+	if _, err := s.UpsertPriceSplits(ctx, []domain.Split{first, unnamed}); err != nil {
+		t.Fatalf("UpsertPriceSplits() error = %v", err)
+	}
+
+	n, err := s.UpsertPriceSplits(ctx, []domain.Split{corrected})
+	if err != nil || n != 1 {
+		t.Fatalf("UpsertPriceSplits() with a corrected date = %d, %v; want 1, nil", n, err)
+	}
+	got, err := s.ListPriceSplits(ctx, "NVDA")
+	if err != nil {
+		t.Fatalf("ListPriceSplits() error = %v", err)
+	}
+	if diff := cmp.Diff([]domain.Split{unnamed, corrected}, got); diff != "" {
+		t.Errorf("ListPriceSplits() (-want +got):\n%s", diff)
+	}
+}

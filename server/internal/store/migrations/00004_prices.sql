@@ -30,6 +30,9 @@ CREATE TABLE price_splits (
     PRIMARY KEY (symbol, execution_date)
 );
 
+-- One row per provider event, so a corrected date moves the event.
+CREATE UNIQUE INDEX price_splits_provider_id ON price_splits (source, provider_id) WHERE provider_id <> '';
+
 CREATE TABLE dividends (
     provider_id      text PRIMARY KEY CHECK (provider_id <> ''),
     symbol           text NOT NULL,
