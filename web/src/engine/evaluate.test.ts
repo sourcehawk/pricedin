@@ -184,6 +184,24 @@ describe("evaluate", () => {
     expect(() => evaluate(h, levers)).not.toThrow();
   });
 
+  // The Gregorian calendar repeats every 400 years, so a history moved back
+  // 2000 years must give the same evaluation with its dates moved back too.
+  it("evaluates a history in the years 0 to 99 as Go does", () => {
+    const back = (date: string): string =>
+      `${String(Number(date.slice(0, 4)) - 2000).padStart(4, "0")}${date.slice(4)}`;
+    const h = copyHistory();
+    const old = {
+      quarters: h.quarters.map((q) => ({ ...q, periodEnd: back(q.periodEnd) })),
+      daily: h.daily.map((d) => ({ ...d, date: back(d.date) })),
+    };
+    const l: Levers = { ...levers, chartRange: "6M" };
+    const want = JSON.stringify(evaluate(h, l)).replace(
+      /"(\d{4}-\d{2}-\d{2})"/g,
+      (_, d: string) => `"${back(d)}"`,
+    );
+    expect(JSON.parse(JSON.stringify(evaluate(old, l)))).toEqual(JSON.parse(want));
+  });
+
   // Go marshals a nil slice of a History as null, so the API can send one.
   it("reads null quarters and days as an empty history", () => {
     const empty = evaluate({ quarters: [], daily: [] }, levers);

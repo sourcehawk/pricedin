@@ -1,26 +1,30 @@
 // Calendar arithmetic on YYYY-MM-DD dates in UTC. Out-of-range days and
 // months normalize as Go's time.Date does (March 31 less one month is
-// March 3), and Date.UTC normalizes the same way, so both engines pick the
-// same chart start.
+// March 3), and setUTCFullYear normalizes the same way, so both engines
+// pick the same chart start.
 
 function parts(date: string): [number, number, number] {
   return [Number(date.slice(0, 4)), Number(date.slice(5, 7)), Number(date.slice(8, 10))];
 }
 
-function format(ms: number): string {
-  return new Date(ms).toISOString().slice(0, 10);
+/** day returns the YYYY-MM-DD date of year y, month m (1 is January) and day d, normalized. */
+function day(y: number, m: number, d: number): string {
+  const t = new Date(0);
+  // Not Date.UTC: it reads the years 0 to 99 as 1900 to 1999.
+  t.setUTCFullYear(y, m - 1, d);
+  return t.toISOString().slice(0, 10);
 }
 
 /** addDays returns the date n calendar days after date; a negative n goes back. */
 export function addDays(date: string, n: number): string {
   const [y, m, d] = parts(date);
-  return format(Date.UTC(y, m - 1, d + n));
+  return day(y, m, d + n);
 }
 
 /** addMonths returns the date n months after date, normalized like Go's AddDate. */
 export function addMonths(date: string, n: number): string {
   const [y, m, d] = parts(date);
-  return format(Date.UTC(y, m - 1 + n, d));
+  return day(y, m + n, d);
 }
 
 const datePattern = /^(\d{4})-(\d{2})-(\d{2})$/;
