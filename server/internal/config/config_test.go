@@ -61,7 +61,7 @@ func TestLoadReadsEveryVariable(t *testing.T) {
 	want := config.Config{
 		HTTP: config.HTTP{Addr: "127.0.0.1:8181", MetricsAddr: "127.0.0.1:9191"},
 		Database: config.Database{
-			URL:     "postgres://u:p@db:5432/pricedin?sslmode=disable",
+			URL:        "postgres://u:p@db:5432/pricedin?sslmode=disable",
 			LockURL:    "postgres://u:p@db-direct:5432/pricedin?sslmode=disable",
 			MigrateURL: "postgres://owner:p@db-direct:5432/pricedin?sslmode=disable",
 		},

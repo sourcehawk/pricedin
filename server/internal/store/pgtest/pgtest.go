@@ -188,7 +188,7 @@ func Psql(tb testing.TB, dbURL, path string, vars map[string]string) (string, er
 	if err != nil {
 		tb.Fatalf("pgtest: parse database URL: %v", err)
 	}
-	script, err := os.ReadFile(path)
+	script, err := os.ReadFile(path) //nolint:gosec // G304: the test names a script of the repository.
 	if err != nil {
 		tb.Fatalf("pgtest: read %s: %v", path, err)
 	}
@@ -196,7 +196,8 @@ func Psql(tb testing.TB, dbURL, path string, vars map[string]string) (string, er
 	if err := server.container.CopyToContainer(tb.Context(), script, target, 0o644); err != nil {
 		tb.Fatalf("pgtest: copy %s into the container: %v", path, err)
 	}
-	cmd := []string{"psql", "-X", "-v", "ON_ERROR_STOP=1", "-U", cfg.User, "-d", cfg.Database, "-f", target}
+	cmd := make([]string, 0, 10+2*len(vars))
+	cmd = append(cmd, "psql", "-X", "-v", "ON_ERROR_STOP=1", "-U", cfg.User, "-d", cfg.Database, "-f", target)
 	for _, name := range slices.Sorted(maps.Keys(vars)) {
 		cmd = append(cmd, "-v", name+"="+vars[name])
 	}
