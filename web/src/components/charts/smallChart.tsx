@@ -66,6 +66,8 @@ export interface ColumnsLayout {
   y1: number;
   /** The column that focus shows first; the last one when absent. */
   start?: number;
+  /** The accessible name of column i, which a screen reader reads in browse mode; absent leaves the columns unnamed. */
+  label?: (i: number) => string;
 }
 
 const keySteps: Record<string, (i: number, count: number) => number> = {
@@ -201,6 +203,7 @@ export function useColumns(layout: ColumnsLayout, tipFor: (i: number) => ReactNo
             rects.current[i] = el;
           }}
           className="vcol"
+          {...(layout.label === undefined ? {} : { role: "img", "aria-label": layout.label(i) })}
           data-x={x(i).toFixed(1)}
           x={x(i) - width / 2}
           y={y0}

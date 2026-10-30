@@ -78,6 +78,19 @@ describe("CompareView", () => {
     expect(guide(container)).toHaveAttribute("visibility", "hidden");
   });
 
+  it("names each quarter's column for a screen reader, without a tab stop of its own", async () => {
+    const { container } = await openCompare();
+    const chart = screen.getByRole("group", {
+      name: /Financial metrics compared by quarter for GRMN/,
+    });
+    expect(
+      within(chart).getByRole("img", {
+        name: "Q3 FY26: revenue +9% ($1.99B), operating income +18% ($612M), diluted EPS +12% ($2.75), diluted shares -2% (192.0M)",
+      }),
+    ).toBe(column(container, 7));
+    expect(column(container, 7)).not.toHaveAttribute("tabindex");
+  });
+
   it("switches to the change from the quarter before", async () => {
     const { container } = await openCompare();
     await userEvent.click(screen.getByRole("button", { name: "Each quarter" }));

@@ -158,6 +158,14 @@ function CompareChart({
   const X = (i: number) => x0 + (i + 0.5) * colW;
   const Y = (v: number) => y1 - ((v - axis.min) / (axis.max - axis.min)) * (y1 - y0);
 
+  const label = (i: number): string =>
+    `${quarters[i]?.label ?? ""}: ${selected
+      .map(
+        (m) =>
+          `${metricInfo[m].lower} ${signedPct(values(m)[i], 0)} (${metricValue(m, view.metrics[m].values[i] ?? null, 2)})`,
+      )
+      .join(", ")}`;
+
   const tip = (i: number): ReactNode => (
     <>
       <b>{quarters[i]?.label}</b>
@@ -184,7 +192,7 @@ function CompareChart({
   const picked = selected.join(",");
   const data = useMemo(() => ({ view, picked, since }), [view, picked, since]);
   const { chartProps, layer, live } = useColumns(
-    { count: n, x: X, width: colW, y0, y1 },
+    { count: n, x: X, width: colW, y0, y1, label },
     tip,
     data,
   );

@@ -96,7 +96,14 @@ function MetricPlot({
     );
   };
   const { chartProps, layer, live, guide } = useColumns(
-    { count: n, x: cx, width: bw, y0: y0 - 8, y1 },
+    {
+      count: n,
+      x: cx,
+      width: bw,
+      y0: y0 - 8,
+      y1,
+      label: (i) => `${quarters[i]?.label ?? ""} ${info.name}: ${fmt(series.values[i] ?? null)}`,
+    },
     tip,
     series,
   );

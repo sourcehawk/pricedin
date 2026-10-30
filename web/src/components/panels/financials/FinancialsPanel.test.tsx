@@ -147,6 +147,13 @@ describe("FinancialsPanel metric chart", () => {
     expect(guide(container)).toHaveAttribute("visibility", "visible");
   });
 
+  it("names each quarter's column for a screen reader", async () => {
+    const { container } = await renderPanel();
+    expect(within(chart()).getByRole("img", { name: "Q3 FY26 Revenue: $2.0B" })).toBe(
+      column(container, 7),
+    );
+  });
+
   it("moves between quarters with the arrow keys", async () => {
     const { container } = await renderPanel();
     act(() => {
