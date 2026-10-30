@@ -16,18 +16,17 @@ import (
 // list of US stocks. Every price is raw: not adjusted for splits or
 // dividends. Use AdjustForSplits with the provider's splits to adjust.
 //
-// No method returns a bar of a session that is not over. A session is over
-// from SessionOverHour in New York on its day. GroupedDaily for a later date
-// returns an empty slice, and DailyBars leaves out the part of its range
-// after the last session that is over.
+// No method returns a bar dated after LastFinishedSession of the current
+// time. GroupedDaily for a later date returns an empty slice, and DailyBars
+// leaves out the part of its range after it.
 //
-// A call for data that the provider does not have for that date, such as a
-// market holiday, returns an empty slice and no error. A call for data
-// outside what the provider's plan covers, such as history that is too old,
-// returns an error that wraps ErrNotAuthorized. DailyBars for a range that
-// starts before the plan's history and ends inside it returns the bars that
-// the plan covers. Each method returns its results sorted by date, or by
-// symbol for Tickers.
+// GroupedDaily for a day without trading, such as a market holiday or a
+// weekend, returns an empty slice and no error. A call for data outside what
+// the provider's plan covers, such as history that is too old, returns an
+// error that wraps ErrNotAuthorized. DailyBars for a range that starts
+// before the plan's history and ends inside it returns the bars that the
+// plan covers. Each method returns its results sorted by date, or by symbol
+// for GroupedDaily and Tickers.
 type Provider interface {
 	// Name identifies the provider. It is the Source of every value the
 	// provider returns.

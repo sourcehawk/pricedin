@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 
@@ -218,5 +219,27 @@ func TestDividendDatesAreCopies(t *testing.T) {
 	}
 	if *again[0].PayDate != date("2024-07-01") || *again[0].DeclarationDate != date("2024-07-01") {
 		t.Errorf("a change to a returned date changed the fake: pay %v, declared %v", again[0].PayDate, again[0].DeclarationDate)
+	}
+}
+
+func TestBarsOfASessionThatIsNotOverAreLeftOut(t *testing.T) {
+	newYork, err := time.LoadLocation("America/New_York")
+	if err != nil {
+		t.Fatal(err)
+	}
+	fake := &pricestest.Provider{
+		Bars: []domain.PriceBar{bar("AAPL", "2026-10-29", 1), bar("AAPL", "2026-10-30", 2)},
+		Now:  func() time.Time { return time.Date(2026, time.October, 30, 15, 0, 0, 0, newYork) },
+	}
+	grouped, err := fake.GroupedDaily(t.Context(), date("2026-10-30"))
+	if err != nil || len(grouped) != 0 {
+		t.Errorf("GroupedDaily(today) = %v, %v; want no bars before 20:00 in New York", grouped, err)
+	}
+	daily, err := fake.DailyBars(t.Context(), "AAPL", date("2026-10-28"), date("2026-11-06"))
+	if err != nil {
+		t.Fatalf("DailyBars() error = %v", err)
+	}
+	if diff := cmp.Diff([]domain.PriceBar{bar("AAPL", "2026-10-29", 1)}, daily); diff != "" {
+		t.Errorf("DailyBars() mismatch (-want +got):\n%s", diff)
 	}
 }

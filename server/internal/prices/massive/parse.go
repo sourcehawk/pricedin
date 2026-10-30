@@ -238,8 +238,8 @@ func (t tickerJSON) toProvider() (prices.ProviderTicker, string) {
 }
 
 // ParseTickers decodes a ticker list response (/v3/reference/tickers). A
-// ticker whose CIK is not a valid CIK, such as "0000000000", gets CIK 0 and
-// a note.
+// ticker whose CIK is not empty and not valid, such as "0000000000", gets
+// CIK 0 and a note.
 func ParseTickers(body []byte) (Page[prices.ProviderTicker], error) {
 	var resp struct {
 		envelope

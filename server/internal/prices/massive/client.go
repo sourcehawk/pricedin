@@ -85,7 +85,6 @@ type Client struct {
 	retryDelay time.Duration
 	now        func() time.Time
 	sleep      func(context.Context, time.Duration) error
-	newYork    *time.Location
 }
 
 // New returns a Client. It returns an error when APIKey is empty or BaseURL
@@ -102,10 +101,6 @@ func New(opts Options) (*Client, error) {
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.RawQuery != "" {
 		return nil, fmt.Errorf("massive: base URL %q: want an http or https URL with a host and no query", base)
 	}
-	newYork, err := time.LoadLocation("America/New_York")
-	if err != nil {
-		return nil, fmt.Errorf("massive: load time zone: %w", err)
-	}
 	c := &Client{
 		base:       strings.TrimSuffix(u.String(), "/"),
 		key:        opts.APIKey,
@@ -117,7 +112,6 @@ func New(opts Options) (*Client, error) {
 		retryDelay: withDefault(opts.RetryDelay, defaultRetryDelay),
 		now:        opts.Now,
 		sleep:      sleep,
-		newYork:    newYork,
 	}
 	if c.http == nil {
 		c.http = &http.Client{Timeout: 2 * time.Minute}
@@ -220,18 +214,10 @@ func (c *Client) dailyBars(ctx context.Context, symbol string, from, to domain.D
 	return bars, nil
 }
 
-// lastFinishedSession returns the latest trading day whose session is over
-// at the time of c.now.
+// lastFinishedSession returns prices.LastFinishedSession at the time of
+// c.now.
 func (c *Client) lastFinishedSession() domain.Date {
-	now := c.now().In(c.newYork)
-	d := domain.DateOf(now)
-	if now.Hour() < prices.SessionOverHour {
-		d = d.AddDays(-1)
-	}
-	for !prices.IsTradingDay(d) {
-		d = d.AddDays(-1)
-	}
-	return d
+	return prices.LastFinishedSession(c.now())
 }
 
 // finishedOnly leaves out the bars dated after last. Massive marks the bars

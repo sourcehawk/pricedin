@@ -2,6 +2,9 @@ package prices
 
 import (
 	"time"
+	// The session rule depends on the New York time zone, and a small server
+	// image can lack the system time zone files.
+	_ "time/tzdata"
 
 	"github.com/sourcehawk/pricedin/server/internal/domain"
 )
@@ -118,4 +121,23 @@ func easter(year int) domain.Date {
 	month := (h + l - 7*m + 114) / 31
 	day := (h+l-7*m+114)%31 + 1
 	return domain.NewDate(year, time.Month(month), day)
+}
+
+// LastFinishedSession returns the latest trading day whose session is over
+// at now. A session is over from SessionOverHour in New York on its day.
+func LastFinishedSession(now time.Time) domain.Date {
+	newYork, err := time.LoadLocation("America/New_York")
+	if err != nil {
+		// time/tzdata is embedded, so the zone always loads.
+		panic("prices: load time zone: " + err.Error())
+	}
+	local := now.In(newYork)
+	d := domain.DateOf(local)
+	if local.Hour() < SessionOverHour {
+		d = d.AddDays(-1)
+	}
+	for !IsTradingDay(d) {
+		d = d.AddDays(-1)
+	}
+	return d
 }

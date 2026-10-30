@@ -140,3 +140,27 @@ func TestTradingDaysIsEmptyForAClosedRange(t *testing.T) {
 		t.Errorf("TradingDays(weekend) = %v, want none", got)
 	}
 }
+
+func TestLastFinishedSession(t *testing.T) {
+	newYork, err := time.LoadLocation("America/New_York")
+	if err != nil {
+		t.Fatal(err)
+	}
+	tests := []struct {
+		now  time.Time
+		want string
+	}{
+		{time.Date(2026, time.October, 30, 19, 59, 0, 0, newYork), "2026-10-29"},
+		{time.Date(2026, time.October, 30, 20, 0, 0, 0, newYork), "2026-10-30"},
+		{time.Date(2026, time.October, 31, 12, 0, 0, 0, newYork), "2026-10-30"}, // Saturday
+		{time.Date(2026, time.November, 2, 9, 0, 0, 0, newYork), "2026-10-30"},  // Monday morning
+		{time.Date(2025, time.December, 26, 8, 0, 0, 0, newYork), "2025-12-24"}, // after Christmas
+		// 01:30 UTC on 2026-10-31 is 21:30 on 2026-10-30 in New York.
+		{time.Date(2026, time.October, 31, 1, 30, 0, 0, time.UTC), "2026-10-30"},
+	}
+	for _, tt := range tests {
+		if got := prices.LastFinishedSession(tt.now); got != date(tt.want) {
+			t.Errorf("LastFinishedSession(%v) = %s, want %s", tt.now, got, tt.want)
+		}
+	}
+}

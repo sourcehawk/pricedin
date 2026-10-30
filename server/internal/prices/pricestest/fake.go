@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"time"
 
 	"github.com/sourcehawk/pricedin/server/internal/domain"
 	"github.com/sourcehawk/pricedin/server/internal/prices"
@@ -29,6 +30,9 @@ type Provider struct {
 	AuthorizedFrom domain.Date
 	// Err, when not nil, is the error of every call.
 	Err error
+	// Now gives the current time for the rule that no bar of a session
+	// that is not over is returned. Default time.Now.
+	Now func() time.Time
 }
 
 // Name returns ProviderName, or "fake" when it is empty.
@@ -47,7 +51,8 @@ func (p *Provider) GroupedDaily(ctx context.Context, date domain.Date) ([]domain
 	if p.unauthorized(date) {
 		return nil, fmt.Errorf("pricestest: grouped daily %s: %w", date, prices.ErrNotAuthorized)
 	}
-	bars := filter(p.Bars, func(b domain.PriceBar) bool { return b.Date == date })
+	last := p.lastFinishedSession()
+	bars := filter(p.Bars, func(b domain.PriceBar) bool { return b.Date == date && !b.Date.After(last) })
 	slices.SortFunc(bars, func(a, b domain.PriceBar) int { return cmp.Compare(a.Symbol, b.Symbol) })
 	return bars, nil
 }
@@ -60,8 +65,9 @@ func (p *Provider) DailyBars(ctx context.Context, symbol string, from, to domain
 	if p.unauthorized(to) {
 		return nil, fmt.Errorf("pricestest: daily bars %s %s to %s: %w", symbol, from, to, prices.ErrNotAuthorized)
 	}
+	last := p.lastFinishedSession()
 	bars := filter(p.Bars, func(b domain.PriceBar) bool {
-		return b.Symbol == symbol && !b.Date.Before(from) && !b.Date.After(to) && !p.unauthorized(b.Date)
+		return b.Symbol == symbol && !b.Date.Before(from) && !b.Date.After(to) && !b.Date.After(last) && !p.unauthorized(b.Date)
 	})
 	slices.SortFunc(bars, func(a, b domain.PriceBar) int { return a.Date.Time().Compare(b.Date.Time()) })
 	return bars, nil
@@ -106,6 +112,13 @@ func (p *Provider) check(ctx context.Context) error {
 		return err
 	}
 	return p.Err
+}
+
+func (p *Provider) lastFinishedSession() domain.Date {
+	if p.Now == nil {
+		return prices.LastFinishedSession(time.Now())
+	}
+	return prices.LastFinishedSession(p.Now())
 }
 
 func (p *Provider) unauthorized(d domain.Date) bool {
