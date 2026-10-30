@@ -1,0 +1,160 @@
+# PricedIn: the one entry point for tools, tests, builds and the local stack.
+# CI calls these targets and nothing else. Run `make` for the list. Make
+# prints each command before it runs it.
+
+# Optional local settings (host ports, credentials). Compose reads .env too.
+-include .env
+
+# --- Tools --------------------------------------------------------------------
+# asdf installs the versions in .tool-versions. Another copy of a tool earlier
+# on PATH must not win, so prefer the asdf one when asdf knows it.
+asdf_which = $(or $(shell asdf which $(1) 2>/dev/null),$(1))
+
+GO            := $(or $(GO),$(call asdf_which,go))
+PNPM          := $(or $(PNPM),$(call asdf_which,pnpm))
+GOLANGCI_LINT := $(or $(GOLANGCI_LINT),$(call asdf_which,golangci-lint))
+ACTIONLINT    := $(or $(ACTIONLINT),$(call asdf_which,actionlint))
+SHELLCHECK    := $(or $(SHELLCHECK),$(call asdf_which,shellcheck))
+DOCKER        ?= docker
+COMPOSE       ?= $(DOCKER) compose
+
+# A GOROOT from the shell profile can point at another Go version than the
+# one asdf selects, and then every build fails.
+unexport GOROOT
+
+# --- Settings -----------------------------------------------------------------
+SERVER_DIR := server
+IMAGE_TAG  ?= dev
+SERVER_IMAGE ?= pricedin-server:$(IMAGE_TAG)
+WEB_IMAGE    ?= pricedin-web:$(IMAGE_TAG)
+# Extra flags for `docker buildx build`, such as the cache flags CI passes.
+DOCKER_BUILD_FLAGS ?=
+# Extra flags for `playwright install`; CI adds --with-deps.
+PLAYWRIGHT_INSTALL_FLAGS ?=
+
+PRICEDIN_WEB_PORT ?= 3000
+PRICEDIN_API_PORT ?= 8080
+PRICEDIN_E2E_BASE_URL ?= http://localhost:$(PRICEDIN_WEB_PORT)
+PRICEDIN_E2E_API_URL  ?= http://localhost:$(PRICEDIN_API_PORT)
+
+SHELL_SCRIPTS := $(shell git ls-files --cached --others --exclude-standard '*.sh' 2>/dev/null)
+
+.DEFAULT_GOAL := help
+
+.PHONY: help
+help: ## List the targets
+	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_-]+:.*## / {printf "  %-18s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+
+# --- Setup --------------------------------------------------------------------
+.PHONY: tools
+tools: ## Install the tool versions in .tool-versions with asdf
+	asdf install
+
+.PHONY: deps
+deps: deps-go deps-node browsers ## Install Go modules, npm packages and the Playwright browser
+
+.PHONY: deps-go
+deps-go: ## Download Go modules
+	cd $(SERVER_DIR) && $(GO) mod download
+
+.PHONY: deps-node
+deps-node: ## Install npm packages from the lockfile
+	$(PNPM) install --frozen-lockfile
+
+.PHONY: browsers
+browsers: ## Install the Playwright browser (chromium)
+	$(PNPM) --filter @pricedin/e2e exec playwright install $(PLAYWRIGHT_INSTALL_FLAGS) chromium
+
+.PHONY: generate
+generate: ## Regenerate generated files (none yet)
+	@echo 'generate: nothing to generate yet'
+
+# --- Format and lint ----------------------------------------------------------
+.PHONY: fmt
+fmt: ## Format Go and web code in place
+	cd $(SERVER_DIR) && $(GOLANGCI_LINT) fmt ./...
+	$(PNPM) exec prettier --write .
+
+.PHONY: lint
+lint: lint-go lint-web lint-actions lint-shell ## Run every linter and type check
+
+.PHONY: lint-go
+lint-go:
+	cd $(SERVER_DIR) && $(GOLANGCI_LINT) run ./...
+	cd $(SERVER_DIR) && $(GOLANGCI_LINT) fmt --diff ./...
+
+.PHONY: lint-web
+lint-web:
+	$(PNPM) -r lint
+	$(PNPM) -r typecheck
+	$(PNPM) exec prettier --check .
+
+.PHONY: lint-actions
+lint-actions:
+	$(ACTIONLINT)
+
+.PHONY: lint-shell
+lint-shell:
+ifneq ($(SHELL_SCRIPTS),)
+	$(SHELLCHECK) $(SHELL_SCRIPTS)
+else
+	@echo 'lint-shell: no shell scripts'
+endif
+
+# --- Tests --------------------------------------------------------------------
+.PHONY: test
+test: test-server test-web ## Run the Go and web unit tests
+
+.PHONY: test-server
+test-server: ## Run the Go unit tests with the race detector
+	cd $(SERVER_DIR) && $(GO) test -race ./...
+
+.PHONY: test-integration
+test-integration: ## Run the Go integration tests (build tag integration)
+	cd $(SERVER_DIR) && $(GO) test -race -tags integration ./...
+
+.PHONY: test-web
+test-web: ## Run the web unit tests
+	$(PNPM) --filter @pricedin/web test
+
+.PHONY: test-e2e
+test-e2e: images ## Start the Compose stack, run Playwright, stop the stack
+	COMPOSE='$(COMPOSE)' PNPM='$(PNPM)' PRICEDIN_E2E_BASE_URL='$(PRICEDIN_E2E_BASE_URL)' PRICEDIN_E2E_API_URL='$(PRICEDIN_E2E_API_URL)' scripts/e2e.sh
+
+# --- Build --------------------------------------------------------------------
+.PHONY: build
+build: ## Build the Go binary and the Next.js app
+	cd $(SERVER_DIR) && CGO_ENABLED=0 $(GO) build -trimpath -o bin/pricedin ./cmd/pricedin
+	$(PNPM) --filter @pricedin/web build
+
+.PHONY: images
+images: ## Build the server and web Docker images
+	$(DOCKER) buildx build --load $(DOCKER_BUILD_FLAGS) --tag $(SERVER_IMAGE) $(SERVER_DIR)
+	$(DOCKER) buildx build --load $(DOCKER_BUILD_FLAGS) --tag $(WEB_IMAGE) --file web/Dockerfile .
+
+# --- Local stack --------------------------------------------------------------
+.PHONY: up
+up: ## Build and start the Compose stack in the background
+	$(COMPOSE) up --detach --build --wait
+
+.PHONY: down
+down: ## Stop the Compose stack (keeps the database volume)
+	$(COMPOSE) down
+
+.PHONY: logs
+logs: ## Follow the logs of the Compose stack
+	$(COMPOSE) logs --follow
+
+.PHONY: migrate
+migrate: ## Apply database migrations (none yet)
+	@echo 'migrate: no migrations exist yet; `pricedin migrate` arrives with the database store'
+
+# --- CI -----------------------------------------------------------------------
+.PHONY: ci
+ci: ## Run everything CI runs, in CI order
+	$(MAKE) lint
+	$(MAKE) test
+	$(MAKE) test-integration
+	$(MAKE) build
+	$(MAKE) images
+	$(MAKE) test-e2e
