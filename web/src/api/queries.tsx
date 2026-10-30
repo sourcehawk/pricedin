@@ -98,6 +98,10 @@ export function useHistory(ticker: string | null, freshness: Profile["freshness"
     ],
     queryFn: () => api.history(ticker ?? "", "3Y"),
     enabled: ticker !== null && freshness !== null,
+    // While a newer history of the same stock loads, the panels keep the
+    // previous one instead of unmounting.
+    placeholderData: (previous, previousQuery) =>
+      previousQuery?.queryKey[1] === ticker ? previous : undefined,
     staleTime: Number.POSITIVE_INFINITY,
     gcTime: 60 * 60_000,
   });
