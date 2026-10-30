@@ -3,6 +3,8 @@
 package ingest_test
 
 import (
+	"archive/zip"
+	"bytes"
 	"context"
 	"io"
 	"net/http"
@@ -539,5 +541,125 @@ func TestReprocessLoadsTheOtherFilesWhenOneFails(t *testing.T) {
 	}
 	if n := db.count(t, `SELECT count(*) FROM ingest_runs WHERE job = 'reprocess' AND status = 'failed'`); n != 1 {
 		t.Errorf("failed reprocess runs = %d, want 1", n)
+	}
+}
+
+// barsBody is a Massive aggregates page with one bar of KO on 2025-10-29,
+// at close.
+func barsBody(grouped bool, closePrice string) string {
+	ticker := `"ticker":"KO",`
+	bar := `{"t":1761710400000,"c":` + closePrice + `}`
+	if grouped {
+		ticker, bar = "", `{"T":"KO","t":1761710400000,"c":`+closePrice+`}`
+	}
+	return `{"status":"OK",` + ticker + `"results":[` + bar + `]}`
+}
+
+func koClose(t *testing.T, pool *pgxpool.Pool) float64 {
+	t.Helper()
+	var c float64
+	if err := pool.QueryRow(context.Background(), `SELECT close FROM prices_daily WHERE symbol = 'KO' AND date = '2025-10-29'`).Scan(&c); err != nil {
+		t.Fatal(err)
+	}
+	return c
+}
+
+// A bar that the bars of one symbol and a grouped day both give keeps the
+// value of the newest response, as it did for the jobs.
+func TestReprocessKeepsTheBarOfTheNewestResponseAcrossSources(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, envOptions{})
+	bs := newBlob(t)
+	const aggs = "prices/massive/aggs/KO/2025-10-01_2025-10-29/page-1.json"
+	record(t, bs, "2026-10-27T12:00:00Z", aggs, barsBody(false, "1"))
+	record(t, bs, "2026-10-28T12:00:00Z", "prices/massive/grouped/2025-10-29/page-1.json", barsBody(true, "2"))
+	record(t, bs, "2026-10-29T12:00:00Z", aggs, barsBody(false, "3"))
+	r, pool := offlineRunner(t, e, bs)
+	must(r.Reprocess(context.Background(), ingest.ReprocessOptions{}))(t)
+	if c := koClose(t, pool); c != 3 {
+		t.Errorf("close = %v, want 3 of the newest response", c)
+	}
+}
+
+// The jobs mark a grouped day loaded only when the provider returned bars,
+// so a retry after an empty answer stores the bars of the retry.
+func TestReprocessStoresTheGroupedBarsOfARetryAfterAnEmptyAnswer(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, envOptions{})
+	bs := newBlob(t)
+	const grouped = "prices/massive/grouped/2025-10-29/page-1.json"
+	record(t, bs, "2026-10-28T12:00:00Z", grouped, `{"status":"OK","results":[]}`)
+	record(t, bs, "2026-10-29T12:00:00Z", grouped, barsBody(true, "2"))
+	// The splits give KO a price file of its own, so its grouped bars stay.
+	record(t, bs, "2026-10-29T12:00:00Z", "prices/massive/splits/KO/page-1.json", `{"status":"OK","results":[]}`)
+	record(t, bs, "2026-10-29T12:00:00Z", "prices/massive/dividends/KO/page-1.json", `{"status":"OK","results":[]}`)
+	r, pool := offlineRunner(t, e, bs)
+	must(r.Reprocess(context.Background(), ingest.ReprocessOptions{}))(t)
+	if c := koClose(t, pool); c != 2 {
+		t.Errorf("close = %v, want 2 of the retry", c)
+	}
+	db := &env{pool: pool}
+	if n := db.count(t, `SELECT count(*) FROM price_grouped_loads WHERE date = '2025-10-29' AND bars = 1`); n != 1 {
+		t.Error("the grouped day is not marked loaded with the 1 bar of the retry")
+	}
+}
+
+// An archive older than the first file that stores a company loads the
+// other companies, and fails nothing.
+func TestReprocessLoadsAnArchiveOlderThanACompanyOfIt(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, envOptions{})
+	bs := newBlob(t)
+	facts := `{"cik":21344,"facts":{"us-gaap":{"EarningsPerShareDiluted":{"units":{"USD/shares":[` +
+		`{"start":"2025-01-01","end":"2025-03-31","val":0.5,"accn":"0000021344-25-000001","fy":2025,"fp":"Q1","form":"10-Q","filed":"2025-04-25"}]}}}}}`
+	var zipped bytes.Buffer
+	zw := zip.NewWriter(&zipped)
+	w, err := zw.Create("CIK0000021344.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.Write([]byte(facts)); err != nil {
+		t.Fatal(err)
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	record(t, bs, "2026-10-28T12:00:00Z", "sec/archives/companyfacts.zip", zipped.String())
+	record(t, bs, "2026-10-29T12:00:00Z", "sec/submissions/CIK0000021344.json", `{"cik":"21344","name":"KO","filings":{"recent":{}}}`)
+	r, pool := offlineRunner(t, e, bs)
+	res, err := r.Reprocess(context.Background(), ingest.ReprocessOptions{})
+	if err != nil || res.Failed != 0 {
+		t.Fatalf("Reprocess() = %+v, %v; want no failure", res, err)
+	}
+	db := &env{pool: pool}
+	if n := db.count(t, `SELECT count(*) FROM companies WHERE cik = 21344`); n != 1 {
+		t.Error("the submissions of the later day did not load")
+	}
+}
+
+// A version that does not parse fails alone: the other versions of its
+// source still load.
+func TestReprocessLoadsTheOtherVersionsOfASourceWhenOneDoesNotParse(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, envOptions{})
+	bs := newBlob(t)
+	record(t, bs, "2026-10-28T12:00:00Z", "sec/submissions/CIK0000021344.json", `not json`)
+	record(t, bs, "2026-10-29T12:00:00Z", "sec/submissions/CIK0000021344.json", `{"cik":"21344","name":"KO","filings":{"recent":{}}}`)
+	const grouped = "prices/massive/grouped/2025-10-29/page-1.json"
+	record(t, bs, "2026-10-28T12:00:00Z", grouped, `not json`)
+	record(t, bs, "2026-10-29T12:00:00Z", grouped, barsBody(true, "2"))
+	record(t, bs, "2026-10-29T12:00:00Z", "prices/massive/splits/KO/page-1.json", `{"status":"OK","results":[]}`)
+	record(t, bs, "2026-10-29T12:00:00Z", "prices/massive/dividends/KO/page-1.json", `{"status":"OK","results":[]}`)
+	r, pool := offlineRunner(t, e, bs)
+	res, err := r.Reprocess(context.Background(), ingest.ReprocessOptions{})
+	if err == nil || res.Failed != 2 {
+		t.Errorf("Reprocess() = %+v, %v; want the 2 versions that do not parse as failed", res, err)
+	}
+	db := &env{pool: pool}
+	if n := db.count(t, `SELECT count(*) FROM companies WHERE cik = 21344`); n != 1 {
+		t.Error("the submissions version that parses did not load")
+	}
+	if c := koClose(t, pool); c != 2 {
+		t.Errorf("close = %v, want 2 of the grouped version that parses", c)
 	}
 }

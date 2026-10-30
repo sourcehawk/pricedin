@@ -221,8 +221,11 @@ func (f *rawFetch) signature() string {
 // earlier ones. Such a source writes each value once, in its newest form,
 // so that a second run writes nothing.
 type rawUnit struct {
-	source  rawSource
-	day     domain.Date // the day of the first fetch
+	source rawSource
+	// day is the day of the first fetch of submissions, which other SEC
+	// files need first, and the day of the last fetch of a provider
+	// source, whose bars other sources can also give.
+	day     domain.Date
 	fetches []*rawFetch
 }
 
@@ -325,12 +328,13 @@ func (r *Runner) loadUnits(ctx context.Context, idx *rawIndex, opts ReprocessOpt
 			}
 			keepDay = u.day
 		}
-		skipped, err := r.loadUnit(ctx, idx, u, opts, keep, res)
+		out, err := r.loadUnit(ctx, idx, u, opts, keep, res, fails)
 		n := u.files()
 		switch {
 		case err == nil:
-			res.Files += n - skipped
-			res.Incomplete += skipped
+			res.Files += n - out.skipped - out.failed
+			res.Incomplete += out.skipped
+			res.Failed += out.failed
 		case errors.Is(err, errOld):
 			res.Old += n
 		case errors.Is(err, errIncomplete):
@@ -480,7 +484,11 @@ func (r *Runner) indexRaw(ctx context.Context, opts ReprocessOptions, cikSymbols
 		}
 		var units []*rawUnit
 		if mergesVersions(source.kind) && len(kept) > 0 {
-			units = []*rawUnit{{source: *source, day: kept[0].day, fetches: kept}}
+			day := kept[len(kept)-1].day
+			if source.kind == rawSubmissions {
+				day = kept[0].day
+			}
+			units = []*rawUnit{{source: *source, day: day, fetches: kept}}
 		} else {
 			for _, f := range kept {
 				units = append(units, &rawUnit{source: *source, day: f.day, fetches: []*rawFetch{f}})
@@ -497,7 +505,8 @@ func (r *Runner) indexRaw(ctx context.Context, opts ReprocessOptions, cikSymbols
 		}
 	}
 	slices.SortFunc(idx.units, func(a, b *rawUnit) int {
-		return compareFetches(a.fetches[0], b.fetches[0])
+		return cmp.Or(a.day.Time().Compare(b.day.Time()), cmp.Compare(a.source.kind, b.source.kind),
+			strings.Compare(a.source.String(), b.source.String()))
 	})
 	return idx, len(idx.units) + bad, nil
 }
@@ -632,16 +641,40 @@ func includeRaw(s rawSource, cik domain.CIK, cikSymbols map[string]bool) bool {
 	}
 }
 
-// loadUnit loads u. It returns the number of files that it skipped as
-// incomplete while it loaded the others.
-func (r *Runner) loadUnit(ctx context.Context, idx *rawIndex, u *rawUnit, opts ReprocessOptions, keep map[string]bool, res *ReprocessResult) (int64, error) {
+// unitOutcome counts the files of a unit that did not load while the
+// others did.
+type unitOutcome struct {
+	skipped int64 // incomplete
+	failed  int64 // added to fails
+}
+
+// versionFailed records a version of a unit that failed. It returns err
+// when the context ended, which stops the unit.
+func (r *Runner) versionFailed(ctx context.Context, f *rawFetch, files int64, err error, out *unitOutcome, fails *failures) error {
+	if ctx.Err() != nil {
+		return err
+	}
+	if errors.Is(err, errIncomplete) {
+		out.skipped += files
+		r.logger.InfoContext(ctx, "ingest: reprocess skipped an incomplete response", "source", f.String(), "error", err.Error())
+		return nil
+	}
+	out.failed += files
+	fails.add(f.String(), err)
+	r.logger.WarnContext(ctx, "ingest: reprocess failed to load stored files", "source", f.String(), "error", err.Error())
+	return nil
+}
+
+// loadUnit loads u. A version of u that is incomplete or fails does not
+// stop the others; the outcome counts its files.
+func (r *Runner) loadUnit(ctx context.Context, idx *rawIndex, u *rawUnit, opts ReprocessOptions, keep map[string]bool, res *ReprocessResult, fails *failures) (unitOutcome, error) {
 	switch u.source.kind {
 	case rawSubmissions:
-		return r.reprocessSubmissions(ctx, idx, u, res)
+		return r.reprocessSubmissions(ctx, idx, u, res, fails)
 	case rawReference, rawGrouped, rawBars:
-		return r.reprocessPriceUnit(ctx, u, opts, keep, res)
+		return r.reprocessPriceUnit(ctx, u, opts, keep, res, fails)
 	default:
-		return 0, r.reprocessFetch(ctx, idx, u.fetches[0], opts, res)
+		return unitOutcome{}, r.reprocessFetch(ctx, idx, u.fetches[0], opts, res)
 	}
 }
 
@@ -695,9 +728,16 @@ func (r *Runner) reprocessFetch(ctx context.Context, idx *rawIndex, f *rawFetch,
 		for _, c := range companiesOf(members) {
 			covered[c] = true
 		}
+		// idx.submitted holds companies of later days too, whose rows do
+		// not exist yet.
+		stored, err := r.store.ListCompanyCIKs(ctx)
+		if err != nil {
+			return err
+		}
 		for i := range f.files {
 			if err := r.reprocessArchive(ctx, f.files[i], func(cik domain.CIK) bool {
-				return (idx.submitted[cik] || covered[cik]) && (opts.CIK == 0 || cik == opts.CIK)
+				_, exists := slices.BinarySearch(stored, cik)
+				return exists && (idx.submitted[cik] || covered[cik]) && (opts.CIK == 0 || cik == opts.CIK)
 			}, res); err != nil {
 				return err
 			}
@@ -712,20 +752,18 @@ func (r *Runner) reprocessFetch(ctx context.Context, idx *rawIndex, f *rawFetch,
 
 // reprocessSubmissions loads every version of a company's submissions in
 // one step: the filings of all versions, and the details of the newest.
-func (r *Runner) reprocessSubmissions(ctx context.Context, idx *rawIndex, u *rawUnit, res *ReprocessResult) (int64, error) {
+func (r *Runner) reprocessSubmissions(ctx context.Context, idx *rawIndex, u *rawUnit, res *ReprocessResult, fails *failures) (unitOutcome, error) {
 	var merged sec.Submissions
-	var skipped int64
+	var out unitOutcome
 	found := false
 	for _, f := range u.fetches {
 		for i := range f.files {
 			sub, err := r.readSubmissions(ctx, idx, f.files[i])
-			if errors.Is(err, errIncomplete) {
-				skipped++
-				r.logger.InfoContext(ctx, "ingest: reprocess skipped an incomplete response", "key", f.files[i].key, "error", err.Error())
-				continue
-			}
 			if err != nil {
-				return skipped, err
+				if err := r.versionFailed(ctx, f, 1, err, &out, fails); err != nil {
+					return out, err
+				}
+				continue
 			}
 			merged.Company = sub.Company
 			merged.Filings = append(merged.Filings, sub.Filings...)
@@ -733,12 +771,12 @@ func (r *Runner) reprocessSubmissions(ctx context.Context, idx *rawIndex, u *raw
 		}
 	}
 	if !found {
-		return skipped, fmt.Errorf("%w: no version of the submissions is complete", errIncomplete)
+		return out, nil
 	}
 	got, err := r.storeSECCompany(ctx, merged, nil)
 	res.CompaniesChanged += got.Changed
 	res.Filings += got.Filings
-	return skipped, err
+	return out, err
 }
 
 // reprocessProviderTickers syncs the provider's ticker list of one day.
@@ -782,14 +820,15 @@ func (r *Runner) reprocessProviderTickers(ctx context.Context, f *rawFetch, res 
 // one step, and skips the versions that lack a page, or, for a symbol's
 // splits, the dividends of the same day. In the one batch, the newest
 // version of each value wins.
-func (r *Runner) reprocessPriceUnit(ctx context.Context, u *rawUnit, opts ReprocessOptions, keep map[string]bool, res *ReprocessResult) (int64, error) {
-	var skipped int64
+func (r *Runner) reprocessPriceUnit(ctx context.Context, u *rawUnit, opts ReprocessOptions, keep map[string]bool, res *ReprocessResult, fails *failures) (unitOutcome, error) {
+	var out unitOutcome
 	var splits []domain.Split
 	var dividends []domain.Dividend
 	var bars []domain.PriceBar
-	// returned is the number of bars that the first complete grouped
-	// version holds, which the jobs record for the day.
-	returned := -1
+	// returned is the number of bars of the first grouped version with
+	// bars: the jobs mark a day loaded only when the provider returned
+	// bars, and the first mark stays.
+	returned := 0
 	complete := 0
 	for _, f := range u.fetches {
 		pages, err := r.readPages(ctx, f.files)
@@ -800,33 +839,31 @@ func (r *Runner) reprocessPriceUnit(ctx context.Context, u *rawUnit, opts Reproc
 				err = fmt.Errorf("%w: the job stores splits and dividends together, and one of them is missing", errIncomplete)
 			}
 		}
-		if errors.Is(err, errIncomplete) {
-			skipped += int64(len(f.files))
-			r.logger.InfoContext(ctx, "ingest: reprocess skipped an incomplete response", "source", f.String(), "error", err.Error())
-			continue
-		}
 		if err != nil {
-			return skipped, err
+			if err := r.versionFailed(ctx, f, int64(len(f.files)), err, &out, fails); err != nil {
+				return out, err
+			}
+			continue
 		}
 		complete++
 		splits = append(splits, pages[prices.StoredSplits].Splits...)
 		dividends = append(dividends, pages[prices.StoredDividends].Dividends...)
 		day := pages[prices.StoredGroupedDaily].Bars
-		if u.source.kind == rawGrouped && returned < 0 {
+		if returned == 0 {
 			returned = len(day)
 		}
 		bars = append(bars, day...)
 		bars = append(bars, pages[prices.StoredDailyBars].Bars...)
 	}
 	if complete == 0 {
-		return skipped, fmt.Errorf("%w: no version is complete", errIncomplete)
+		return out, nil
 	}
 	switch u.source.kind {
 	case rawReference:
 		got, err := r.storeReference(ctx, SECSymbol(u.source.req.Symbol), splits, dividends)
 		res.Splits += got.Splits
 		res.Dividends += got.Dividends
-		return skipped, err
+		return out, err
 	case rawGrouped:
 		mark := opts.CIK == 0
 		n, err := r.storeGroupedDay(ctx, u.source.req.Date, bars, returned, keep, mark)
@@ -834,11 +871,11 @@ func (r *Runner) reprocessPriceUnit(ctx context.Context, u *rawUnit, opts Reproc
 		if err == nil && mark && returned > 0 {
 			res.GroupedDays++
 		}
-		return skipped, err
+		return out, err
 	default:
 		n, err := r.storeSymbolBars(ctx, SECSymbol(u.source.req.Symbol), bars)
 		res.Bars += n
-		return skipped, err
+		return out, err
 	}
 }
 
