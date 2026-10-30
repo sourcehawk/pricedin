@@ -140,5 +140,7 @@ describe("formats", () => {
     expect(dayLabel("2026-09-30")).toBe("30 Sep 2026");
     expect(priceTick(1250)).toBe("$1,250");
     expect(priceTick(0.1 + 0.2)).toBe("$0.3");
+    expect(priceTick(12_500)).toBe("$12.5k");
+    expect(priceTick(100_000)).toBe("$100k");
   });
 });

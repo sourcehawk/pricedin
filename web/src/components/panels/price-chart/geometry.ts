@@ -228,8 +228,11 @@ export function multipleLabel(m: number): string {
   return `${String(m)}×`;
 }
 
-/** priceTick shows a value of the price axis: "$50", "$1,250", "$2.5". */
+/** priceTick shows a value of the price axis: "$50", "$1,250", "$2.5", and "$12.5k" from $10,000, which fits the left margin. */
 export function priceTick(v: number): string {
   const r = Number(v.toFixed(6));
+  if (r >= 10_000) {
+    return `$${String(Number((r / 1000).toFixed(1)))}k`;
+  }
   return `$${r >= 1000 ? r.toLocaleString("en-US") : String(r)}`;
 }

@@ -125,6 +125,9 @@ describe("PriceChartPanel", () => {
     expect(screen.getByRole("tooltip")).toHaveTextContent(
       "Close from Massive, adjusted for splits",
     );
+    expect(screen.getByRole("tooltip")).toHaveTextContent(
+      "TTM EPS adds up the four quarters to Q3 FY23, first reported on 2023-09-30, with the values of the latest filings; the newest is Form 10-Q, filed 2023-09-30. P/E is the close over this TTM EPS.",
+    );
     fireEvent.pointerLeave(svg, { pointerType: "mouse" });
     expect(within(chips()).getByText("Price").parentElement).toHaveTextContent("Price$270.00");
     expect(screen.getByTestId("price-guide")).toHaveAttribute("visibility", "hidden");
@@ -187,6 +190,19 @@ describe("PriceChartPanel", () => {
     expect(within(chart()).getByRole("img", { name: /daily close/ })).toHaveAccessibleName(
       /^GRMN daily close since \d+ \w+ 2026, from/,
     );
+    expect(within(panel()).getByTestId("price-sub")).toHaveTextContent(/^Since \d+ \w+ 2026: /);
+  });
+
+  it("drops a touch selection when the browser cancels the pointer for a scroll", async () => {
+    await renderReady(<PriceChartPanel />);
+    const svg = sizeChart();
+    pointer(svg, "pointerdown", "touch", { clientX: 50, clientY: 100 });
+    expect(screen.getByTestId("price-guide")).toHaveAttribute("visibility", "visible");
+    pointer(svg, "pointercancel", "touch");
+    expect(screen.getByTestId("price-guide")).toHaveAttribute("visibility", "hidden");
+    await waitFor(() => {
+      expect(screen.queryByRole("tooltip")).toBeNull();
+    });
   });
 
   it("drops the hovered day when the range changes", async () => {
@@ -380,9 +396,30 @@ describe("PriceChartPanel", () => {
       const marker = within(chart()).getByRole("link", { name: /^Q4 FY25: buyback/ });
       pointer(marker, "pointerdown", "touch");
       expect(fireEvent.click(marker)).toBe(false);
-      expect(screen.getByRole("tooltip")).toHaveTextContent("Shares195.9M → 191.7M");
+      expect(screen.getByRole("tooltip")).toHaveTextContent("Shares195.92M → 191.71M");
       pointer(marker, "pointerdown", "touch");
       expect(fireEvent.click(marker)).toBe(true);
+    });
+
+    it("keeps the share counts of a small issuer readable", async () => {
+      const quarters = historyFixture.history.quarters.map((q, i, all) => ({
+        ...q,
+        dilutedShares: i === all.length - 1 ? 1_030_000 : 1_000_000,
+      }));
+      serveHistory({ ...historyFixture.history, quarters });
+      await renderReady(<PriceChartPanel />);
+      expect(within(chart()).getByLabelText(/^Q3 FY26: dilution/)).toHaveAccessibleName(
+        "Q3 FY26: dilution, 1.00M to 1.03M diluted shares, +3.0%",
+      );
+    });
+
+    it("takes the pointer only on its badge, so the days around it stay selectable", async () => {
+      await renderReady(<PriceChartPanel />);
+      const marker = within(chart()).getByLabelText(/^Q4 FY25: buyback/);
+      expect(marker.querySelector("line")).toHaveAttribute("pointer-events", "none");
+      for (const r of marker.querySelectorAll("rect")) {
+        expect(Number(r.getAttribute("height"))).toBeLessThan(30);
+      }
     });
 
     it("hides with its chip", async () => {
@@ -453,6 +490,14 @@ describe("PriceChartPanel", () => {
       );
       expect(chart().querySelector('[data-bm="25"].bline')).toHaveClass("bh");
       expect(within(panel()).getByTestId("band-caption")).toHaveAttribute("data-thl");
+    });
+
+    it("calls today's P/E the one from the user's inputs", async () => {
+      const card = await start();
+      await next(card, 5);
+      expect(card).toHaveTextContent(
+        "The P/E from your inputs (price ÷ TTM EPS in the left panel) is 25.0×, against its typical 23.0× (the median of the quarter-end P/Es of the last 36 months and the P/E from your inputs): close to its usual level.",
+      );
     });
 
     it("names the share-count events of the range", async () => {

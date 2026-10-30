@@ -27,6 +27,18 @@
 
 .plot {
   touch-action: pan-y;
+  overflow-x: auto;
+}
+
+/* Below this width the chart's text would shrink under 8 px, so the chart scrolls instead. */
+.plot svg {
+  min-width: 560px;
+}
+
+@media (max-width: 600px) {
+  .plot {
+    touch-action: pan-x pan-y;
+  }
 }
 
 .plot svg:focus-visible {

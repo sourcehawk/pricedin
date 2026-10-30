@@ -11,6 +11,7 @@ import {
 } from "react";
 import { signedPct, times, usd } from "@/components/format";
 import { useTip, useTipHandlers } from "@/components/tip/TipProvider";
+import type { QuarterSources, SecSource, Source } from "@/api/types";
 import type { Chart, ChartPoint, ShareEvent } from "@/engine";
 import {
   bandSegments,
@@ -56,6 +57,8 @@ export interface PricePlotProps {
   markers: readonly Marker[];
   /** The price provider of the daily closes; null when the history names none. */
   feed: string | null;
+  /** The sources of the history's quarters, oldest first. */
+  quarters: readonly QuarterSources[];
 }
 
 type Y = (v: number) => number;
@@ -228,10 +231,12 @@ function DayTip({
   p,
   shown,
   feed,
+  quarters,
 }: {
   p: ChartPoint;
   shown: ReadonlySet<OverlayKey>;
   feed: string | null;
+  quarters: readonly QuarterSources[];
 }) {
   return (
     <>
@@ -259,10 +264,47 @@ function DayTip({
         {feed === null
           ? "Daily close"
           : `Close from ${feed.charAt(0).toUpperCase()}${feed.slice(1)}`}
-        , adjusted for splits. TTM EPS adds up the last four quarters filed by that day.
+        , adjusted for splits. {ttmNote(p.date, quarters)}
       </div>
     </>
   );
+}
+
+function secSources(s: Source | null): SecSource[] {
+  if (s === null) {
+    return [];
+  }
+  if (s.kind === "sec") {
+    return [s];
+  }
+  return s.kind === "derived" ? s.inputs.flatMap(secSources) : [];
+}
+
+/**
+ * ttmNote names the quarters behind the TTM EPS of a day: the four up to the
+ * last quarter whose TTM EPS was known on that day. The chart plots their
+ * latest filed values, which can be amendments filed after that day.
+ */
+function ttmNote(date: string, quarters: readonly QuarterSources[]): string {
+  let k = -1;
+  quarters.forEach((q, i) => {
+    if (q.ttmEpsKnownOn !== null && q.ttmEpsKnownOn <= date) {
+      k = i;
+    }
+  });
+  const q = quarters[k];
+  if (q === undefined || q.ttmEpsKnownOn === null) {
+    return "TTM EPS adds up the last four reported quarters.";
+  }
+  let newest: SecSource | null = null;
+  for (const f of quarters.slice(Math.max(0, k - 3), k + 1).flatMap((x) => secSources(x.eps))) {
+    if (newest === null || f.filed > newest.filed) {
+      newest = f;
+    }
+  }
+  const filing =
+    newest === null ? "" : `; the newest is Form ${newest.form}, filed ${newest.filed}`;
+  return `TTM EPS adds up the four quarters to ${q.label}, first reported on ${q.ttmEpsKnownOn}, with the values of the latest filings${filing}. P/E is the close over this TTM EPS.`;
 }
 
 /** dayLine is the day's values as one sentence, for the screen reader. */
@@ -284,7 +326,10 @@ function dayLine(p: ChartPoint, shown: ReadonlySet<OverlayKey>): string {
 }
 
 function shares(n: number): string {
-  return n >= 1e9 ? `${(n / 1e9).toFixed(2)}B` : `${(n / 1e6).toFixed(1)}M`;
+  if (n >= 1e9) {
+    return `${(n / 1e9).toFixed(2)}B`;
+  }
+  return n >= 1e6 ? `${(n / 1e6).toFixed(2)}M` : n.toLocaleString("en-US");
 }
 
 function MarkerMark({ m, x }: { m: Marker; x: number }) {
@@ -330,6 +375,7 @@ function MarkerMark({ m, x }: { m: Marker; x: number }) {
         stroke={color}
         strokeWidth={1.2}
         strokeDasharray="2 3"
+        pointerEvents="none"
       />
       <rect x={x - 26} y={bottom - 22} width={52} height={17} rx={8.5} fill={color} />
       <text
@@ -340,7 +386,6 @@ function MarkerMark({ m, x }: { m: Marker; x: number }) {
       >
         {change}
       </text>
-      <rect x={x - 8} y={top} width={16} height={bottom - top} fill="transparent" />
     </>
   );
   const className = `pxev ${e.kind}`;
@@ -402,6 +447,7 @@ export function PricePlot({
   hover,
   markers,
   feed,
+  quarters,
 }: PricePlotProps) {
   const bandsOn = shown.has("bands");
   const g = useMemo(() => draw(chart, bandsOn), [chart, bandsOn]);
@@ -484,12 +530,12 @@ export function PricePlot({
         d.setAttribute("visibility", "visible");
       });
       if (changed) {
-        showTip(owner, <DayTip p={p} shown={shown} feed={feed} />, at);
+        showTip(owner, <DayTip p={p} shown={shown} feed={feed} quarters={quarters} />, at);
       } else {
         moveTip(owner, at);
       }
     },
-    [chart, g, specs, shown, feed, hover, showTip, moveTip],
+    [chart, g, specs, shown, feed, quarters, hover, showTip, moveTip],
   );
 
   // New values for the same days, or other lines, redraw the selected day.
@@ -838,6 +884,10 @@ export function PricePlot({
             onBand(null);
           }
           onPointer(e);
+        }}
+        onPointerCancel={() => {
+          clear();
+          onBand(null);
         }}
         onPointerLeave={(e) => {
           if (e.pointerType !== "touch") {

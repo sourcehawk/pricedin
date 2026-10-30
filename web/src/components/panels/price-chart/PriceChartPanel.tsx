@@ -10,7 +10,7 @@ import type { Chart, ChartRange } from "@/engine";
 import { useEvaluation, useView } from "@/state/StockProvider";
 import { Panel } from "../Panel";
 import { Chips } from "./Chips";
-import { dayLabel, multipleLabel } from "./geometry";
+import { dayLabel, multipleLabel, spanLabel } from "./geometry";
 import { createHoverStore } from "./hover";
 import {
   allOverlays,
@@ -173,10 +173,11 @@ export function PriceChartPanel() {
   const last = chart.points.at(-1);
   const link = chart.link.value;
   const close = profile.latestClose;
+  const period = spanLabel(chart.start, chart.end, chart.range);
 
   const sub = (
     <span data-testid="price-sub">
-      {chart.range}:{" "}
+      {period.startsWith("since ") ? `Since ${period.slice(6)}` : chart.range}:{" "}
       <span className={chart.priceChange >= 0 ? "up" : "down"}>{signedPct(chart.priceChange)}</span>
       {` · high ${usd(chart.high)} · low ${usd(chart.low)} · P/E ${times(chart.peStart.value)} → ${times(chart.peEnd.value)}`}
       {link !== null && (
@@ -228,6 +229,7 @@ export function PriceChartPanel() {
           hover={hover}
           markers={markers}
           feed={history.prices?.provider ?? null}
+          quarters={history.quarters}
         />
       </div>
       {walkthrough}
