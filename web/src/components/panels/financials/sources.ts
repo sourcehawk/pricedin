@@ -31,7 +31,12 @@ export function metricSources(
   return out;
 }
 
-/** marginSources gives each operating margin of the view its inputs: the quarter's operating income and revenue. */
+/** filingsOf returns the sources behind s: s itself, or for a derived value the sources of its inputs at any depth. */
+function filingsOf(s: Source): Source[] {
+  return s.kind === "derived" ? s.inputs.flatMap(filingsOf) : [s];
+}
+
+/** marginSources gives each operating margin of the view its inputs: the filings behind the quarter's operating income and revenue. */
 export function marginSources(
   view: FinancialsView,
   quarters: readonly QuarterSources[],
@@ -47,7 +52,7 @@ export function marginSources(
       kind: "derived",
       method: "derived",
       estimate: false,
-      inputs: [s.operatingIncome, s.revenue],
+      inputs: [...filingsOf(s.operatingIncome), ...filingsOf(s.revenue)],
     };
     return sourced(v, source, q.periodEnd);
   });

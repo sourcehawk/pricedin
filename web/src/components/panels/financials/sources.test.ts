@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { Source } from "@/api/types";
 import { financials } from "@/engine";
 import { filedOn, filingUrl, financialsHistory } from "./testing";
 import { latestFiling, marginSources, metricSources } from "./sources";
@@ -45,11 +46,33 @@ describe("metricSources", () => {
 });
 
 describe("marginSources", () => {
-  it("gives the operating margin with operating income and revenue as its inputs", () => {
+  it("gives the operating margin with the filings of operating income and revenue as its inputs", () => {
     const m = marginSources(view, history.quarters).at(-1);
     expect(m?.value).toBeCloseTo(612 / 1990);
     expect(m?.source).toMatchObject({ kind: "derived", method: "derived" });
-    expect(m?.source.kind === "derived" ? m.source.inputs : []).toHaveLength(2);
+    const inputs = m?.source.kind === "derived" ? m.source.inputs : [];
+    expect(inputs.map((s) => (s.kind === "sec" ? s.concept : s.kind))).toEqual([
+      "OperatingIncomeLoss",
+      "Revenues",
+    ]);
+  });
+
+  it("lists the filings behind a derived operating income, not the derivation", () => {
+    const q4 = history.quarters.map((q) => {
+      if (q.periodEnd !== "2025-12-31" || q.operatingIncome === null) {
+        return q;
+      }
+      const derived: Source = {
+        kind: "derived",
+        method: "fy_difference",
+        estimate: false,
+        inputs: [q.operatingIncome, q.operatingIncome],
+      };
+      return { ...q, operatingIncome: derived };
+    });
+    const m = marginSources(view, q4)[4];
+    const inputs = m?.source.kind === "derived" ? m.source.inputs : [];
+    expect(inputs.map((s) => s.kind)).toEqual(["sec", "sec", "sec"]);
   });
 });
 
