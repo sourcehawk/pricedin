@@ -15,6 +15,7 @@ The server reads its settings from environment variables. `deploy/fly/server.tom
 | `PRICEDIN_OWNER_EMAIL` | Your login email |
 | `PRICEDIN_OWNER_PASSWORD_HASH` | The output of `pricedin auth hash-password` |
 | `PRICEDIN_PUBLIC_ORIGIN` | The origin of the web app, such as `https://pricedin.vercel.app` |
+| `PRICEDIN_PROXY_SECRET` | The output of `openssl rand -hex 32`. Set the same value on the Vercel project (step 6). The web app sends it with the browser's address, and the server uses that address only when the value matches |
 | `PRICEDIN_SEC_USER_AGENT` | A name and your contact email, such as `PricedIn you@example.com` |
 | `PRICEDIN_MASSIVE_API_KEY` | Your Massive API key |
 | `PRICEDIN_BLOB_S3_BUCKET` | The name of the Tigris bucket |
@@ -116,6 +117,7 @@ flyctl storage create --app pricedin-api
      PRICEDIN_OWNER_EMAIL='you@example.com' \
      PRICEDIN_OWNER_PASSWORD_HASH='$argon2id$...' \
      PRICEDIN_PUBLIC_ORIGIN='https://pricedin.vercel.app' \
+     PRICEDIN_PROXY_SECRET='<output of openssl rand -hex 32>' \
      PRICEDIN_SEC_USER_AGENT='PricedIn you@example.com' \
      PRICEDIN_MASSIVE_API_KEY='...' \
      PRICEDIN_BLOB_S3_BUCKET='<BUCKET_NAME from step 3>'
@@ -164,6 +166,7 @@ It checks a known split, a list of dividends and a CIK, and prints only dates, r
    - Framework Preset: Next.js
    - Node.js Version: the major version of `nodejs` in `.tool-versions`, or the newest that Vercel offers
    - Environment variable `PRICEDIN_API_URL` = `https://pricedin-api.fly.dev`, for Production. The proxy of the web app (`web/src/proxy.ts`) reads it for each request, not at build time. Vercel gives a changed value to the next deployment.
+   - Environment variable `PRICEDIN_PROXY_SECRET` = the value of the Fly secret from step 4, for Production, of the type Sensitive. Do not give it the prefix `NEXT_PUBLIC_`: a variable with that prefix goes into the browser's code.
 
 3. Deploy:
 
@@ -186,9 +189,9 @@ If the domain differs from `PRICEDIN_PUBLIC_ORIGIN`, set the secret again. A wro
 
 3. Make sure that `ip` is your own public address.
 
-The login rate limit counts attempts per address. `server.toml` takes the second entry from the right of `X-Forwarded-For` (`PRICEDIN_TRUSTED_PROXY_HOPS = "2"`): the address that Vercel writes, before the address of Vercel that the Fly proxy adds. That count is not yet confirmed on a deployment, so this step confirms it. If `ip` is an address of Vercel or of Fly, the count is wrong: fix it in `server.toml` and deploy again.
+The login rate limit counts attempts per address. A login through the web app counts against the address that Vercel's edge gives to the web app. The web app sends that address with `PRICEDIN_PROXY_SECRET`. If `ip` is an address of Vercel, the server did not accept the secret. Then make sure that the Fly secret and the Vercel variable hold the same value, and deploy the web app again.
 
-The Fly hostname also accepts requests that do not come through Vercel. Such a request can choose the address that the rate limit sees. A long password protects the login against that. The Argon2id hash makes each guess slow. Issue #33 tracks a header that only the web app can set, which removes this risk.
+The Fly hostname also accepts requests that do not come through Vercel. Such a request counts against its own address from `Fly-Client-IP`. A copy of `X-Forwarded-For` or `X-PricedIn-Client-IP` that it sends has no effect without the secret.
 
 ### 8. Load the data
 
@@ -354,6 +357,14 @@ This also ends your own session, so log in again after it. API tokens stay valid
 1. Make a new key in the Massive dashboard.
 2. Set it: `flyctl secrets set --app pricedin-api PRICEDIN_MASSIVE_API_KEY='...'`.
 3. Delete the old key in the Massive dashboard.
+
+### Proxy secret
+
+1. Make a new value with `openssl rand -hex 32`.
+2. Set it on Fly: `flyctl secrets set --app pricedin-api PRICEDIN_PROXY_SECRET='...'`.
+3. Set the same value in the Vercel project, and deploy the web app again.
+
+Between step 2 and step 3, the server does not accept the old value. Then each login through the web app counts against the address of Vercel, and logins can get 429 `rate-limited` for a short time.
 
 ### Database passwords
 

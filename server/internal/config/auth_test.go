@@ -2,6 +2,7 @@ package config_test
 
 import (
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -32,6 +33,7 @@ func TestLoadAuthReadsEveryVariable(t *testing.T) {
 		"PRICEDIN_PUBLIC_ORIGIN":        "https://pricedin.example.com, http://localhost:3000/",
 		"PRICEDIN_TRUSTED_PROXY_HEADER": "X-Forwarded-For",
 		"PRICEDIN_TRUSTED_PROXY_HOPS":   "2",
+		"PRICEDIN_PROXY_SECRET":         " 0123456789abcdef0123456789abcdef ",
 	}))
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
@@ -44,6 +46,7 @@ func TestLoadAuthReadsEveryVariable(t *testing.T) {
 		PublicOrigins:      []string{"https://pricedin.example.com", "http://localhost:3000"},
 		TrustedProxyHeader: "X-Forwarded-For",
 		TrustedProxyHops:   2,
+		ProxySecret:        "0123456789abcdef0123456789abcdef",
 	}
 	if diff := cmp.Diff(want, got.Auth); diff != "" {
 		t.Errorf("Auth (-want +got):\n%s", diff)
@@ -69,6 +72,9 @@ func TestLoadAuthRejectsInvalidValues(t *testing.T) {
 		{"zero proxy hops", map[string]string{"PRICEDIN_TRUSTED_PROXY_HOPS": "0"}, "PRICEDIN_TRUSTED_PROXY_HOPS"},
 		{"proxy hops that are not a number", map[string]string{"PRICEDIN_TRUSTED_PROXY_HOPS": "two"}, "PRICEDIN_TRUSTED_PROXY_HOPS"},
 		{"proxy header with a space", map[string]string{"PRICEDIN_TRUSTED_PROXY_HEADER": "Client IP"}, "PRICEDIN_TRUSTED_PROXY_HEADER"},
+		{"proxy secret shorter than 32 characters", map[string]string{"PRICEDIN_PROXY_SECRET": "0123456789abcdef0123456789abcde"}, "PRICEDIN_PROXY_SECRET"},
+		{"proxy secret with a space", map[string]string{"PRICEDIN_PROXY_SECRET": "0123456789abcdef 0123456789abcdef"}, "PRICEDIN_PROXY_SECRET"},
+		{"proxy secret with a non-ASCII character", map[string]string{"PRICEDIN_PROXY_SECRET": "0123456789abcdef0123456789abcdeé"}, "PRICEDIN_PROXY_SECRET"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -81,5 +87,16 @@ func TestLoadAuthRejectsInvalidValues(t *testing.T) {
 				t.Errorf("VarError.Var = %q, want %q", verr.Var, tt.wantVar)
 			}
 		})
+	}
+}
+
+func TestLoadAuthKeepsTheProxySecretOutOfErrors(t *testing.T) {
+	const secret = "short secret"
+	_, err := config.Load(env(map[string]string{"PRICEDIN_PROXY_SECRET": secret}))
+	if err == nil {
+		t.Fatal("Load() error = nil, want an error")
+	}
+	if strings.Contains(err.Error(), secret) {
+		t.Errorf("Load() error = %q, want it without the secret", err)
 	}
 }

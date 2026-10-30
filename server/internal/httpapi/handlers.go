@@ -28,7 +28,7 @@ func (a *api) login(w http.ResponseWriter, r *http.Request) {
 		writeProblem(w, r, forbiddenOrigin, "A login must come from the web app.", nil)
 		return
 	}
-	if ok, wait := a.limiter.Allow(auth.ClientIP(r, a.TrustedProxyHeader, a.TrustedProxyHops)); !ok {
+	if ok, wait := a.limiter.Allow(a.clientIP(r)); !ok {
 		secs := int(math.Ceil(wait.Seconds()))
 		w.Header().Set("Retry-After", strconv.Itoa(secs))
 		writeProblem(w, r, rateLimited, fmt.Sprintf("Try again in %d seconds.", secs), nil)
@@ -46,7 +46,7 @@ func (a *api) login(w http.ResponseWriter, r *http.Request) {
 		writeProblem(w, r, invalidRequest, "Send email and password.", nil)
 		return
 	}
-	client := auth.Client{IP: auth.ClientIP(r, a.TrustedProxyHeader, a.TrustedProxyHops), UserAgent: r.UserAgent()}
+	client := auth.Client{IP: a.clientIP(r), UserAgent: r.UserAgent()}
 	token, sess, err := a.Auth.Login(r.Context(), *body.Email, *body.Password, client)
 	switch {
 	case errors.Is(err, auth.ErrInvalidCredentials):
@@ -230,4 +230,13 @@ func leverDetail(err error) string {
 		return after
 	}
 	return "A lever is out of bounds."
+}
+
+// clientIP returns the address of the client that sent r, for the login
+// rate limit and the session record.
+func (a *api) clientIP(r *http.Request) string {
+	if ip, ok := auth.ProxyClientIP(r, a.ProxySecret); ok {
+		return ip
+	}
+	return auth.ClientIP(r, a.TrustedProxyHeader, a.TrustedProxyHops)
 }

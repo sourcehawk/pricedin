@@ -1,6 +1,8 @@
 package auth
 
 import (
+	"crypto/sha256"
+	"crypto/subtle"
 	"net"
 	"net/http"
 	"net/netip"
@@ -155,4 +157,39 @@ func ClientIP(r *http.Request, trustedHeader string, hops int) string {
 		return r.RemoteAddr
 	}
 	return host
+}
+
+// The web app's proxy sends these two headers on every request that it
+// passes to the API. ProxySecretHeader holds the deploy secret, and
+// ProxyClientIPHeader holds the address of the browser.
+const (
+	ProxySecretHeader   = "X-PricedIn-Proxy" //nolint:gosec // G101: a header name, not a credential
+	ProxyClientIPHeader = "X-PricedIn-Client-IP"
+)
+
+// ProxyClientIP returns the browser's address that the web app's proxy put
+// in ProxyClientIPHeader, and true. It returns false, and the caller must
+// find the address another way, unless r carries exactly one
+// ProxySecretHeader equal to secret and exactly one valid IP address. An
+// empty secret never matches.
+func ProxyClientIP(r *http.Request, secret string) (string, bool) {
+	sent := r.Header.Values(ProxySecretHeader)
+	if secret == "" || len(sent) != 1 {
+		return "", false
+	}
+	// Equal hashes have equal lengths, so the comparison takes the same
+	// time whatever the length of the sent value.
+	want, got := sha256.Sum256([]byte(secret)), sha256.Sum256([]byte(sent[0]))
+	if subtle.ConstantTimeCompare(want[:], got[:]) != 1 {
+		return "", false
+	}
+	addrs := r.Header.Values(ProxyClientIPHeader)
+	if len(addrs) != 1 {
+		return "", false
+	}
+	addr, err := netip.ParseAddr(strings.TrimSpace(addrs[0]))
+	if err != nil {
+		return "", false
+	}
+	return addr.Unmap().String(), true
 }

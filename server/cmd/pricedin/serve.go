@@ -99,6 +99,7 @@ func serve(ctx context.Context, getenv func(string) string, stdout io.Writer) er
 		CookieSecure:       cfg.Auth.CookieSecure,
 		TrustedProxyHeader: cfg.Auth.TrustedProxyHeader,
 		TrustedProxyHops:   cfg.Auth.TrustedProxyHops,
+		ProxySecret:        cfg.Auth.ProxySecret,
 	}))
 
 	metrics := http.NewServeMux()
