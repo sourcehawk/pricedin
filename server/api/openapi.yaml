@@ -1,0 +1,1886 @@
+openapi: 3.1.0
+info:
+  title: PricedIn API
+  version: 1.0.0
+  summary: What a stock price already assumes about future earnings growth.
+  description: |
+    The PricedIn API serves stock profiles, split-adjusted price and earnings
+    history, the derived quarterly fundamentals, and full evaluations of the
+    calculation engine. It never gives buy or sell advice.
+
+    ## Units
+
+    - Rates and returns are fractions: 0.15 is 15%. Never percent.
+    - Money is US dollars. Per-share values and closes are split-adjusted to
+      today's share count.
+    - Dates are `YYYY-MM-DD`. Timestamps are RFC 3339.
+    - Share counts are whole shares.
+
+    ## Values that cannot be computed
+
+    The engine output never holds NaN or infinity. A value that cannot be
+    computed is an object `{"value": null, "reason": "<Reason>"}`; a value that
+    exists is `{"value": <value>}`. The `Maybe…` schemas describe both forms.
+    Input echoes that can be missing, such as a quarter's EPS, are plain
+    nullable numbers.
+
+    ## Sources
+
+    Every stored number carries its provenance (`Source`) and the date it is
+    valid for (`asOf`). An SEC value links to its filing. A derived value
+    lists its inputs. A value the owner typed has `kind: user`.
+
+    ## Authentication
+
+    v1 is a private deployment for one owner. Every `/api/v1` operation needs
+    either the session cookie `pricedin_session` (from `POST
+    /api/auth/login`) or an API token in `Authorization: Bearer <token>`
+    (from `pricedin auth token create`). A request that sends an
+    `Authorization` header is judged by its token only.
+
+    State-changing requests (POST, PUT, PATCH, DELETE) must send
+    `Content-Type: application/json`. A state-changing request with the
+    session cookie, and every login and logout, must also send an `Origin`
+    header that is one of the web app's origins (`PRICEDIN_PUBLIC_ORIGIN`).
+    GET requests and requests with a bearer token need no `Origin`.
+
+    ## Errors
+
+    Every error is an RFC 9457 problem document (`application/problem+json`)
+    whose `type` is one of the `ProblemType` values. Each response has an
+    `X-Request-ID` header; a problem repeats it in `requestId`.
+  license:
+    name: Proprietary
+    identifier: LicenseRef-Proprietary
+servers:
+  - url: /
+tags:
+  - name: health
+    description: Probes for the platform.
+  - name: auth
+    description: The owner's login session.
+  - name: stocks
+    description: Stock data and evaluations.
+  - name: data
+    description: Data freshness and the contract itself.
+
+paths:
+  /healthz:
+    get:
+      tags: [health]
+      operationId: getLiveness
+      summary: Liveness probe
+      description: Answers 200 for as long as the process serves HTTP.
+      security: []
+      responses:
+        "200":
+          description: The process is alive.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/HealthStatus" }
+  /readyz:
+    get:
+      tags: [health]
+      operationId: getReadiness
+      summary: Readiness probe
+      description: Answers 200 when the database answers a ping.
+      security: []
+      responses:
+        "200":
+          description: Ready.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/HealthStatus" }
+        "503":
+          description: The database is not reachable.
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+
+  /api/auth/login:
+    post:
+      tags: [auth]
+      operationId: login
+      summary: Log in as the owner
+      description: |
+        Checks the owner's email and password and starts a session. The
+        response sets the session cookie. A wrong email and a wrong password
+        give the same 401. Each client address may try 5 times a minute.
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/Origin"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LoginRequest" }
+            example: { email: owner@example.com, password: correct horse battery }
+      responses:
+        "200":
+          description: Logged in.
+          headers:
+            Set-Cookie:
+              description: |
+                `pricedin_session=<token>; Path=/; Max-Age=<seconds>; HttpOnly;
+                SameSite=Lax`, and `Secure` unless the deployment turns it off
+                for local http.
+              schema: { type: string }
+            X-Request-ID: { $ref: "#/components/headers/X-Request-ID" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SessionInfo" }
+        "400": { $ref: "#/components/responses/InvalidRequest" }
+        "401": { $ref: "#/components/responses/InvalidCredentials" }
+        "403": { $ref: "#/components/responses/ForbiddenOrigin" }
+        "413": { $ref: "#/components/responses/BodyTooLarge" }
+        "415": { $ref: "#/components/responses/UnsupportedMediaType" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+        "500": { $ref: "#/components/responses/Internal" }
+        "503": { $ref: "#/components/responses/LoginDisabled" }
+  /api/auth/logout:
+    post:
+      tags: [auth]
+      operationId: logout
+      summary: Log out
+      description: |
+        Ends the session of the cookie, if any, and clears the cookie. Logging
+        out without a session also answers 204.
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/Origin"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/Empty" }
+      responses:
+        "204":
+          description: Logged out.
+          headers:
+            Set-Cookie:
+              description: "`pricedin_session=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax` (and `Secure`)."
+              schema: { type: string }
+            X-Request-ID: { $ref: "#/components/headers/X-Request-ID" }
+        "400": { $ref: "#/components/responses/InvalidRequest" }
+        "403": { $ref: "#/components/responses/ForbiddenOrigin" }
+        "413": { $ref: "#/components/responses/BodyTooLarge" }
+        "415": { $ref: "#/components/responses/UnsupportedMediaType" }
+        "500": { $ref: "#/components/responses/Internal" }
+  /api/auth/session:
+    get:
+      tags: [auth]
+      operationId: getSession
+      summary: The current session
+      description: Returns the session of the cookie. A bearer token is not a session.
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: The session.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/X-Request-ID" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SessionInfo" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "500": { $ref: "#/components/responses/Internal" }
+
+  /api/v1/openapi.yaml:
+    get:
+      tags: [data]
+      operationId: getOpenAPI
+      summary: This document
+      responses:
+        "200":
+          description: The OpenAPI document.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/X-Request-ID" }
+          content:
+            application/yaml:
+              schema: { type: object }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+  /api/v1/search:
+    get:
+      tags: [stocks]
+      operationId: searchStocks
+      summary: Find stocks by ticker or company name
+      description: |
+        Current tickers that start with `q`, or whose company name contains
+        it, ignoring case. An exact ticker comes first, then other ticker
+        matches, then name matches. A blank `q` finds nothing.
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema: { type: string, maxLength: 100 }
+          example: nv
+        - name: limit
+          in: query
+          required: false
+          description: The most results, 1 to 50.
+          schema: { type: integer, minimum: 1, maximum: 50, default: 10 }
+      responses:
+        "200":
+          description: The matches.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/X-Request-ID" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SearchResponse" }
+        "400": { $ref: "#/components/responses/InvalidRequest" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "500": { $ref: "#/components/responses/Internal" }
+  /api/v1/status:
+    get:
+      tags: [data]
+      operationId: getDataStatus
+      summary: Data freshness
+      description: The newest run of each ingestion job, the newest close, and how many companies are loaded.
+      responses:
+        "200":
+          description: The status.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/X-Request-ID" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DataStatus" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "500": { $ref: "#/components/responses/Internal" }
+  /api/v1/stocks/{ticker}:
+    parameters:
+      - $ref: "#/components/parameters/Ticker"
+    get:
+      tags: [stocks]
+      operationId: getStockProfile
+      summary: A stock's profile
+      description: |
+        The company, the latest close, the TTM EPS, the TTM dividend, the P/E
+        and the data freshness. A ticker whose company is known but not
+        loaded yet answers 200 with `loaded: false` and no TTM EPS or P/E;
+        `POST …/load` loads it. The other stock endpoints answer 409 for it.
+      responses:
+        "200":
+          description: The profile.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/X-Request-ID" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StockProfile" }
+        "400": { $ref: "#/components/responses/InvalidTicker" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "404": { $ref: "#/components/responses/UnknownTicker" }
+        "500": { $ref: "#/components/responses/Internal" }
+  /api/v1/stocks/{ticker}/history:
+    parameters:
+      - $ref: "#/components/parameters/Ticker"
+    get:
+      tags: [stocks]
+      operationId: getStockHistory
+      summary: The engine input of a stock
+      description: |
+        Every derived fiscal quarter (oldest first) with split-adjusted EPS
+        and the split-adjusted close on or before its end, and the daily
+        split-adjusted closes, each with the TTM EPS known on that day. The
+        browser runs the TypeScript engine on `history`. `quarters` gives the
+        sources of each quarter's values, in the same order.
+
+        `range` bounds the daily closes only: `6M`, `1Y` and `3Y` send the
+        range plus the 12 months before it, which the 12-month changes of the
+        price chart need, so `3Y` serves every chart range. `max` sends every
+        stored close. The quarters are always all of them, so every look-back
+        (up to 120 months) has its data.
+      parameters:
+        - name: range
+          in: query
+          required: false
+          schema: { $ref: "#/components/schemas/HistoryRange" }
+      responses:
+        "200":
+          description: The history.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/X-Request-ID" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StockHistory" }
+        "400": { $ref: "#/components/responses/InvalidRequest" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "404": { $ref: "#/components/responses/UnknownTicker" }
+        "409": { $ref: "#/components/responses/NotLoaded" }
+        "500": { $ref: "#/components/responses/Internal" }
+  /api/v1/stocks/{ticker}/fundamentals:
+    parameters:
+      - $ref: "#/components/parameters/Ticker"
+    get:
+      tags: [stocks]
+      operationId: getStockFundamentals
+      summary: The derived quarters with their filings
+      description: |
+        Every derived quarter with every metric, how it was derived, whether
+        it is an estimate, and the filings of its inputs; the confirmed
+        splits; and the reconciliation conflicts for the data page.
+      responses:
+        "200":
+          description: The fundamentals.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/X-Request-ID" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StockFundamentals" }
+        "400": { $ref: "#/components/responses/InvalidTicker" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "404": { $ref: "#/components/responses/UnknownTicker" }
+        "409": { $ref: "#/components/responses/NotLoaded" }
+        "500": { $ref: "#/components/responses/Internal" }
+  /api/v1/stocks/{ticker}/evaluation:
+    parameters:
+      - $ref: "#/components/parameters/Ticker"
+    post:
+      tags: [stocks]
+      operationId: evaluateStock
+      summary: Evaluate a stock with the levers
+      description: |
+        Runs the engine on the stock's full history. An omitted lever takes
+        its default: the latest close, the TTM EPS and the TTM dividend of the
+        stock, a 15% target return, 3 years, the estimated exit P/E, the
+        weighted baseline, the default bear, base and bull cases, and the 3Y
+        chart range. `sources` gives the source and as-of date of the price,
+        the TTM EPS and the dividend; a value sent in the request has `kind:
+        user`.
+      parameters:
+        - $ref: "#/components/parameters/OriginForCookie"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LeversInput" }
+            examples:
+              defaults:
+                summary: Every lever at its default
+                value: {}
+              custom:
+                summary: A 10% target over 5 years at a custom exit P/E
+                value:
+                  targetReturn: 0.1
+                  holdingYears: 5
+                  exitPe: { mode: custom, custom: 22 }
+                  baseline: { mode: trailing, trailingMonths: 24 }
+                  chartRange: 1Y
+      responses:
+        "200":
+          description: The evaluation.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/X-Request-ID" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EvaluationResponse" }
+        "400": { $ref: "#/components/responses/InvalidLevers" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/ForbiddenOrigin" }
+        "404": { $ref: "#/components/responses/UnknownTicker" }
+        "409": { $ref: "#/components/responses/NotLoaded" }
+        "413": { $ref: "#/components/responses/BodyTooLarge" }
+        "415": { $ref: "#/components/responses/UnsupportedMediaType" }
+        "422": { $ref: "#/components/responses/MissingInput" }
+        "500": { $ref: "#/components/responses/Internal" }
+  /api/v1/stocks/{ticker}/load:
+    parameters:
+      - $ref: "#/components/parameters/Ticker"
+    post:
+      tags: [stocks]
+      operationId: loadStock
+      summary: Load or refresh a company
+      description: |
+        Fetches the company's filings, facts, prices, splits and dividends
+        from the sources, stores them, and returns the new profile. It can take
+        a minute. A build without the ingestion jobs answers 501.
+      parameters:
+        - $ref: "#/components/parameters/OriginForCookie"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/Empty" }
+      responses:
+        "200":
+          description: Loaded; the new profile.
+          headers:
+            X-Request-ID: { $ref: "#/components/headers/X-Request-ID" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StockProfile" }
+        "400": { $ref: "#/components/responses/InvalidTicker" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/ForbiddenOrigin" }
+        "404": { $ref: "#/components/responses/UnknownTicker" }
+        "413": { $ref: "#/components/responses/BodyTooLarge" }
+        "415": { $ref: "#/components/responses/UnsupportedMediaType" }
+        "500": { $ref: "#/components/responses/Internal" }
+        "501": { $ref: "#/components/responses/LoadUnavailable" }
+        "502": { $ref: "#/components/responses/LoadFailed" }
+
+security:
+  - sessionCookie: []
+  - bearerToken: []
+
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: pricedin_session
+      description: The session token from `POST /api/auth/login`. HttpOnly; the browser sends it.
+    bearerToken:
+      type: http
+      scheme: bearer
+      description: An API token from `pricedin auth token create <name>`.
+
+  headers:
+    X-Request-ID:
+      description: The request's ID, also in the server logs. A client may send one (1 to 64 letters, digits, `.`, `_` or `-`).
+      schema: { type: string }
+    Retry-After:
+      description: Seconds to wait before the next attempt.
+      schema: { type: integer, minimum: 1 }
+
+  parameters:
+    Ticker:
+      name: ticker
+      in: path
+      required: true
+      description: The SEC ticker, such as `NVDA` or `BRK-B`; any case.
+      schema: { type: string, pattern: "^[A-Za-z0-9][A-Za-z0-9.\\-]{0,9}$" }
+      example: NVDA
+    Origin:
+      name: Origin
+      in: header
+      required: true
+      description: One of the web app's origins. Browsers send it.
+      schema: { type: string }
+      example: https://pricedin.example.com
+    OriginForCookie:
+      name: Origin
+      in: header
+      required: false
+      description: Required with the session cookie, where it must be one of the web app's origins. Not needed with a bearer token.
+      schema: { type: string }
+
+  responses:
+    InvalidRequest:
+      description: A malformed request (`invalid-request`).
+      headers:
+        X-Request-ID: { $ref: "#/components/headers/X-Request-ID" }
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    InvalidTicker:
+      description: The ticker is malformed (`invalid-ticker`).
+      headers:
+        X-Request-ID: { $ref: "#/components/headers/X-Request-ID" }
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    InvalidLevers:
+      description: A malformed body (`invalid-request`), a malformed ticker (`invalid-ticker`), or a lever out of bounds (`invalid-levers`).
+      headers:
+        X-Request-ID: { $ref: "#/components/headers/X-Request-ID" }
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    InvalidCredentials:
+      description: Wrong email or password (`invalid-credentials`).
+      headers:
+        X-Request-ID: { $ref: "#/components/headers/X-Request-ID" }
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    Unauthenticated:
+      description: No valid session or API token (`unauthenticated`).
+      headers:
+        X-Request-ID: { $ref: "#/components/headers/X-Request-ID" }
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    ForbiddenOrigin:
+      description: A missing or foreign `Origin` header (`forbidden-origin`).
+      headers:
+        X-Request-ID: { $ref: "#/components/headers/X-Request-ID" }
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    UnknownTicker:
+      description: No company has this ticker now (`unknown-ticker`).
+      headers:
+        X-Request-ID: { $ref: "#/components/headers/X-Request-ID" }
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    NotLoaded:
+      description: "The company is known but its data is not loaded (`not-loaded`, with `loadable: true`). `POST …/load` loads it."
+      headers:
+        X-Request-ID: { $ref: "#/components/headers/X-Request-ID" }
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    MissingInput:
+      description: The stock has no stored close or TTM EPS and the request sent none (`missing-input`, with `input`).
+      headers:
+        X-Request-ID: { $ref: "#/components/headers/X-Request-ID" }
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    BodyTooLarge:
+      description: The body is larger than 64 KiB (`body-too-large`).
+      headers:
+        X-Request-ID: { $ref: "#/components/headers/X-Request-ID" }
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    UnsupportedMediaType:
+      description: "A state-changing request without `Content-Type: application/json` (`unsupported-media-type`)."
+      headers:
+        X-Request-ID: { $ref: "#/components/headers/X-Request-ID" }
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    RateLimited:
+      description: Too many login attempts from this address (`rate-limited`).
+      headers:
+        Retry-After: { $ref: "#/components/headers/Retry-After" }
+        X-Request-ID: { $ref: "#/components/headers/X-Request-ID" }
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    LoginDisabled:
+      description: No owner is configured (`login-disabled`).
+      headers:
+        X-Request-ID: { $ref: "#/components/headers/X-Request-ID" }
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    LoadUnavailable:
+      description: This build cannot load companies (`load-unavailable`).
+      headers:
+        X-Request-ID: { $ref: "#/components/headers/X-Request-ID" }
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    LoadFailed:
+      description: A data source failed while loading (`load-failed`).
+      headers:
+        X-Request-ID: { $ref: "#/components/headers/X-Request-ID" }
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    Internal:
+      description: An unexpected error (`internal`). The detail never holds internals.
+      headers:
+        X-Request-ID: { $ref: "#/components/headers/X-Request-ID" }
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+
+  schemas:
+    # --- Basics -------------------------------------------------------------
+    Date:
+      type: string
+      format: date
+      pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+      example: "2026-08-26"
+    Timestamp:
+      type: string
+      format: date-time
+    Empty:
+      type: object
+      additionalProperties: false
+      description: An empty JSON object.
+    HealthStatus:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status: { const: ok }
+    ProblemType:
+      type: string
+      description: |
+        The kind of error. `about:blank` comes from the readiness probe only.
+      enum:
+        - about:blank
+        - urn:pricedin:problem:invalid-request
+        - urn:pricedin:problem:invalid-ticker
+        - urn:pricedin:problem:invalid-levers
+        - urn:pricedin:problem:invalid-credentials
+        - urn:pricedin:problem:unauthenticated
+        - urn:pricedin:problem:forbidden-origin
+        - urn:pricedin:problem:unknown-ticker
+        - urn:pricedin:problem:not-found
+        - urn:pricedin:problem:method-not-allowed
+        - urn:pricedin:problem:not-loaded
+        - urn:pricedin:problem:missing-input
+        - urn:pricedin:problem:body-too-large
+        - urn:pricedin:problem:unsupported-media-type
+        - urn:pricedin:problem:rate-limited
+        - urn:pricedin:problem:login-disabled
+        - urn:pricedin:problem:load-unavailable
+        - urn:pricedin:problem:load-failed
+        - urn:pricedin:problem:internal
+    Problem:
+      type: object
+      description: An RFC 9457 problem document.
+      additionalProperties: false
+      required: [type, title, status]
+      properties:
+        type: { $ref: "#/components/schemas/ProblemType" }
+        title: { type: string, description: "A short summary that does not change between occurrences." }
+        status: { type: integer, minimum: 400, maximum: 599 }
+        detail: { type: string, description: "What went wrong this time, for a person." }
+        instance: { type: string, description: "The request path." }
+        requestId: { type: string }
+        loadable:
+          type: boolean
+          description: "`not-loaded` only: `POST …/load` can load the company."
+        input:
+          type: string
+          enum: [price, ttmEps]
+          description: "`missing-input` only: the lever to send."
+      example:
+        type: urn:pricedin:problem:not-loaded
+        title: Company data not loaded
+        status: 409
+        detail: The data of MSFT is not loaded yet.
+        instance: /api/v1/stocks/MSFT/history
+        requestId: 6f1c2b7e0a9d4c3b
+        loadable: true
+
+    # --- Auth ---------------------------------------------------------------
+    LoginRequest:
+      type: object
+      additionalProperties: false
+      required: [email, password]
+      properties:
+        email: { type: string, maxLength: 320 }
+        password: { type: string, maxLength: 1024 }
+    SessionInfo:
+      type: object
+      additionalProperties: false
+      required: [email, createdAt, expiresAt]
+      properties:
+        email: { type: string }
+        createdAt: { $ref: "#/components/schemas/Timestamp" }
+        expiresAt: { $ref: "#/components/schemas/Timestamp" }
+
+    # --- Provenance ---------------------------------------------------------
+    Source:
+      description: Where a number comes from.
+      oneOf:
+        - $ref: "#/components/schemas/SECSource"
+        - $ref: "#/components/schemas/PriceSource"
+        - $ref: "#/components/schemas/DividendSource"
+        - $ref: "#/components/schemas/DerivedSource"
+        - $ref: "#/components/schemas/UserSource"
+      discriminator:
+        propertyName: kind
+        mapping:
+          sec: "#/components/schemas/SECSource"
+          price: "#/components/schemas/PriceSource"
+          dividend: "#/components/schemas/DividendSource"
+          derived: "#/components/schemas/DerivedSource"
+          user: "#/components/schemas/UserSource"
+    SECSource:
+      type: object
+      description: One fact as an SEC filing reports it.
+      additionalProperties: false
+      required: [kind, form, accession, filed, concept, periodStart, periodEnd, reported, splitRatio, scale, url]
+      properties:
+        kind: { const: sec }
+        form: { type: string, example: 10-Q }
+        accession: { type: string, example: 0001045810-26-000075 }
+        filed: { $ref: "#/components/schemas/Date" }
+        concept: { type: string, example: EarningsPerShareDiluted }
+        periodStart:
+          description: Null for an instant fact.
+          oneOf: [{ $ref: "#/components/schemas/Date" }, { type: "null" }]
+        periodEnd: { $ref: "#/components/schemas/Date" }
+        reported: { type: number, description: "The value as filed, before split adjustment." }
+        splitRatio: { type: number, description: "Divided a per-share value, or multiplied a share count; 1 when no split applied." }
+        scale: { type: number, description: "Corrected a share count filed in thousands or millions; 1 when none." }
+        url: { type: string, format: uri, description: "The filing on EDGAR." }
+    PriceSource:
+      type: object
+      description: One daily close of the price provider.
+      additionalProperties: false
+      required: [kind, provider, symbol, closeDate, rawClose, splitFactor]
+      properties:
+        kind: { const: price }
+        provider: { type: string, example: massive }
+        symbol: { type: string, description: "The provider's symbol." }
+        closeDate: { $ref: "#/components/schemas/Date" }
+        rawClose: { type: number, description: "The close as the provider reports it." }
+        splitFactor: { type: number, description: "Divided rawClose into the split-adjusted close; 1 when no later split applies." }
+    DividendSource:
+      type: object
+      description: One cash dividend of the price provider.
+      additionalProperties: false
+      required: [kind, provider, symbol, exDate, payDate, amount, splitRatio, dividendType]
+      properties:
+        kind: { const: dividend }
+        provider: { type: string }
+        symbol: { type: string }
+        exDate: { $ref: "#/components/schemas/Date" }
+        payDate:
+          oneOf: [{ $ref: "#/components/schemas/Date" }, { type: "null" }]
+        amount: { type: number, description: "Per share, as the provider reports it." }
+        splitRatio: { type: number, description: "Divided the amount for later splits; 1 when none." }
+        dividendType: { type: string, description: "Such as recurring or special." }
+    DerivedSource:
+      type: object
+      description: A number computed from the inputs it lists.
+      additionalProperties: false
+      required: [kind, method, estimate, inputs]
+      properties:
+        kind: { const: derived }
+        method:
+          type: string
+          description: |
+            `ytd_difference` (Q2 = H1 − Q1, Q3 = 9M − H1), `fy_difference`
+            (Q4 = FY − 9M), `weighted_average_q4` (an estimated Q4 share
+            count), `derived` (free cash flow, operating costs), `reported`
+            (a quarter that filings report in more than one fact), `ttm` (four
+            quarters added; the inputs are the quarters),
+            `recurring_dividends_12m` (the recurring dividends with an ex-date
+            in the last 12 months, split-adjusted), `price_over_ttm_eps` (a
+            P/E).
+          enum: [reported, ytd_difference, fy_difference, weighted_average_q4, derived, ttm, recurring_dividends_12m, price_over_ttm_eps]
+        estimate: { type: boolean, description: "The value is not exact." }
+        label: { type: string, description: "`ttm` only: the fiscal quarter the TTM ends with." }
+        inputs:
+          type: array
+          items: { $ref: "#/components/schemas/Source" }
+    UserSource:
+      type: object
+      description: A value the owner typed.
+      additionalProperties: false
+      required: [kind]
+      properties:
+        kind: { const: user }
+    SourcedNumber:
+      type: object
+      description: A number with its source and the date it is valid for.
+      additionalProperties: false
+      required: [value, source, asOf]
+      properties:
+        value: { type: number }
+        source: { $ref: "#/components/schemas/Source" }
+        asOf: { $ref: "#/components/schemas/Date" }
+        asOfLabel: { type: string, description: "How to label asOf, such as \"as of close\"." }
+      example:
+        value: 10.8
+        source:
+          kind: sec
+          form: 10-Q
+          accession: 0001045810-26-000075
+          filed: "2026-08-26"
+          concept: EarningsPerShareDiluted
+          periodStart: "2026-04-27"
+          periodEnd: "2026-07-26"
+          reported: 10.8
+          splitRatio: 1
+          scale: 1
+          url: https://www.sec.gov/Archives/edgar/data/1045810/000104581026000075/nvda-20260726.htm
+        asOf: "2026-08-26"
+    NullableSourcedNumber:
+      oneOf: [{ $ref: "#/components/schemas/SourcedNumber" }, { type: "null" }]
+
+    # --- Stocks -------------------------------------------------------------
+    SearchResult:
+      type: object
+      additionalProperties: false
+      required: [symbol, name, exchange, cik, loaded]
+      properties:
+        symbol: { type: string }
+        name: { type: string }
+        exchange: { type: string }
+        cik: { $ref: "#/components/schemas/CIK" }
+        loaded: { type: boolean, description: "The company's fundamentals are loaded." }
+    SearchResponse:
+      type: object
+      additionalProperties: false
+      required: [results]
+      properties:
+        results:
+          type: array
+          items: { $ref: "#/components/schemas/SearchResult" }
+    CIK:
+      type: string
+      pattern: "^[0-9]{10}$"
+      description: The SEC Central Index Key with leading zeros.
+      example: "0001045810"
+    Company:
+      type: object
+      additionalProperties: false
+      required: [cik, name, sicCode, sicDescription, fiscalYearEnd]
+      properties:
+        cik: { $ref: "#/components/schemas/CIK" }
+        name: { type: string }
+        sicCode: { type: string, description: "The four-digit SIC code; empty when unknown." }
+        sicDescription: { type: string }
+        fiscalYearEnd: { type: string, description: "The month and day the fiscal year ends, \"MMDD\"; empty when unknown." }
+    TickerInfo:
+      type: object
+      additionalProperties: false
+      required: [symbol, exchange]
+      properties:
+        symbol: { type: string }
+        exchange: { type: string }
+    Freshness:
+      type: object
+      additionalProperties: false
+      required: [latestFiled, latestClose]
+      properties:
+        latestFiled:
+          description: The newest filing date of a stored fact.
+          oneOf: [{ $ref: "#/components/schemas/Date" }, { type: "null" }]
+        latestClose:
+          description: The date of the newest close.
+          oneOf: [{ $ref: "#/components/schemas/Date" }, { type: "null" }]
+    StockProfile:
+      type: object
+      additionalProperties: false
+      required: [ticker, company, loaded, latestClose, ttmEps, ttmDividend, pe, freshness]
+      properties:
+        ticker: { $ref: "#/components/schemas/TickerInfo" }
+        company: { $ref: "#/components/schemas/Company" }
+        loaded: { type: boolean, description: "False: the company is known but its data is not loaded; ttmEps and pe are null." }
+        latestClose:
+          description: The newest split-adjusted close, with `asOfLabel` "as of close"; null without prices.
+          $ref: "#/components/schemas/NullableSourcedNumber"
+        ttmEps:
+          description: The TTM diluted EPS known today; the source lists its four quarters. Null when it cannot be derived.
+          $ref: "#/components/schemas/NullableSourcedNumber"
+        ttmDividend:
+          description: The recurring dividends per share with an ex-date in the last 12 months, split-adjusted; 0 when none. As of today.
+          $ref: "#/components/schemas/SourcedNumber"
+        pe:
+          description: latestClose over ttmEps; null without both or when the TTM EPS is zero or negative.
+          $ref: "#/components/schemas/NullableSourcedNumber"
+        freshness: { $ref: "#/components/schemas/Freshness" }
+    HistoryRange:
+      type: string
+      enum: ["6M", "1Y", "3Y", max]
+      default: "3Y"
+    PriceFeed:
+      type: object
+      additionalProperties: false
+      required: [provider, symbol]
+      properties:
+        provider: { type: string }
+        symbol: { type: string }
+    NullableSource:
+      oneOf: [{ $ref: "#/components/schemas/Source" }, { type: "null" }]
+    QuarterSources:
+      type: object
+      description: The sources of one quarter's values; null where the value is null.
+      additionalProperties: false
+      required: [label, periodEnd, fiscalYear, fiscalQuarter, ttmEpsKnownOn, eps, close, dilutedShares, revenue, operatingIncome, operatingCosts, freeCashFlow]
+      properties:
+        label: { $ref: "#/components/schemas/QuarterLabel" }
+        periodEnd: { $ref: "#/components/schemas/Date" }
+        fiscalYear: { type: integer }
+        fiscalQuarter: { type: integer, minimum: 1, maximum: 4 }
+        ttmEpsKnownOn:
+          description: The first day the TTM EPS ending with this quarter was known. A daily close carries the TTM EPS of the latest quarter known on its day.
+          oneOf: [{ $ref: "#/components/schemas/Date" }, { type: "null" }]
+        eps: { $ref: "#/components/schemas/NullableSource" }
+        close:
+          oneOf: [{ $ref: "#/components/schemas/PriceSource" }, { type: "null" }]
+        dilutedShares: { $ref: "#/components/schemas/NullableSource" }
+        revenue: { $ref: "#/components/schemas/NullableSource" }
+        operatingIncome: { $ref: "#/components/schemas/NullableSource" }
+        operatingCosts: { $ref: "#/components/schemas/NullableSource" }
+        freeCashFlow: { $ref: "#/components/schemas/NullableSource" }
+    StockHistory:
+      type: object
+      additionalProperties: false
+      required: [ticker, range, history, quarters, prices, freshness]
+      properties:
+        ticker: { type: string }
+        range: { $ref: "#/components/schemas/HistoryRange" }
+        history: { $ref: "#/components/schemas/History" }
+        quarters:
+          type: array
+          description: One entry per history quarter, same order.
+          items: { $ref: "#/components/schemas/QuarterSources" }
+        prices:
+          description: Where the daily closes come from; null without closes.
+          oneOf: [{ $ref: "#/components/schemas/PriceFeed" }, { type: "null" }]
+        freshness: { $ref: "#/components/schemas/Freshness" }
+    FundamentalMetric:
+      type: string
+      enum: [eps_diluted, revenue, operating_income, operating_costs, operating_cash_flow, capital_expenditure, free_cash_flow, diluted_shares, dividends_per_share, net_income]
+    FundamentalValue:
+      type: object
+      additionalProperties: false
+      required: [value, method, estimate, filed, firstFiled, inputs]
+      properties:
+        value: { type: number, description: "Split-adjusted; US dollars, dollars per share, or whole shares." }
+        method: { type: string, enum: [reported, ytd_difference, fy_difference, weighted_average_q4, derived] }
+        estimate: { type: boolean }
+        filed: { $ref: "#/components/schemas/Date", description: "The newest filing date among the inputs." }
+        firstFiled: { $ref: "#/components/schemas/Date", description: "The day the filings first gave the quarter." }
+        inputs:
+          type: array
+          minItems: 1
+          items: { $ref: "#/components/schemas/SECSource" }
+    FundamentalQuarter:
+      type: object
+      additionalProperties: false
+      required: [fiscalYear, fiscalQuarter, label, periodStart, periodEnd, values]
+      properties:
+        fiscalYear: { type: integer }
+        fiscalQuarter: { type: integer, minimum: 1, maximum: 4 }
+        label: { $ref: "#/components/schemas/QuarterLabel" }
+        periodStart: { $ref: "#/components/schemas/Date" }
+        periodEnd: { $ref: "#/components/schemas/Date" }
+        values:
+          type: object
+          description: Keyed by metric; a metric the filings do not give for the quarter is missing.
+          propertyNames: { $ref: "#/components/schemas/FundamentalMetric" }
+          additionalProperties: { $ref: "#/components/schemas/FundamentalValue" }
+    SplitEvent:
+      type: object
+      additionalProperties: false
+      required: [date, from, to, ratio, source, evidence]
+      properties:
+        date: { $ref: "#/components/schemas/Date", description: "The first day on the new basis." }
+        from: { type: number }
+        to: { type: number }
+        ratio: { type: number, description: "New shares per old share (to / from)." }
+        source: { type: string, description: '"sec" or the provider''s name.' }
+        evidence: { type: string, description: "An accession number or the provider's identifier." }
+    Conflict:
+      type: object
+      additionalProperties: false
+      required: [kind, concept, periodStart, periodEnd, original, restated, observed, expected, split]
+      properties:
+        kind: { type: string, enum: [unconfirmed_split, split_mismatch, share_scale, split_evidence, split_date] }
+        concept: { type: string }
+        periodStart:
+          oneOf: [{ $ref: "#/components/schemas/Date" }, { type: "null" }]
+        periodEnd: { $ref: "#/components/schemas/Date" }
+        original:
+          oneOf: [{ $ref: "#/components/schemas/SECSource" }, { type: "null" }]
+        restated:
+          oneOf: [{ $ref: "#/components/schemas/SECSource" }, { type: "null" }]
+        observed: { type: number }
+        expected: { type: number }
+        split:
+          oneOf: [{ $ref: "#/components/schemas/SplitEvent" }, { type: "null" }]
+    StockFundamentals:
+      type: object
+      additionalProperties: false
+      required: [ticker, cik, quarters, splits, conflicts]
+      properties:
+        ticker: { type: string }
+        cik: { $ref: "#/components/schemas/CIK" }
+        quarters:
+          type: array
+          items: { $ref: "#/components/schemas/FundamentalQuarter" }
+        splits:
+          type: array
+          items: { $ref: "#/components/schemas/SplitEvent" }
+        conflicts:
+          type: array
+          items: { $ref: "#/components/schemas/Conflict" }
+    InputSources:
+      type: object
+      additionalProperties: false
+      required: [price, ttmEps, dividend]
+      properties:
+        price: { $ref: "#/components/schemas/SourcedNumber" }
+        ttmEps: { $ref: "#/components/schemas/SourcedNumber" }
+        dividend: { $ref: "#/components/schemas/SourcedNumber" }
+    EvaluationResponse:
+      type: object
+      additionalProperties: false
+      required: [ticker, levers, sources, asOf, evaluation]
+      properties:
+        ticker: { type: string }
+        levers: { $ref: "#/components/schemas/Levers" }
+        sources: { $ref: "#/components/schemas/InputSources" }
+        asOf: { $ref: "#/components/schemas/Date", description: "The newest as-of date of the inputs." }
+        evaluation: { $ref: "#/components/schemas/Evaluation" }
+    IngestRun:
+      type: object
+      additionalProperties: false
+      required: [id, job, status, startedAt, finishedAt, stats, error]
+      properties:
+        id: { type: integer }
+        job: { type: string }
+        status: { type: string, enum: [running, succeeded, failed] }
+        startedAt: { $ref: "#/components/schemas/Timestamp" }
+        finishedAt:
+          oneOf: [{ $ref: "#/components/schemas/Timestamp" }, { type: "null" }]
+        stats:
+          type: object
+          additionalProperties: { type: integer }
+        error: { type: string }
+    DataStatus:
+      type: object
+      additionalProperties: false
+      required: [ingestRuns, latestPriceDate, companies]
+      properties:
+        ingestRuns:
+          type: array
+          description: The newest run of each job, by job name.
+          items: { $ref: "#/components/schemas/IngestRun" }
+        latestPriceDate:
+          oneOf: [{ $ref: "#/components/schemas/Date" }, { type: "null" }]
+        companies:
+          type: object
+          additionalProperties: false
+          required: [total, withFacts, withFundamentals]
+          properties:
+            total: { type: integer }
+            withFacts: { type: integer }
+            withFundamentals: { type: integer }
+
+    # --- Engine input -------------------------------------------------------
+    QuarterLabel:
+      type: string
+      pattern: "^Q[1-4] FY[0-9]{2}$"
+      example: Q3 FY26
+    Quarter:
+      type: object
+      description: One fiscal quarter. Per-share values and the close are split-adjusted; null means not reported.
+      additionalProperties: false
+      required: [label, periodEnd, eps, close, dilutedShares, revenue, operatingIncome, operatingCosts, freeCashFlow]
+      properties:
+        label: { $ref: "#/components/schemas/QuarterLabel" }
+        periodEnd: { $ref: "#/components/schemas/Date" }
+        eps: { type: [number, "null"], description: "Diluted EPS of the quarter." }
+        close: { type: [number, "null"], description: "The close on or before periodEnd, at most 7 days earlier." }
+        dilutedShares: { type: [number, "null"], description: "Weighted average, whole shares." }
+        revenue: { type: [number, "null"] }
+        operatingIncome: { type: [number, "null"] }
+        operatingCosts: { type: [number, "null"] }
+        freeCashFlow: { type: [number, "null"] }
+    PricePoint:
+      type: object
+      additionalProperties: false
+      required: [date, close, ttmEps]
+      properties:
+        date: { $ref: "#/components/schemas/Date" }
+        close: { type: number, exclusiveMinimum: 0 }
+        ttmEps: { type: [number, "null"], description: "The TTM EPS known on that day." }
+    History:
+      type: object
+      description: The engine input of a stock. Both lists are oldest first.
+      additionalProperties: false
+      required: [quarters, daily]
+      properties:
+        quarters:
+          type: array
+          items: { $ref: "#/components/schemas/Quarter" }
+        daily:
+          type: array
+          items: { $ref: "#/components/schemas/PricePoint" }
+    ExitPEMode:
+      type: string
+      enum: [estimated, today, trailing, custom]
+    BaselineMode:
+      type: string
+      enum: [weighted, today, trailing, custom]
+    ChartRange:
+      type: string
+      enum: ["6M", "1Y", "3Y"]
+    ExitPELever:
+      type: object
+      additionalProperties: false
+      required: [mode]
+      properties:
+        mode: { $ref: "#/components/schemas/ExitPEMode" }
+        custom: { type: number, minimum: 0.5, maximum: 1000, description: "Required for mode custom." }
+        trailingMonths: { type: integer, minimum: 0, maximum: 120, description: "Look-back of the typical P/E in every mode; 0 or absent means 36." }
+    CustomGrowth:
+      type: object
+      additionalProperties: false
+      required: [yearly, rate, rates]
+      properties:
+        yearly: { type: boolean, description: "Use one rate per year." }
+        rate: { type: number, minimum: -0.5, maximum: 2 }
+        rates:
+          type: array
+          description: One rate per year of the holding period; a missing year repeats the last rate.
+          items: { type: number, minimum: -0.5, maximum: 2 }
+    CustomGrowthInput:
+      type: object
+      additionalProperties: false
+      properties:
+        yearly: { type: boolean }
+        rate: { type: number, minimum: -0.5, maximum: 2 }
+        rates:
+          type: array
+          items: { type: number, minimum: -0.5, maximum: 2 }
+    BaselineLever:
+      type: object
+      additionalProperties: false
+      required: [mode, custom]
+      properties:
+        mode: { $ref: "#/components/schemas/BaselineMode" }
+        trailingMonths: { type: integer, minimum: 0, maximum: 120, description: "Look-back of trailing growth in every mode; 0 or absent means 12." }
+        custom: { $ref: "#/components/schemas/CustomGrowth" }
+    BaselineLeverInput:
+      type: object
+      additionalProperties: false
+      required: [mode]
+      properties:
+        mode: { $ref: "#/components/schemas/BaselineMode" }
+        trailingMonths: { type: integer, minimum: 0, maximum: 120 }
+        custom: { $ref: "#/components/schemas/CustomGrowthInput" }
+    ScenarioCase:
+      type: object
+      additionalProperties: false
+      required: [name, growth, exitPe]
+      properties:
+        name: { type: string }
+        growth: { type: number }
+        exitPe: { type: number }
+    Levers:
+      type: object
+      description: The levers the engine ran with, every default filled in.
+      additionalProperties: false
+      required: [price, ttmEps, dividend, targetReturn, holdingYears, exitPe, baseline, scenarios, chartRange]
+      properties:
+        price: { type: number }
+        ttmEps: { type: number }
+        dividend: { type: number, description: "Yearly, per share." }
+        targetReturn: { type: number }
+        holdingYears: { type: integer }
+        exitPe: { $ref: "#/components/schemas/ExitPELever" }
+        baseline: { $ref: "#/components/schemas/BaselineLever" }
+        scenarios:
+          type: array
+          description: The owner's bear, base and bull cases; empty means the defaults.
+          items: { $ref: "#/components/schemas/ScenarioCase" }
+        chartRange: { $ref: "#/components/schemas/ChartRange" }
+    LeversInput:
+      type: object
+      description: The levers of an evaluation; each one is optional.
+      additionalProperties: false
+      properties:
+        price: { type: number, minimum: 0.0001, maximum: 1000000, description: "Default the latest close." }
+        ttmEps: { type: number, minimum: -1000000, maximum: 1000000, description: "Default the stock's TTM EPS. Zero or 0.0001 to 1,000,000 in size." }
+        dividend: { type: number, minimum: 0, maximum: 1000000, description: "Yearly per share. Default the TTM dividend." }
+        targetReturn: { type: number, minimum: 0, maximum: 0.5, default: 0.15 }
+        holdingYears: { type: integer, minimum: 1, maximum: 10, default: 3 }
+        exitPe: { $ref: "#/components/schemas/ExitPELever" }
+        baseline: { $ref: "#/components/schemas/BaselineLeverInput" }
+        scenarios:
+          type: array
+          description: The bear, base and bull cases; absent or empty means the defaults.
+          items: { $ref: "#/components/schemas/ScenarioCase" }
+        chartRange: { $ref: "#/components/schemas/ChartRange" }
+
+    # --- Engine output: shared ---------------------------------------------
+    Reason:
+      type: string
+      description: Why a value is missing.
+      enum: [needs_positive_eps, dividends_reach_target, insufficient_history, missing_data, non_positive_base, growth_out_of_range, too_few_points, zero_variance, not_applicable]
+    Tone:
+      type: string
+      enum: [good, warn, bad, neutral]
+    Verdict:
+      type: string
+      enum: [undemanding, tight, demanding]
+    ExitPERule:
+      type: string
+      enum: [fade, slowGrowerTypical, slowGrowerKeep, lowPeKeep, today, trailing, custom]
+    GridTag:
+      type: string
+      enum: [required, weighted, today, trailing, custom]
+    FinancialMetric:
+      type: string
+      enum: [revenue, operatingCosts, operatingIncome, eps, freeCashFlow, dilutedShares]
+    Missing:
+      type: object
+      description: A value that cannot be computed.
+      additionalProperties: false
+      required: [value, reason]
+      properties:
+        value: { type: "null" }
+        reason: { $ref: "#/components/schemas/Reason" }
+    MaybeNumber:
+      oneOf:
+        - type: object
+          additionalProperties: false
+          required: [value]
+          properties: { value: { type: number } }
+        - $ref: "#/components/schemas/Missing"
+    MaybeTone:
+      oneOf:
+        - type: object
+          additionalProperties: false
+          required: [value]
+          properties: { value: { $ref: "#/components/schemas/Tone" } }
+        - $ref: "#/components/schemas/Missing"
+    MaybeVerdict:
+      oneOf:
+        - type: object
+          additionalProperties: false
+          required: [value]
+          properties: { value: { $ref: "#/components/schemas/Verdict" } }
+        - $ref: "#/components/schemas/Missing"
+    Axis:
+      type: object
+      additionalProperties: false
+      required: [min, max, step]
+      properties:
+        min: { type: number }
+        max: { type: number }
+        step: { type: number }
+    Range:
+      type: object
+      additionalProperties: false
+      required: [min, max]
+      properties:
+        min: { type: number }
+        max: { type: number }
+    MaybeRange:
+      oneOf:
+        - type: object
+          additionalProperties: false
+          required: [value]
+          properties: { value: { $ref: "#/components/schemas/Range" } }
+        - $ref: "#/components/schemas/Missing"
+
+    # --- Engine output ------------------------------------------------------
+    Evaluation:
+      type: object
+      description: Everything the page shows for one stock and one set of levers.
+      additionalProperties: false
+      required: [peNow, exitPe, baselines, yearByYear, trajectory, required, gap, verdict, atBaseline, sensitivity, quarters, growthScale, returnGrid, earningsPaths, howDemanding, scenarios, shareCountEvents, priceChart, financials]
+      properties:
+        peNow: { $ref: "#/components/schemas/MaybeNumber", description: "Price over TTM EPS." }
+        exitPe: { $ref: "#/components/schemas/ExitPEView" }
+        baselines: { $ref: "#/components/schemas/Baselines" }
+        yearByYear: { $ref: "#/components/schemas/MaybeYearByYear", description: "Only for the custom year-by-year baseline." }
+        trajectory: { $ref: "#/components/schemas/MaybeTrajectory", description: "The trajectory fill of the weighted trend over the holding period." }
+        required: { $ref: "#/components/schemas/RequirementResult" }
+        gap: { $ref: "#/components/schemas/MaybeNumber", description: "Baseline minus required growth." }
+        verdict: { $ref: "#/components/schemas/MaybeVerdict" }
+        atBaseline: { $ref: "#/components/schemas/MaybeAtBaseline" }
+        sensitivity: { $ref: "#/components/schemas/MaybeLeverSensitivity" }
+        quarters:
+          type: array
+          items: { $ref: "#/components/schemas/QuarterView" }
+        growthScale: { $ref: "#/components/schemas/Axis" }
+        returnGrid: { $ref: "#/components/schemas/MaybeGrid" }
+        earningsPaths: { $ref: "#/components/schemas/MaybePaths" }
+        howDemanding: { $ref: "#/components/schemas/Demanding" }
+        scenarios: { $ref: "#/components/schemas/EvaluatedScenarios" }
+        shareCountEvents:
+          type: array
+          items: { $ref: "#/components/schemas/ShareEvent" }
+        priceChart: { $ref: "#/components/schemas/MaybeChart" }
+        financials: { $ref: "#/components/schemas/FinancialsView" }
+    ExitPE:
+      type: object
+      additionalProperties: false
+      required: [pe, rule]
+      properties:
+        pe: { type: number }
+        rule: { $ref: "#/components/schemas/ExitPERule" }
+    MaybeExitPE:
+      oneOf:
+        - type: object
+          additionalProperties: false
+          required: [value]
+          properties: { value: { $ref: "#/components/schemas/ExitPE" } }
+        - $ref: "#/components/schemas/Missing"
+    Typical:
+      type: object
+      additionalProperties: false
+      required: [pe, months, points]
+      properties:
+        pe: { $ref: "#/components/schemas/MaybeNumber" }
+        months: { type: integer }
+        points: { type: integer }
+    ExitPEView:
+      type: object
+      additionalProperties: false
+      required: [mode, inUse, estimate, g0, gExit, typical, peNowVsTypical, vsNow, sliderMax]
+      properties:
+        mode: { $ref: "#/components/schemas/ExitPEMode" }
+        inUse: { $ref: "#/components/schemas/MaybeExitPE" }
+        estimate: { $ref: "#/components/schemas/MaybeExitPE" }
+        g0: { $ref: "#/components/schemas/MaybeNumber" }
+        gExit: { $ref: "#/components/schemas/MaybeNumber" }
+        typical: { $ref: "#/components/schemas/Typical" }
+        peNowVsTypical:
+          oneOf:
+            - type: object
+              additionalProperties: false
+              required: [value]
+              properties: { value: { type: string, enum: [above, below, close] } }
+            - $ref: "#/components/schemas/Missing"
+        vsNow:
+          oneOf:
+            - type: object
+              additionalProperties: false
+              required: [value]
+              properties: { value: { type: string, enum: [lower, higher, same] } }
+            - $ref: "#/components/schemas/Missing"
+        sliderMax: { type: number }
+    Trailing:
+      type: object
+      additionalProperties: false
+      required: [growth, months, maxMonths, fromTtm, toTtm]
+      properties:
+        growth: { $ref: "#/components/schemas/MaybeNumber" }
+        months: { type: integer }
+        maxMonths: { type: integer }
+        fromTtm: { $ref: "#/components/schemas/MaybeNumber" }
+        toTtm: { $ref: "#/components/schemas/MaybeNumber" }
+    Baselines:
+      type: object
+      additionalProperties: false
+      required: [active, growth, weighted, today, trailing, custom, yoyShift]
+      properties:
+        active: { $ref: "#/components/schemas/BaselineMode" }
+        growth: { $ref: "#/components/schemas/MaybeNumber" }
+        weighted: { $ref: "#/components/schemas/MaybeNumber" }
+        today: { $ref: "#/components/schemas/MaybeNumber" }
+        trailing: { $ref: "#/components/schemas/Trailing" }
+        custom: { $ref: "#/components/schemas/MaybeNumber" }
+        yoyShift: { $ref: "#/components/schemas/MaybeNumber" }
+    YearByYear:
+      type: object
+      additionalProperties: false
+      required: [rates, compoundAverage, simpleAverage, endEps, showSimpleAverage]
+      properties:
+        rates: { type: array, items: { type: number } }
+        compoundAverage: { type: number }
+        simpleAverage: { type: number }
+        endEps: { $ref: "#/components/schemas/MaybeNumber" }
+        showSimpleAverage: { type: boolean }
+    MaybeYearByYear:
+      oneOf:
+        - type: object
+          additionalProperties: false
+          required: [value]
+          properties: { value: { $ref: "#/components/schemas/YearByYear" } }
+        - $ref: "#/components/schemas/Missing"
+    Trajectory:
+      type: object
+      additionalProperties: false
+      required: [rates, slope, previous, highest, capped]
+      properties:
+        rates: { type: array, items: { type: number } }
+        slope: { type: number }
+        previous: { $ref: "#/components/schemas/MaybeNumber" }
+        highest: { type: number }
+        capped: { type: boolean }
+    MaybeTrajectory:
+      oneOf:
+        - type: object
+          additionalProperties: false
+          required: [value]
+          properties: { value: { $ref: "#/components/schemas/Trajectory" } }
+        - $ref: "#/components/schemas/Missing"
+    RequirementResult:
+      type: object
+      additionalProperties: false
+      required: [growth, exitPrice, priceChange, eps, dividends, tightFrom, undemandingFrom]
+      properties:
+        growth: { $ref: "#/components/schemas/MaybeNumber" }
+        exitPrice: { $ref: "#/components/schemas/MaybeNumber" }
+        priceChange: { $ref: "#/components/schemas/MaybeNumber" }
+        eps: { $ref: "#/components/schemas/MaybeNumber" }
+        dividends: { type: number }
+        tightFrom: { $ref: "#/components/schemas/MaybeNumber" }
+        undemandingFrom: { $ref: "#/components/schemas/MaybeNumber" }
+    AtBaseline:
+      type: object
+      additionalProperties: false
+      required: [exitPrice, totalReturn, yearlyReturn, vsTarget, tone, meetsTarget, eps, epsGap, exitPeNeeded, fragile]
+      properties:
+        exitPrice: { type: number }
+        totalReturn: { type: number }
+        yearlyReturn: { type: number }
+        vsTarget: { type: number }
+        tone: { $ref: "#/components/schemas/Tone" }
+        meetsTarget: { type: boolean }
+        eps: { type: number }
+        epsGap: { $ref: "#/components/schemas/MaybeNumber" }
+        exitPeNeeded: { $ref: "#/components/schemas/MaybeNumber" }
+        fragile: { type: boolean }
+    MaybeAtBaseline:
+      oneOf:
+        - type: object
+          additionalProperties: false
+          required: [value]
+          properties: { value: { $ref: "#/components/schemas/AtBaseline" } }
+        - $ref: "#/components/schemas/Missing"
+    SensitivityAt:
+      type: object
+      description: The required growth with one lever changed; only that lever is set.
+      additionalProperties: false
+      required: [requiredGrowth]
+      properties:
+        exitPe: { type: number }
+        targetReturn: { type: number }
+        years: { type: integer }
+        requiredGrowth: { $ref: "#/components/schemas/MaybeNumber" }
+    LeverSensitivity:
+      type: object
+      additionalProperties: false
+      required: [lowerExitPe, lowerTarget, marketTarget, oneYear, fiveYears]
+      properties:
+        lowerExitPe: { $ref: "#/components/schemas/SensitivityAt" }
+        lowerTarget: { $ref: "#/components/schemas/SensitivityAt" }
+        marketTarget: { $ref: "#/components/schemas/SensitivityAt" }
+        oneYear: { $ref: "#/components/schemas/SensitivityAt" }
+        fiveYears: { $ref: "#/components/schemas/SensitivityAt" }
+    MaybeLeverSensitivity:
+      oneOf:
+        - type: object
+          additionalProperties: false
+          required: [value]
+          properties: { value: { $ref: "#/components/schemas/LeverSensitivity" } }
+        - $ref: "#/components/schemas/Missing"
+    QuarterView:
+      type: object
+      additionalProperties: false
+      required: [label, periodEnd, eps, ttmEps, yoy, ttmYoy, weightedTrend]
+      properties:
+        label: { type: string }
+        periodEnd: { $ref: "#/components/schemas/Date" }
+        eps: { type: [number, "null"] }
+        ttmEps: { $ref: "#/components/schemas/MaybeNumber" }
+        yoy: { $ref: "#/components/schemas/MaybeNumber" }
+        ttmYoy: { $ref: "#/components/schemas/MaybeNumber" }
+        weightedTrend: { $ref: "#/components/schemas/MaybeNumber" }
+    GridColumn:
+      type: object
+      additionalProperties: false
+      required: [exitPe, today]
+      properties:
+        exitPe: { type: number }
+        today: { type: boolean }
+    GridOutcome:
+      type: object
+      additionalProperties: false
+      required: [exitPrice, totalReturn, yearlyReturn, vsTarget, tone]
+      properties:
+        exitPrice: { type: number }
+        totalReturn: { type: number }
+        yearlyReturn: { type: number }
+        vsTarget: { type: number }
+        tone: { $ref: "#/components/schemas/Tone" }
+    GridRow:
+      type: object
+      additionalProperties: false
+      required: [growth, epsAtExit, exact, tags, cells]
+      properties:
+        growth: { type: number }
+        epsAtExit: { type: number }
+        exact: { type: boolean }
+        tags: { type: array, items: { $ref: "#/components/schemas/GridTag" } }
+        cells: { type: array, items: { $ref: "#/components/schemas/GridOutcome" } }
+    GridCell:
+      type: object
+      additionalProperties: false
+      required: [row, column]
+      properties:
+        row: { type: integer }
+        column: { type: integer }
+    GridSensitivity:
+      type: object
+      additionalProperties: false
+      required: [growthStep, returnChange]
+      properties:
+        growthStep: { type: number }
+        returnChange: { type: number }
+    Grid:
+      type: object
+      additionalProperties: false
+      required: [step, columns, rows, you, columnSensitivity]
+      properties:
+        step: { type: number }
+        columns: { type: array, items: { $ref: "#/components/schemas/GridColumn" } }
+        rows: { type: array, items: { $ref: "#/components/schemas/GridRow" } }
+        you:
+          oneOf:
+            - type: object
+              additionalProperties: false
+              required: [value]
+              properties: { value: { $ref: "#/components/schemas/GridCell" } }
+            - $ref: "#/components/schemas/Missing"
+        columnSensitivity:
+          oneOf:
+            - type: object
+              additionalProperties: false
+              required: [value]
+              properties: { value: { $ref: "#/components/schemas/GridSensitivity" } }
+            - $ref: "#/components/schemas/Missing"
+    MaybeGrid:
+      oneOf:
+        - type: object
+          additionalProperties: false
+          required: [value]
+          properties: { value: { $ref: "#/components/schemas/Grid" } }
+        - $ref: "#/components/schemas/Missing"
+    HistoryPoint:
+      type: object
+      additionalProperties: false
+      required: [label, periodEnd, ttmEps, ttmYoy]
+      properties:
+        label: { type: string }
+        periodEnd: { $ref: "#/components/schemas/Date" }
+        ttmEps: { $ref: "#/components/schemas/MaybeNumber" }
+        ttmYoy: { $ref: "#/components/schemas/MaybeNumber" }
+    FuturePoint:
+      type: object
+      additionalProperties: false
+      required: [quartersAhead, label, baseline, required, gap]
+      properties:
+        quartersAhead: { type: integer }
+        label: { type: [string, "null"], description: "Null when the latest label is not \"Q<n> FY<yy>\"." }
+        baseline: { $ref: "#/components/schemas/MaybeNumber" }
+        required: { $ref: "#/components/schemas/MaybeNumber" }
+        gap: { $ref: "#/components/schemas/MaybeNumber" }
+    Paths:
+      type: object
+      additionalProperties: false
+      required: [history, future, gapTone, scale]
+      properties:
+        history: { type: array, items: { $ref: "#/components/schemas/HistoryPoint" } }
+        future: { type: array, items: { $ref: "#/components/schemas/FuturePoint" } }
+        gapTone: { $ref: "#/components/schemas/MaybeTone" }
+        scale: { $ref: "#/components/schemas/Axis" }
+    MaybePaths:
+      oneOf:
+        - type: object
+          additionalProperties: false
+          required: [value]
+          properties: { value: { $ref: "#/components/schemas/Paths" } }
+        - $ref: "#/components/schemas/Missing"
+    DemandingPoint:
+      type: object
+      additionalProperties: false
+      required: [label, periodEnd, today, price, ttmEps, pe, required, delivered]
+      properties:
+        label: { type: string }
+        periodEnd: { $ref: "#/components/schemas/Date" }
+        today: { type: boolean }
+        price: { $ref: "#/components/schemas/MaybeNumber" }
+        ttmEps: { $ref: "#/components/schemas/MaybeNumber" }
+        pe: { $ref: "#/components/schemas/MaybeNumber" }
+        required: { $ref: "#/components/schemas/MaybeNumber" }
+        delivered: { $ref: "#/components/schemas/MaybeNumber" }
+    Peak:
+      type: object
+      additionalProperties: false
+      required: [index, growth]
+      properties:
+        index: { type: integer }
+        growth: { type: number }
+    Demanding:
+      type: object
+      additionalProperties: false
+      required: [points, scale, typicalRequired, peak, requiredAboveDelivered, compared]
+      properties:
+        points: { type: array, items: { $ref: "#/components/schemas/DemandingPoint" } }
+        scale: { $ref: "#/components/schemas/Axis" }
+        typicalRequired: { $ref: "#/components/schemas/MaybeNumber" }
+        peak:
+          oneOf:
+            - type: object
+              additionalProperties: false
+              required: [value]
+              properties: { value: { $ref: "#/components/schemas/Peak" } }
+            - $ref: "#/components/schemas/Missing"
+        requiredAboveDelivered: { type: integer }
+        compared: { type: integer }
+    ScenarioResult:
+      type: object
+      additionalProperties: false
+      required: [eps, exitPrice, totalReturn, yearlyReturn, vsTarget, tone, meetsTarget]
+      properties:
+        eps: { type: number }
+        exitPrice: { type: number }
+        totalReturn: { type: number }
+        yearlyReturn: { type: number }
+        vsTarget: { type: number }
+        tone: { $ref: "#/components/schemas/Tone" }
+        meetsTarget: { type: boolean }
+    ScenarioOutcome:
+      type: object
+      additionalProperties: false
+      required: [name, growth, exitPe, result]
+      properties:
+        name: { type: string }
+        growth: { type: number }
+        exitPe: { type: number }
+        result:
+          oneOf:
+            - type: object
+              additionalProperties: false
+              required: [value]
+              properties: { value: { $ref: "#/components/schemas/ScenarioResult" } }
+            - $ref: "#/components/schemas/Missing"
+    EvaluatedScenarios:
+      type: object
+      additionalProperties: false
+      required: [defaults, cases, meetingTarget, worstYearlyReturn]
+      properties:
+        defaults: { type: boolean, description: "The cases are the defaults, not the owner's." }
+        cases: { type: array, items: { $ref: "#/components/schemas/ScenarioOutcome" } }
+        meetingTarget: { type: array, items: { type: string }, description: "The names of the cases that reach the target, in case order." }
+        worstYearlyReturn: { $ref: "#/components/schemas/MaybeNumber" }
+    ShareEvent:
+      type: object
+      additionalProperties: false
+      required: [label, periodEnd, from, to, change, kind]
+      properties:
+        label: { type: string }
+        periodEnd: { $ref: "#/components/schemas/Date" }
+        from: { type: number }
+        to: { type: number }
+        change: { type: number }
+        kind: { type: string, enum: [dilution, buyback] }
+    ChartPoint:
+      type: object
+      additionalProperties: false
+      required: [date, close, ttmEps, pe, priceChange12m, epsGrowth12m]
+      properties:
+        date: { $ref: "#/components/schemas/Date" }
+        close: { type: number }
+        ttmEps: { type: [number, "null"] }
+        pe: { $ref: "#/components/schemas/MaybeNumber" }
+        priceChange12m: { $ref: "#/components/schemas/MaybeNumber" }
+        epsGrowth12m: { $ref: "#/components/schemas/MaybeNumber" }
+    Last12Months:
+      type: object
+      additionalProperties: false
+      required: [priceChange, epsGrowth, peChange]
+      properties:
+        priceChange: { $ref: "#/components/schemas/MaybeNumber" }
+        epsGrowth: { $ref: "#/components/schemas/MaybeNumber" }
+        peChange: { $ref: "#/components/schemas/MaybeNumber" }
+    Link:
+      type: object
+      additionalProperties: false
+      required: [correlation, class]
+      properties:
+        correlation: { type: number }
+        class: { type: string, enum: [strong, moderate, weak, negative] }
+    Band:
+      type: object
+      additionalProperties: false
+      required: [multiple, priceToday, vsPrice]
+      properties:
+        multiple: { type: number }
+        priceToday: { $ref: "#/components/schemas/MaybeNumber" }
+        vsPrice:
+          oneOf:
+            - type: object
+              additionalProperties: false
+              required: [value]
+              properties: { value: { type: string, enum: [above, below, at] } }
+            - $ref: "#/components/schemas/Missing"
+    BandPair:
+      type: object
+      additionalProperties: false
+      required: [lower, upper]
+      properties:
+        lower: { type: number }
+        upper: { type: number }
+    Bands:
+      type: object
+      additionalProperties: false
+      required: [multiples, firstPe, currentPe, current, nearest, crossed]
+      properties:
+        multiples: { type: array, items: { $ref: "#/components/schemas/Band" } }
+        firstPe: { $ref: "#/components/schemas/MaybeNumber" }
+        currentPe: { $ref: "#/components/schemas/MaybeNumber" }
+        current:
+          oneOf:
+            - type: object
+              additionalProperties: false
+              required: [value]
+              properties: { value: { $ref: "#/components/schemas/BandPair" } }
+            - $ref: "#/components/schemas/Missing"
+        nearest: { $ref: "#/components/schemas/MaybeNumber" }
+        crossed: { type: array, items: { type: number } }
+    Chart:
+      type: object
+      additionalProperties: false
+      required: [range, start, end, points, priceAxis, epsRange, peRange, changeRange, priceChange, high, low, epsChange, peStart, peEnd, peTrend, earningsShareOfGain, last12Months, link, bands, shareCountEvents]
+      properties:
+        range: { $ref: "#/components/schemas/ChartRange" }
+        start: { $ref: "#/components/schemas/Date" }
+        end: { $ref: "#/components/schemas/Date" }
+        points: { type: array, items: { $ref: "#/components/schemas/ChartPoint" } }
+        priceAxis: { $ref: "#/components/schemas/Axis" }
+        epsRange: { $ref: "#/components/schemas/MaybeRange" }
+        peRange: { $ref: "#/components/schemas/MaybeRange" }
+        changeRange: { $ref: "#/components/schemas/Range" }
+        priceChange: { type: number }
+        high: { type: number }
+        low: { type: number }
+        epsChange: { $ref: "#/components/schemas/MaybeNumber" }
+        peStart: { $ref: "#/components/schemas/MaybeNumber" }
+        peEnd: { $ref: "#/components/schemas/MaybeNumber" }
+        peTrend:
+          oneOf:
+            - type: object
+              additionalProperties: false
+              required: [value]
+              properties: { value: { type: string, enum: [expanded, contracted, steady] } }
+            - $ref: "#/components/schemas/Missing"
+        earningsShareOfGain: { $ref: "#/components/schemas/MaybeNumber" }
+        last12Months: { $ref: "#/components/schemas/Last12Months" }
+        link:
+          oneOf:
+            - type: object
+              additionalProperties: false
+              required: [value]
+              properties: { value: { $ref: "#/components/schemas/Link" } }
+            - $ref: "#/components/schemas/Missing"
+        bands:
+          oneOf:
+            - type: object
+              additionalProperties: false
+              required: [value]
+              properties: { value: { $ref: "#/components/schemas/Bands" } }
+            - $ref: "#/components/schemas/Missing"
+        shareCountEvents: { type: array, items: { $ref: "#/components/schemas/ShareEvent" } }
+    MaybeChart:
+      oneOf:
+        - type: object
+          additionalProperties: false
+          required: [value]
+          properties: { value: { $ref: "#/components/schemas/Chart" } }
+        - $ref: "#/components/schemas/Missing"
+    QuarterRef:
+      type: object
+      additionalProperties: false
+      required: [label, periodEnd]
+      properties:
+        label: { type: string }
+        periodEnd: { $ref: "#/components/schemas/Date" }
+    MetricSeries:
+      type: object
+      additionalProperties: false
+      required: [values, yoy, yoyTone, qoq, qoqTone, scale]
+      properties:
+        values: { type: array, items: { type: [number, "null"] } }
+        yoy: { type: array, items: { $ref: "#/components/schemas/MaybeNumber" } }
+        yoyTone: { type: array, items: { $ref: "#/components/schemas/MaybeTone" } }
+        qoq: { type: array, items: { $ref: "#/components/schemas/MaybeNumber" } }
+        qoqTone: { type: array, items: { $ref: "#/components/schemas/MaybeTone" } }
+        scale: { $ref: "#/components/schemas/MaybeRange" }
+    Tile:
+      type: object
+      additionalProperties: false
+      required: [latest, change, tone]
+      properties:
+        latest: { $ref: "#/components/schemas/MaybeNumber" }
+        change: { $ref: "#/components/schemas/MaybeNumber" }
+        tone: { $ref: "#/components/schemas/MaybeTone" }
+    MarginTile:
+      type: object
+      additionalProperties: false
+      required: [latest, previous, change, tone]
+      properties:
+        latest: { $ref: "#/components/schemas/MaybeNumber" }
+        previous: { $ref: "#/components/schemas/MaybeNumber" }
+        change: { $ref: "#/components/schemas/MaybeNumber" }
+        tone: { $ref: "#/components/schemas/MaybeTone" }
+    Tiles:
+      type: object
+      additionalProperties: false
+      required: [label, compareLabel, revenue, operatingCosts, operatingIncome, operatingMargin, eps, freeCashFlow, dilutedShares]
+      properties:
+        label: { type: string }
+        compareLabel: { type: string }
+        revenue: { $ref: "#/components/schemas/Tile" }
+        operatingCosts: { $ref: "#/components/schemas/Tile" }
+        operatingIncome: { $ref: "#/components/schemas/Tile" }
+        operatingMargin: { $ref: "#/components/schemas/MarginTile" }
+        eps: { $ref: "#/components/schemas/Tile" }
+        freeCashFlow: { $ref: "#/components/schemas/Tile" }
+        dilutedShares: { $ref: "#/components/schemas/Tile" }
+    PairCorrelationValue:
+      type: object
+      additionalProperties: false
+      required: [correlation, class]
+      properties:
+        correlation: { type: number }
+        class: { type: string, enum: [strongSame, moderateSame, weak, moderateOpposite, strongOpposite] }
+    PairCorrelation:
+      type: object
+      additionalProperties: false
+      required: [a, b, result]
+      properties:
+        a: { $ref: "#/components/schemas/FinancialMetric" }
+        b: { $ref: "#/components/schemas/FinancialMetric" }
+        result:
+          oneOf:
+            - type: object
+              additionalProperties: false
+              required: [value]
+              properties: { value: { $ref: "#/components/schemas/PairCorrelationValue" } }
+            - $ref: "#/components/schemas/Missing"
+    MetricChanges:
+      type: object
+      description: One list of changes per financial metric.
+      additionalProperties: false
+      required: [revenue, operatingCosts, operatingIncome, eps, freeCashFlow, dilutedShares]
+      properties:
+        revenue: { type: array, items: { $ref: "#/components/schemas/MaybeNumber" } }
+        operatingCosts: { type: array, items: { $ref: "#/components/schemas/MaybeNumber" } }
+        operatingIncome: { type: array, items: { $ref: "#/components/schemas/MaybeNumber" } }
+        eps: { type: array, items: { $ref: "#/components/schemas/MaybeNumber" } }
+        freeCashFlow: { type: array, items: { $ref: "#/components/schemas/MaybeNumber" } }
+        dilutedShares: { type: array, items: { $ref: "#/components/schemas/MaybeNumber" } }
+    Compare:
+      type: object
+      additionalProperties: false
+      required: [sinceStart, quarterOverQuarter, correlations, changes]
+      properties:
+        sinceStart: { $ref: "#/components/schemas/MetricChanges" }
+        quarterOverQuarter: { $ref: "#/components/schemas/MetricChanges" }
+        correlations:
+          type: array
+          description: Every pair of metrics, in metric order, a before b.
+          items: { $ref: "#/components/schemas/PairCorrelation" }
+        changes: { type: integer, description: "Quarter-to-quarter changes per metric." }
+    FinancialsView:
+      type: object
+      additionalProperties: false
+      required: [quarters, metrics, operatingMargin, costShareOfRevenue, tiles, compare]
+      properties:
+        quarters: { type: array, items: { $ref: "#/components/schemas/QuarterRef" } }
+        metrics:
+          type: object
+          additionalProperties: false
+          required: [revenue, operatingCosts, operatingIncome, eps, freeCashFlow, dilutedShares]
+          properties:
+            revenue: { $ref: "#/components/schemas/MetricSeries" }
+            operatingCosts: { $ref: "#/components/schemas/MetricSeries" }
+            operatingIncome: { $ref: "#/components/schemas/MetricSeries" }
+            eps: { $ref: "#/components/schemas/MetricSeries" }
+            freeCashFlow: { $ref: "#/components/schemas/MetricSeries" }
+            dilutedShares: { $ref: "#/components/schemas/MetricSeries" }
+        operatingMargin: { type: array, items: { $ref: "#/components/schemas/MaybeNumber" } }
+        costShareOfRevenue: { type: array, items: { $ref: "#/components/schemas/MaybeNumber" } }
+        tiles:
+          oneOf:
+            - type: object
+              additionalProperties: false
+              required: [value]
+              properties: { value: { $ref: "#/components/schemas/Tiles" } }
+            - $ref: "#/components/schemas/Missing"
+        compare: { $ref: "#/components/schemas/Compare" }
+
