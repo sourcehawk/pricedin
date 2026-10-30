@@ -144,6 +144,8 @@ describe("factor", () => {
     expect(factor(20)).toBe("20");
     expect(factor(22.5)).toBe("22.5");
     expect(factor(13.499999999)).toBe("13.5");
+    expect(factor(0.05)).toBe("0.05");
+    expect(factor(0.0012)).toBe("0.0012");
   });
 });
 

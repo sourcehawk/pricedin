@@ -103,9 +103,9 @@ export function times(x: Value, decimals = 1): string {
   return usable(x) ? `${x.toFixed(decimals)}×` : "n/a";
 }
 
-/** factor shows a fixed multiple, such as a band or a grid column, as a number without a trailing ".0": "20", "22.5". */
+/** factor shows a fixed multiple, such as a band or a grid column, as a number without trailing zeros: "20", "22.5", "0.05". */
 export function factor(x: Value): string {
-  return usable(x) ? String(Number(x.toFixed(1))) : "n/a";
+  return usable(x) ? String(Number(x.toPrecision(6))) : "n/a";
 }
 
 /** multiple is factor with the times sign: "20×", "22.5×". */
