@@ -82,7 +82,7 @@ func versionedKey(base string, day domain.Date, sha16 string) (string, error) {
 	if err := blob.ValidateKey(base); err != nil {
 		return "", fmt.Errorf("ingest: record: %w", err)
 	}
-	dir, file, ok := cutLast(base, "/")
+	dir, file, ok := cutLastSlash(base)
 	if !ok {
 		return "", fmt.Errorf("ingest: record: key %q has no folder", base)
 	}
@@ -96,11 +96,11 @@ func SplitVersionedKey(key string) (base string, day domain.Date, sha16 string, 
 	fail := func() (string, domain.Date, string, error) {
 		return "", domain.Date{}, "", fmt.Errorf("ingest: %q is not a versioned key", key)
 	}
-	rest, file, ok := cutLast(key, "/")
+	rest, file, ok := cutLastSlash(key)
 	if !ok {
 		return fail()
 	}
-	dir, dayText, ok := cutLast(rest, "/")
+	dir, dayText, ok := cutLastSlash(rest)
 	if !ok {
 		return fail()
 	}
@@ -114,12 +114,12 @@ func SplitVersionedKey(key string) (base string, day domain.Date, sha16 string, 
 	return dir + "/" + file, day, sha16, nil
 }
 
-func cutLast(s, sep string) (before, after string, found bool) {
-	i := strings.LastIndex(s, sep)
+func cutLastSlash(s string) (before, after string, found bool) {
+	i := strings.LastIndex(s, "/")
 	if i < 0 {
 		return "", s, false
 	}
-	return s[:i], s[i+len(sep):], true
+	return s[:i], s[i+1:], true
 }
 
 // putOnce calls put unless key already holds an object.

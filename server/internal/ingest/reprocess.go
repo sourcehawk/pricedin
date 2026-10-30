@@ -213,7 +213,8 @@ func (f *rawFetch) String() string { return f.source.String() + " of " + f.day.S
 // signature identifies the content of the fetch.
 func (f *rawFetch) signature() string {
 	parts := make([]string, len(f.files))
-	for i, file := range f.files {
+	for i := range f.files {
+		file := &f.files[i]
 		parts[i] = fmt.Sprintf("%s/%d/%s", file.req.Kind, file.req.Page, file.sha)
 	}
 	slices.Sort(parts)
@@ -449,7 +450,7 @@ func (r *Runner) classify(key string, idx *rawIndex) (rawFile, rawSource, error)
 // secSource returns the kind of the SEC file with the base key, its
 // company, and the name of an extra submissions file.
 func secSource(base string) (rawKind, domain.CIK, string, error) {
-	dir, name, _ := cutLast(strings.TrimPrefix(base, blob.PrefixSEC), "/")
+	dir, name, _ := cutLastSlash(strings.TrimPrefix(base, blob.PrefixSEC))
 	switch {
 	case dir == "tickers" && name == "company_tickers_exchange.json":
 		return rawSECTickers, 0, "", nil
@@ -502,7 +503,8 @@ func (r *Runner) reprocessFetch(ctx context.Context, idx *rawIndex, f *rawFetch,
 		if err := r.checkSyncDay(ctx, store.TickerSourceSEC, f.day); err != nil {
 			return err
 		}
-		for _, file := range f.files {
+		for i := range f.files {
+			file := &f.files[i]
 			body, err := r.readRaw(ctx, file.key)
 			if err != nil {
 				return err
@@ -519,8 +521,9 @@ func (r *Runner) reprocessFetch(ctx context.Context, idx *rawIndex, f *rawFetch,
 			}
 		}
 	case rawSubmissions:
-		for _, file := range f.files {
-			sub, err := r.readSubmissions(ctx, idx, file)
+		for i := range f.files {
+			file := &f.files[i]
+			sub, err := r.readSubmissions(ctx, idx, *file)
 			if err != nil {
 				return err
 			}
@@ -532,7 +535,8 @@ func (r *Runner) reprocessFetch(ctx context.Context, idx *rawIndex, f *rawFetch,
 			res.Filings += got.Filings
 		}
 	case rawFacts:
-		for _, file := range f.files {
+		for i := range f.files {
+			file := &f.files[i]
 			body, err := r.readRaw(ctx, file.key)
 			if err != nil {
 				return err
@@ -548,8 +552,9 @@ func (r *Runner) reprocessFetch(ctx context.Context, idx *rawIndex, f *rawFetch,
 			res.Facts += n
 		}
 	case rawArchive:
-		for _, file := range f.files {
-			if err := r.reprocessArchive(ctx, file, func(cik domain.CIK) bool {
+		for i := range f.files {
+			file := &f.files[i]
+			if err := r.reprocessArchive(ctx, *file, func(cik domain.CIK) bool {
 				return idx.submitted[cik] && (opts.CIK == 0 || cik == opts.CIK)
 			}, res); err != nil {
 				return err
@@ -632,7 +637,8 @@ func (r *Runner) readPages(ctx context.Context, files []rawFile) (map[prices.Sto
 		page prices.StoredPage
 	}
 	states := map[prices.StoredKind]*state{}
-	for _, file := range files {
+	for i := range files {
+		file := &files[i]
 		body, err := r.readRaw(ctx, file.key)
 		if err != nil {
 			return nil, err
@@ -703,18 +709,20 @@ func (r *Runner) readSubmissions(ctx context.Context, idx *rawIndex, file rawFil
 // nearestVersion picks from versions, oldest first, the one of day, else
 // the newest earlier one, else the oldest later one.
 func nearestVersion(versions []rawFile, day domain.Date) (rawFile, bool) {
-	var pick rawFile
-	found := false
-	for _, v := range versions {
-		if v.day.After(day) {
-			if !found {
-				return v, true
+	pick := -1
+	for i := range versions {
+		if versions[i].day.After(day) {
+			if pick < 0 {
+				return versions[i], true
 			}
 			break
 		}
-		pick, found = v, true
+		pick = i
 	}
-	return pick, found
+	if pick < 0 {
+		return rawFile{}, false
+	}
+	return versions[pick], true
 }
 
 // reprocessArchive stores the facts of the companies that want accepts

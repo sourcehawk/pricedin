@@ -60,7 +60,7 @@ func TestStoredRequestReadsTheKeysThatTheClientRecords(t *testing.T) {
 		{Kind: prices.StoredTickers, Page: 1},
 		{Kind: prices.StoredTickers, Page: 2},
 	}
-	var got []prices.StoredRequest
+	got := make([]prices.StoredRequest, 0, len(rec.keys))
 	for _, key := range rec.keys {
 		req, ok, err := massive.Stored{}.StoredRequest(key)
 		if err != nil || !ok {

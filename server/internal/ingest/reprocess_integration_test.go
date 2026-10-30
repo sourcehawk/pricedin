@@ -5,9 +5,9 @@ package ingest_test
 import (
 	"context"
 	"net/http"
-	"time"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/jackc/pgx/v5/pgxpool"
