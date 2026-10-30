@@ -1,9 +1,9 @@
 import { act, fireEvent, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
-import { withApiServer } from "@/api/testing/server";
+import { serveHistory, withApiServer } from "@/api/testing/server";
 import { column, guide } from "@/testing/charts";
-import { filedOn, financialsHistory, serveHistory, renderPanel } from "./testing";
+import { filedOn, financialsHistory, renderPanel } from "./testing";
 
 withApiServer();
 

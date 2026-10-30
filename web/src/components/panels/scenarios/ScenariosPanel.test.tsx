@@ -3,9 +3,8 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { withApiServer } from "@/api/testing/server";
 import { signedPct, usd } from "@/components/format";
-import { evaluationProbe, leversWith, WhenReady } from "../earnings-trajectory/testing";
 import type { ScenarioCase } from "@/engine";
-import { renderReady } from "@/testing/render";
+import { evaluationProbe, leversWith, renderReady, WhenReady } from "@/testing/render";
 import { ScenariosPanel } from "./ScenariosPanel";
 
 withApiServer();

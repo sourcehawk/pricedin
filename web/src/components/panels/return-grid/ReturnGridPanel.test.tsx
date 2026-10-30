@@ -1,13 +1,10 @@
 import { act, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { ReactNode } from "react";
 import { describe, expect, it } from "vitest";
-import { http, HttpResponse } from "msw";
 import { historyFixture } from "@/api/testing/fixtures";
-import { apiServer, apiUrl, withApiServer } from "@/api/testing/server";
-import { leversReducer, type LeverAction } from "@/state/levers";
-import { useStock } from "@/state/StockProvider";
-import { renderReady, testLevers } from "@/testing/render";
+import { serveHistory, withApiServer } from "@/api/testing/server";
+import { type LeverAction } from "@/state/levers";
+import { leversWith, renderReady, WhenReady } from "@/testing/render";
 import { ReturnGridPanel } from "./ReturnGridPanel";
 
 withApiServer();
@@ -16,11 +13,6 @@ withApiServer();
 // TTM EPS $10.80, target 15%, 3 years, exit P/E 20×. Its grid has the
 // columns 11× to 32× and the rows 0% to 30% in steps of 2.5%, plus the
 // exact weighted-trend row at 16.0%.
-
-/** WhenReady renders its children once the evaluation exists, as the page does. */
-function WhenReady({ children }: { children: ReactNode }) {
-  return useStock().evaluation === null ? null : children;
-}
 
 async function renderPanel(...actions: LeverAction[]) {
   await renderReady(
@@ -31,7 +23,7 @@ async function renderPanel(...actions: LeverAction[]) {
         <ReturnGridPanel />
       </WhenReady>
     </>,
-    { levers: actions.reduce(leversReducer, testLevers()) },
+    { levers: leversWith(...actions) },
   );
   return screen.getByRole("region", { name: "Return grid" });
 }
@@ -405,18 +397,14 @@ describe("the walkthrough of the return grid", () => {
 
   it("marks the exit P/E column and explains it when no baseline is available", async () => {
     // Four quarters give no year-over-year growth, so the weighted trend is missing.
-    apiServer.use(
-      http.get(apiUrl("/api/v1/stocks/GRMN/history"), () =>
-        HttpResponse.json({
-          ...historyFixture,
-          history: {
-            ...historyFixture.history,
-            quarters: historyFixture.history.quarters.slice(-4),
-          },
-          quarters: historyFixture.quarters.slice(-4),
-        }),
-      ),
-    );
+    serveHistory({
+      ...historyFixture,
+      history: {
+        ...historyFixture.history,
+        quarters: historyFixture.history.quarters.slice(-4),
+      },
+      quarters: historyFixture.quarters.slice(-4),
+    });
     const panel = await renderPanel();
     expect(grid(panel).querySelector("td.sel")).toBeNull();
     expect(grid(panel).querySelector("th.colsel")).not.toBeNull();

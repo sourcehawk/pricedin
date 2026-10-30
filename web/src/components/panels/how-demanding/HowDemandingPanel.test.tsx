@@ -3,10 +3,9 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { withApiServer } from "@/api/testing/server";
 import { pct, signedPct, times, usd } from "@/components/format";
-import { evaluationProbe, leversWith, WhenReady } from "../earnings-trajectory/testing";
 import { exampleEvaluation } from "@/api/testing/fixtures";
 import { columns } from "@/testing/charts";
-import { renderReady } from "@/testing/render";
+import { evaluationProbe, leversWith, renderReady, WhenReady } from "@/testing/render";
 import { HowDemandingPanel } from "./HowDemandingPanel";
 
 withApiServer();

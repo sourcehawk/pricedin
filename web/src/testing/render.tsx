@@ -1,16 +1,22 @@
 import { QueryClient } from "@tanstack/react-query";
 import { render, screen, waitFor, type RenderResult } from "@testing-library/react";
-import type { ReactElement, ReactNode } from "react";
+import { useEffect, type ReactElement, type ReactNode } from "react";
 import { createApi, type Api } from "@/api/client";
 import { ApiProvider } from "@/api/queries";
 import { WalkthroughProvider } from "@/components/walkthrough/WalkthroughProvider";
 import { TipProvider } from "@/components/tip/TipProvider";
-import { defaultLevers, leversReducer, type LeverState } from "@/state/levers";
+import type { Evaluation } from "@/engine";
+import { defaultLevers, leversReducer, type LeverAction, type LeverState } from "@/state/levers";
 import { StockProvider, useStock } from "@/state/StockProvider";
 
 /** testLevers are the default levers with ticker picked, as after a pick. */
 export function testLevers(ticker = "GRMN"): LeverState {
   return leversReducer(defaultLevers, { type: "pickStock", ticker });
+}
+
+/** leversWith returns the test levers after the actions. */
+export function leversWith(...actions: LeverAction[]): LeverState {
+  return actions.reduce(leversReducer, testLevers());
 }
 
 export interface RenderOptions {
@@ -62,4 +68,30 @@ export async function renderReady(
     expect(screen.getByTestId("evaluation-ready")).toBeInTheDocument();
   });
   return r;
+}
+
+/** WhenReady renders its children once the evaluation exists, as the page renders its panels. */
+export function WhenReady({ children }: { children: ReactNode }) {
+  return useStock().evaluation === null ? null : children;
+}
+
+/** evaluationProbe returns a component that records the evaluation the page shows, and a getter for it. */
+export function evaluationProbe(): { Probe: () => null; current: () => Evaluation } {
+  const seen: { ev: Evaluation | null } = { ev: null };
+  function Probe() {
+    const { evaluation } = useStock();
+    useEffect(() => {
+      seen.ev = evaluation;
+    }, [evaluation]);
+    return null;
+  }
+  return {
+    Probe,
+    current: () => {
+      if (seen.ev === null) {
+        throw new Error("no evaluation yet");
+      }
+      return seen.ev;
+    },
+  };
 }

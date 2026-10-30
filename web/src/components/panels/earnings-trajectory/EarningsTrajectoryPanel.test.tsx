@@ -8,9 +8,8 @@ import { pct, signedPct, usd } from "@/components/format";
 import type { Paths } from "@/engine";
 import { useLeverDispatch } from "@/state/StockProvider";
 import { columns, guide } from "@/testing/charts";
-import { renderReady } from "@/testing/render";
+import { evaluationProbe, leversWith, renderReady, WhenReady } from "@/testing/render";
 import { EarningsTrajectoryPanel } from "./EarningsTrajectoryPanel";
-import { evaluationProbe, leversWith, WhenReady } from "./testing";
 
 withApiServer();
 
