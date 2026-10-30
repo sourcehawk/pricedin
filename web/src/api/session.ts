@@ -20,7 +20,13 @@ export function safeNext(next: string | null | undefined): string {
   }
   const base = "http://pricedin.invalid";
   const url = new URL(next, base);
-  if (url.origin !== base || url.pathname === "/login" || url.pathname.startsWith("/login/")) {
+  // Dot segments can normalize "/.//x" into "//x", which names another host.
+  if (
+    url.origin !== base ||
+    url.pathname.startsWith("//") ||
+    url.pathname === "/login" ||
+    url.pathname.startsWith("/login/")
+  ) {
     return "/";
   }
   return url.pathname + url.search + url.hash;

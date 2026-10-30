@@ -22,6 +22,11 @@ describe("safeNext", () => {
     expect(safeNext("/\\evil.example/")).toBe("/");
   });
 
+  it("goes home for a path whose dot segments normalize into another site", () => {
+    expect(safeNext("/.//evil.example")).toBe("/");
+    expect(safeNext("/a/..//evil.example/x")).toBe("/");
+  });
+
   it("goes home for a path that a URL parser turns into another site", () => {
     expect(safeNext("/\n/evil.example")).toBe("/");
     expect(safeNext("/\t/evil.example")).toBe("/");
