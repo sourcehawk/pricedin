@@ -20,8 +20,7 @@ var migrations embed.FS
 
 // NewMigrator returns a goose provider that applies the embedded migrations
 // to db, which must be a Postgres database. Goose records the applied
-// versions in the table goose_db_version. Migrators on one database run one
-// after the other.
+// versions in the table goose_db_version.
 func NewMigrator(db *sql.DB) (*goose.Provider, error) {
 	sub, err := fs.Sub(migrations, "migrations")
 	if err != nil {

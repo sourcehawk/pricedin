@@ -170,9 +170,9 @@ var priceSplitStage = stage{
 // its symbol and execution date (Split.Date); Split.Evidence holds the
 // provider's identifier. A split whose identifier is stored under another
 // date replaces that row, so a corrected date never counts twice. Loads of
-// one source run one after the other. A stored
-// split changes only when the provider's values differ. From and To must be
-// positive. It returns the number of splits added or changed.
+// one source run one after the other. A stored split changes only when the
+// provider's values differ. From and To must be positive. It returns the
+// number of splits added or changed.
 func (s *Store) UpsertPriceSplits(ctx context.Context, splits []domain.Split) (int64, error) {
 	rows := make([][]any, len(splits))
 	for i, sp := range splits {
