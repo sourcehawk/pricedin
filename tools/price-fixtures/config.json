@@ -1,0 +1,67 @@
+{
+  "seed": 20261030,
+  "from": "2021-11-01",
+  "to": "2026-10-29",
+  "tickers_page_size": 2,
+  "tickers": [
+    {
+      "symbol": "NVDA",
+      "cik": 1045810,
+      "name": "NVIDIA CORP",
+      "exchange": "XNAS",
+      "type": "CS",
+      "start_price": 280,
+      "drift": 0.35,
+      "volatility": 0.5,
+      "volume": 400000000,
+      "splits": [{ "date": "2024-06-10", "from": 1, "to": 10 }]
+    },
+    {
+      "symbol": "AAPL",
+      "cik": 320193,
+      "name": "Apple Inc.",
+      "exchange": "XNAS",
+      "type": "CS",
+      "start_price": 150,
+      "drift": 0.08,
+      "volatility": 0.27,
+      "volume": 60000000
+    },
+    {
+      "symbol": "KO",
+      "cik": 21344,
+      "name": "COCA COLA CO",
+      "exchange": "XNYS",
+      "type": "CS",
+      "start_price": 57,
+      "drift": 0.04,
+      "volatility": 0.15,
+      "volume": 14000000,
+      "dividends": {
+        "first_amount": 0.42,
+        "annual_raise": 0.045,
+        "ex_dates": ["03-14", "06-14", "09-14", "11-29"],
+        "declared_days_before": 45,
+        "pay_days_after": 16
+      }
+    },
+    {
+      "symbol": "GRMN",
+      "cik": 1121788,
+      "name": "Garmin Ltd.",
+      "exchange": "XNYS",
+      "type": "CS",
+      "start_price": 140,
+      "drift": 0.09,
+      "volatility": 0.28,
+      "volume": 900000,
+      "dividends": {
+        "first_amount": 0.73,
+        "annual_raise": 0.05,
+        "ex_dates": ["03-14", "06-13", "09-13", "12-13"],
+        "declared_yearly_on": "02-18",
+        "pay_days_after": 14
+      }
+    }
+  ]
+}

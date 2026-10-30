@@ -39,6 +39,7 @@ func newRootCmd(getenv func(string) string, stdout io.Writer) *cobra.Command {
 		newServeCmd(getenv, stdout),
 		newHealthcheckCmd(getenv),
 		newMigrateCmd(getenv),
+		newPricesCmd(getenv, stdout),
 	)
 	return root
 }

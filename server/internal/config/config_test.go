@@ -21,10 +21,11 @@ func TestLoadDefaults(t *testing.T) {
 		t.Fatalf("Load() error = %v", err)
 	}
 	want := config.Config{
-		HTTP: config.HTTP{Addr: ":8080", MetricsAddr: ":9090"},
-		Log:  config.Log{Level: slog.LevelInfo, Format: config.LogFormatJSON},
-		SEC:  config.SEC{BaseURL: "https://www.sec.gov", DataBaseURL: "https://data.sec.gov"},
-		Blob: config.Blob{Backend: config.BlobBackendFS},
+		HTTP:    config.HTTP{Addr: ":8080", MetricsAddr: ":9090"},
+		Log:     config.Log{Level: slog.LevelInfo, Format: config.LogFormatJSON},
+		SEC:     config.SEC{BaseURL: "https://www.sec.gov", DataBaseURL: "https://data.sec.gov"},
+		Massive: config.Massive{BaseURL: "https://api.massive.com", RateLimit: 20},
+		Blob:    config.Blob{Backend: config.BlobBackendFS},
 	}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("Load() mismatch (-want +got):\n%s", diff)
@@ -33,14 +34,17 @@ func TestLoadDefaults(t *testing.T) {
 
 func TestLoadReadsEveryVariable(t *testing.T) {
 	got, err := config.Load(env(map[string]string{
-		"PRICEDIN_HTTP_ADDR":         "127.0.0.1:8181",
-		"PRICEDIN_METRICS_ADDR":      "127.0.0.1:9191",
-		"PRICEDIN_DATABASE_URL":      "postgres://u:p@db:5432/pricedin?sslmode=disable",
-		"PRICEDIN_LOG_LEVEL":         "debug",
-		"PRICEDIN_LOG_FORMAT":        "text",
-		"PRICEDIN_SEC_USER_AGENT":    "PricedIn owner@example.com",
-		"PRICEDIN_SEC_BASE_URL":      "http://fixtures:8081",
-		"PRICEDIN_SEC_DATA_BASE_URL": "http://fixtures:8082/",
+		"PRICEDIN_HTTP_ADDR":          "127.0.0.1:8181",
+		"PRICEDIN_METRICS_ADDR":       "127.0.0.1:9191",
+		"PRICEDIN_DATABASE_URL":       "postgres://u:p@db:5432/pricedin?sslmode=disable",
+		"PRICEDIN_LOG_LEVEL":          "debug",
+		"PRICEDIN_LOG_FORMAT":         "text",
+		"PRICEDIN_SEC_USER_AGENT":     "PricedIn owner@example.com",
+		"PRICEDIN_SEC_BASE_URL":       "http://fixtures:8081",
+		"PRICEDIN_SEC_DATA_BASE_URL":  "http://fixtures:8082/",
+		"PRICEDIN_MASSIVE_BASE_URL":   "http://fixtures:8090",
+		"PRICEDIN_MASSIVE_API_KEY":    "test-key",
+		"PRICEDIN_MASSIVE_RATE_LIMIT": "2.5",
 	}))
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
@@ -54,7 +58,8 @@ func TestLoadReadsEveryVariable(t *testing.T) {
 			BaseURL:     "http://fixtures:8081",
 			DataBaseURL: "http://fixtures:8082",
 		},
-		Blob: config.Blob{Backend: config.BlobBackendFS},
+		Massive: config.Massive{BaseURL: "http://fixtures:8090", APIKey: "test-key", RateLimit: 2.5},
+		Blob:    config.Blob{Backend: config.BlobBackendFS},
 	}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("Load() mismatch (-want +got):\n%s", diff)
@@ -108,6 +113,13 @@ func TestLoadRejectsInvalidValues(t *testing.T) {
 		{"sec user agent without name", map[string]string{"PRICEDIN_SEC_USER_AGENT": "owner@example.com"}, "PRICEDIN_SEC_USER_AGENT"},
 		{"sec base url without scheme", map[string]string{"PRICEDIN_SEC_BASE_URL": "www.sec.gov"}, "PRICEDIN_SEC_BASE_URL"},
 		{"sec data base url with other scheme", map[string]string{"PRICEDIN_SEC_DATA_BASE_URL": "ftp://data.sec.gov"}, "PRICEDIN_SEC_DATA_BASE_URL"},
+		{"massive base url with other scheme", map[string]string{"PRICEDIN_MASSIVE_BASE_URL": "ftp://api.massive.com"}, "PRICEDIN_MASSIVE_BASE_URL"},
+		{"massive base url without host", map[string]string{"PRICEDIN_MASSIVE_BASE_URL": "https://"}, "PRICEDIN_MASSIVE_BASE_URL"},
+		{"massive base url with a query", map[string]string{"PRICEDIN_MASSIVE_BASE_URL": "https://api.massive.com?apiKey=x"}, "PRICEDIN_MASSIVE_BASE_URL"},
+		{"massive rate limit that is not a number", map[string]string{"PRICEDIN_MASSIVE_RATE_LIMIT": "fast"}, "PRICEDIN_MASSIVE_RATE_LIMIT"},
+		{"massive rate limit of zero", map[string]string{"PRICEDIN_MASSIVE_RATE_LIMIT": "0"}, "PRICEDIN_MASSIVE_RATE_LIMIT"},
+		{"negative massive rate limit", map[string]string{"PRICEDIN_MASSIVE_RATE_LIMIT": "-1"}, "PRICEDIN_MASSIVE_RATE_LIMIT"},
+		{"infinite massive rate limit", map[string]string{"PRICEDIN_MASSIVE_RATE_LIMIT": "Inf"}, "PRICEDIN_MASSIVE_RATE_LIMIT"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -203,6 +215,17 @@ func TestSECRequire(t *testing.T) {
 	var verr *config.VarError
 	if !errors.As(err, &verr) || verr.Var != "PRICEDIN_SEC_USER_AGENT" || !errors.Is(err, config.ErrMissing) {
 		t.Errorf("Require() without a User-Agent error = %v, want ErrMissing for PRICEDIN_SEC_USER_AGENT", err)
+	}
+}
+
+func TestMassiveRequire(t *testing.T) {
+	if err := (config.Massive{APIKey: "test-key"}).Require(); err != nil {
+		t.Errorf("Require() with a key error = %v, want nil", err)
+	}
+	err := config.Massive{}.Require()
+	var verr *config.VarError
+	if !errors.As(err, &verr) || verr.Var != "PRICEDIN_MASSIVE_API_KEY" || !errors.Is(err, config.ErrMissing) {
+		t.Errorf("Require() without a key error = %v, want a VarError for PRICEDIN_MASSIVE_API_KEY that wraps ErrMissing", err)
 	}
 }
 

@@ -24,6 +24,7 @@ unexport GOROOT
 
 # --- Settings -----------------------------------------------------------------
 SERVER_DIR := server
+PRICE_FIXTURES_DIR := tools/price-fixtures
 IMAGE_TAG  ?= dev
 SERVER_IMAGE ?= pricedin-server:$(IMAGE_TAG)
 WEB_IMAGE    ?= pricedin-web:$(IMAGE_TAG)
@@ -79,13 +80,17 @@ browsers: ## Install the Playwright browser (chromium)
 	$(PNPM) --filter @pricedin/e2e exec playwright install $(PLAYWRIGHT_INSTALL_FLAGS) chromium
 
 .PHONY: generate
-generate: ## Regenerate generated files (none yet)
-	@echo 'generate: nothing to generate yet'
+generate: generate-price-fixtures ## Regenerate every generated file
+
+.PHONY: generate-price-fixtures
+generate-price-fixtures: ## Regenerate the synthetic Massive fixtures in testdata/prices/massive
+	cd $(PRICE_FIXTURES_DIR) && $(GO) run .
 
 # --- Format and lint ----------------------------------------------------------
 .PHONY: fmt
 fmt: ## Format Go and web code in place
 	cd $(SERVER_DIR) && $(GOLANGCI_LINT) fmt ./...
+	cd $(PRICE_FIXTURES_DIR) && $(GOLANGCI_LINT) fmt --config ../../$(SERVER_DIR)/.golangci.yml ./...
 	$(PNPM) exec prettier --write .
 
 .PHONY: lint
@@ -95,6 +100,8 @@ lint: lint-go lint-web lint-actions lint-shell ## Run every linter and type chec
 lint-go:
 	cd $(SERVER_DIR) && $(GOLANGCI_LINT) run ./...
 	cd $(SERVER_DIR) && $(GOLANGCI_LINT) fmt --diff ./...
+	cd $(PRICE_FIXTURES_DIR) && $(GOLANGCI_LINT) run --config ../../$(SERVER_DIR)/.golangci.yml ./...
+	cd $(PRICE_FIXTURES_DIR) && $(GOLANGCI_LINT) fmt --diff --config ../../$(SERVER_DIR)/.golangci.yml ./...
 
 .PHONY: lint-web
 lint-web:
@@ -121,6 +128,7 @@ test: test-server test-web ## Run the Go and web unit tests
 .PHONY: test-server
 test-server: ## Run the Go unit tests with the race detector
 	cd $(SERVER_DIR) && $(GO) test -race ./...
+	cd $(PRICE_FIXTURES_DIR) && $(GO) test -race ./...
 
 .PHONY: test-integration
 test-integration: ## Run the Go integration tests (build tag integration)

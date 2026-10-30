@@ -1,0 +1,15 @@
+{
+  "status": "OK",
+  "request_id": "32dda120f86811e0a16d334464a27d6a",
+  "results": [
+    {
+      "id": "E74a3c7e2e339870c1d1ed668d8fc427948339ccb24edb2b4ffdbea11ca7fa515",
+      "execution_date": "2024-06-10",
+      "split_from": 1,
+      "split_to": 10,
+      "ticker": "NVDA",
+      "adjustment_type": "forward_split",
+      "historical_adjustment_factor": 0.1
+    }
+  ]
+}

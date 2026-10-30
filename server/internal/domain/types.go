@@ -108,8 +108,8 @@ type Dividend struct {
 	// Frequency is the number of payments a year, such as 4 for quarterly;
 	// 0 for a one-time payment.
 	Frequency int
-	// Type is the provider's dividend type, such as "CD" for a regular cash
-	// dividend or "SC" for a special one.
+	// Type is the provider's dividend type, such as "recurring" for a
+	// regular cash dividend or "special" for a one-time one.
 	Type       string
 	Source     string
 	ProviderID string

@@ -1,0 +1,18 @@
+{
+  "request_id": "d45734ce3f1e1db6d18daef670b9015a",
+  "results": {
+    "ticker": "KO",
+    "name": "COCA COLA CO",
+    "market": "stocks",
+    "locale": "us",
+    "primary_exchange": "XNYS",
+    "type": "CS",
+    "active": true,
+    "currency_name": "usd",
+    "cik": "0000021344",
+    "composite_figi": "BBGFXF8E157D",
+    "share_class_figi": "BBGFXE6B5621",
+    "last_updated_utc": "2026-10-29T06:00:00Z"
+  },
+  "status": "OK"
+}

@@ -1,0 +1,18 @@
+{
+  "request_id": "dc57fc7b199a339a47009c6ee0cdec2c",
+  "results": {
+    "ticker": "AAPL",
+    "name": "Apple Inc.",
+    "market": "stocks",
+    "locale": "us",
+    "primary_exchange": "XNAS",
+    "type": "CS",
+    "active": true,
+    "currency_name": "usd",
+    "cik": "0000320193",
+    "composite_figi": "BBGFXD45C7EB",
+    "share_class_figi": "BBGFX16A504A",
+    "last_updated_utc": "2026-10-29T06:00:00Z"
+  },
+  "status": "OK"
+}
