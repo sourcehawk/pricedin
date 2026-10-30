@@ -102,14 +102,17 @@ export function TipProvider({ children }: { children: ReactNode }) {
     if (tip === null) {
       return;
     }
+    // Capture runs before the walkthrough's listener, and preventDefault
+    // tells it that this Escape is used up.
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
+        e.preventDefault();
         setTip(null);
       }
     };
-    document.addEventListener("keydown", onKey);
+    document.addEventListener("keydown", onKey, { capture: true });
     return () => {
-      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("keydown", onKey, { capture: true });
     };
   }, [tip]);
 

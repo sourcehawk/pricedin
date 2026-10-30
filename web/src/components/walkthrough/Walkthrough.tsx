@@ -149,6 +149,10 @@ export function Walkthrough(props: WalkthroughProps) {
       return;
     }
     const onKey = (e: KeyboardEvent) => {
+      // A control that used the key, such as an open list, prevents it.
+      if (e.defaultPrevented) {
+        return;
+      }
       if (e.key === "Escape") {
         end();
       } else if (e.key === "ArrowRight" && !isTyping(e.target)) {

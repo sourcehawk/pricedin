@@ -1,9 +1,10 @@
-import { screen, waitFor, within } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { withApiServer } from "@/api/testing/server";
 import { pct } from "@/components/format";
+import { InfoTip } from "@/components/tip/InfoTip";
 import { renderReady } from "@/testing/render";
 import { Walkthrough, type WalkthroughStep } from "./Walkthrough";
 import { WalkthroughSlot } from "./WalkthroughProvider";
@@ -153,6 +154,25 @@ describe("Walkthrough", () => {
     expect(card()).toHaveTextContent("step 2 of 3");
     await userEvent.keyboard("{ArrowLeft}");
     expect(card()).toHaveTextContent("step 1 of 3");
+    await userEvent.keyboard("{Escape}");
+    expect(screen.queryByRole("region", { name: "Walkthrough of the demo" })).toBeNull();
+  });
+
+  it("lets Escape close a tooltip first and ends on the next Escape", async () => {
+    await renderReady(
+      <section data-walk-scope aria-label="panel tip">
+        <InfoTip label="About P/E">Share price divided by TTM EPS.</InfoTip>
+        <Walkthrough id="tip" name="the demo" launcher="Go" steps={steps} />
+      </section>,
+    );
+    await start("Go");
+    act(() => {
+      screen.getByRole("button", { name: "About P/E" }).focus();
+    });
+    expect(screen.getByRole("tooltip")).toBeInTheDocument();
+    await userEvent.keyboard("{Escape}");
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+    expect(card()).toBeInTheDocument();
     await userEvent.keyboard("{Escape}");
     expect(screen.queryByRole("region", { name: "Walkthrough of the demo" })).toBeNull();
   });

@@ -70,6 +70,15 @@ describe("the walkthrough of the inputs", () => {
     expect(card).not.toHaveTextContent("0.0×");
   });
 
+  it("lets Escape close the stock search first and keeps the walkthrough", async () => {
+    const card = await startTour();
+    const box = screen.getByRole("combobox", { name: "Pick a stock" });
+    await userEvent.click(box);
+    await userEvent.keyboard("{Escape}");
+    expect(box).toHaveAttribute("aria-expanded", "false");
+    expect(card).toBeInTheDocument();
+  });
+
   it("ends with a one-line take-away", async () => {
     const card = await startTour();
     for (let i = 0; i < 6; i++) {

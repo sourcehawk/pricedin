@@ -106,6 +106,7 @@ export function StockSearch({ inputId }: { inputId: string }) {
         pick(m);
       }
     } else if (e.key === "Escape") {
+      e.preventDefault();
       close();
       input.current?.blur();
     }
