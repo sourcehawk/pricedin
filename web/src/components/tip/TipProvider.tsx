@@ -131,12 +131,16 @@ export function useTip(): Tip {
 export function useTipHandlers(content: () => ReactNode) {
   const tip = useTip();
   const pointer = useRef<string>("mouse");
+  // A tap focuses the element before its click, and focus shows the tip,
+  // so the toggle reads whether the tip showed before the tap began.
+  const openAtTap = useRef(false);
   const [node, setNode] = useState<Element | null>(null);
   return {
     ref: setNode,
     "aria-describedby": node !== null && tip.owner === node ? tipId : undefined,
     onPointerDown: (e: React.PointerEvent) => {
       pointer.current = e.pointerType;
+      openAtTap.current = tip.owner === e.currentTarget;
     },
     onPointerEnter: (e: React.PointerEvent) => {
       if (e.pointerType !== "touch") {
@@ -163,7 +167,7 @@ export function useTipHandlers(content: () => ReactNode) {
       if (pointer.current !== "touch") {
         return;
       }
-      if (tip.owner === e.currentTarget) {
+      if (openAtTap.current) {
         tip.hide(e.currentTarget);
       } else {
         tip.show(e.currentTarget, content());
