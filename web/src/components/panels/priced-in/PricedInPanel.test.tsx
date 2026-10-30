@@ -151,9 +151,9 @@ describe("the priced-in panel", () => {
       { type: "setTargetReturn", value: 0.1 },
     );
     expect(within(panel).getByTestId("required-growth")).toHaveTextContent("none/ yr");
-    expect(within(panel).getByText("Undemanding: your dividends alone reach the target")).toHaveClass(
-      "good",
-    );
+    expect(
+      within(panel).getByText("Undemanding: your dividends alone reach the target"),
+    ).toHaveClass("good");
   });
 });
 
@@ -165,7 +165,10 @@ describe("the walkthrough of the priced-in summary", () => {
         name: "Walk me through the priced-in summary with my numbers",
       }),
     );
-    return { panel, card: screen.getByRole("region", { name: "Walkthrough of the priced-in summary" }) };
+    return {
+      panel,
+      card: screen.getByRole("region", { name: "Walkthrough of the priced-in summary" }),
+    };
   }
   const next = (card: HTMLElement) =>
     userEvent.click(within(card).getByRole("button", { name: "Next" }));

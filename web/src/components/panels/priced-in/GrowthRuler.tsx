@@ -117,15 +117,49 @@ function marksOf(ev: Evaluation, targetReturn: number): Mark[] {
   return marks.sort((a, b) => a.value - b.value);
 }
 
-function MarkDot({
-  cx,
-  mark,
-  children,
-}: {
-  cx: number;
+interface Placed {
   mark: Mark;
-  children: ReactNode;
-}) {
+  /** The dot's position on the scale. */
+  cx: number;
+  /** The label's position, kept inside the scale. */
+  lx: number;
+  y: number;
+}
+
+/**
+ * placeLabels positions the labels of marks, sorted by value. Labels above
+ * the scale alternate between two lines when they are close; labels below
+ * take the first of three lanes where they do not overlap. height is the
+ * height the labels need.
+ */
+function placeLabels(marks: readonly Mark[], x: (v: number) => number) {
+  let lastUp = -1e9;
+  let lastUpY = 22;
+  const lanesRight = lanes.map(() => -1e9);
+  let height = 88;
+  const placed: Placed[] = marks.map((mark) => {
+    const cx = x(mark.value);
+    const lx = Math.min(Math.max(cx, x0 + 40), x1 - 40);
+    if (mark.up) {
+      const y = lastUp > lx - 120 ? (lastUpY === 22 ? 6 : 22) : 22;
+      lastUp = lx;
+      lastUpY = y;
+      return { mark, cx, lx, y: y + 6 };
+    }
+    const w = mark.label.length * 6.4 + 10;
+    let lane = lanesRight.findIndex((right) => right < lx - w / 2);
+    if (lane < 0) {
+      lane = lanes.length - 1;
+    }
+    lanesRight[lane] = lx + w / 2;
+    const y = lanes[lane] ?? 112;
+    height = Math.max(height, y + 4);
+    return { mark, cx, lx, y };
+  });
+  return { placed, height };
+}
+
+function MarkDot({ cx, mark, children }: { cx: number; mark: Mark; children: ReactNode }) {
   const handlers = useTipHandlers(() => mark.tip);
   return (
     <g>
@@ -139,13 +173,7 @@ function MarkDot({
         strokeWidth={2}
       />
       {children}
-      <circle
-        cx={cx}
-        cy={46}
-        r={13}
-        fill="transparent"
-        {...handlers}
-      />
+      <circle cx={cx} cy={46} r={13} fill="transparent" {...handlers} />
     </g>
   );
 }
@@ -164,63 +192,25 @@ export function GrowthRuler({ ev, targetReturn }: { ev: Evaluation; targetReturn
   }
   const req = ev.required.growth.value;
 
-  // Labels above the scale alternate between two lines when they are close;
-  // labels below take the first of three lanes where they do not overlap.
-  let lastUp = -1e9;
-  let lastUpY = 22;
-  const lanesRight = lanes.map(() => -1e9);
-  let maxY = 88;
-  const marks = marksOf(ev, targetReturn).map((m) => {
-    const cx = x(m.value);
-    const lx = Math.min(Math.max(cx, x0 + 40), x1 - 40);
-    let label: ReactNode;
-    if (m.up) {
-      const y = lastUp > lx - 120 ? (lastUpY === 22 ? 6 : 22) : 22;
-      lastUp = lx;
-      lastUpY = y;
-      label = (
-        <text
-          x={lx}
-          y={y + 6}
-          textAnchor="middle"
-          data-walk="ruler-marks"
-          style={{ ...labelStyle, fontSize: 12, fill: m.color }}
-        >
-          {m.label}
-        </text>
-      );
-    } else {
-      const w = m.label.length * 6.4 + 10;
-      let lane = lanesRight.findIndex((right) => right < lx - w / 2);
-      if (lane < 0) {
-        lane = lanes.length - 1;
-      }
-      lanesRight[lane] = lx + w / 2;
-      const y = lanes[lane] ?? 112;
-      maxY = Math.max(maxY, y + 4);
-      label = (
-        <text
-          x={lx}
-          y={y}
-          textAnchor="middle"
-          data-walk="ruler-marks"
-          style={{ ...labelStyle, fontSize: 11.5, fill: m.color }}
-        >
-          {m.label}
-        </text>
-      );
-    }
-    return (
-      <MarkDot key={m.key} cx={cx} mark={m}>
-        {label}
-      </MarkDot>
-    );
-  });
+  const { placed, height } = placeLabels(marksOf(ev, targetReturn), x);
+  const marks = placed.map(({ mark: m, cx, lx, y }) => (
+    <MarkDot key={m.key} cx={cx} mark={m}>
+      <text
+        x={lx}
+        y={y}
+        textAnchor="middle"
+        data-walk="ruler-marks"
+        style={{ ...labelStyle, fontSize: m.up ? 12 : 11.5, fill: m.color }}
+      >
+        {m.label}
+      </text>
+    </MarkDot>
+  ));
 
   return (
     <div className="ruler" data-walk="ruler">
       <svg
-        viewBox={`0 0 ${String(width)} ${String(maxY)}`}
+        viewBox={`0 0 ${String(width)} ${String(height)}`}
         role="img"
         aria-label={`Growth scale: required growth ${pct(req)} against the weighted trend ${pct(ev.baselines.weighted.value)}, today ${pct(ev.baselines.today.value)} and trailing growth ${pct(ev.baselines.trailing.growth.value)}`}
       >

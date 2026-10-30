@@ -101,7 +101,10 @@ export function PricedInPanel() {
   const tone = verdict === null ? null : verdictTone[verdict];
   const message = verdictText(ev);
   const eps = (
-    <Sourced value={provenance.ttmEps?.kind === "stock" ? provenance.ttmEps.sourced : null} user={provenance.ttmEps?.kind === "user"}>
+    <Sourced
+      value={provenance.ttmEps?.kind === "stock" ? provenance.ttmEps.sourced : null}
+      user={provenance.ttmEps?.kind === "user"}
+    >
       {usd(levers.ttmEps)}
     </Sourced>
   );
@@ -145,13 +148,18 @@ export function PricedInPanel() {
                   from {usd(levers.ttmEps)} today to {usd(req.eps.value)}. At your exit P/E of{" "}
                   {times(pe)}, that is a share price of {usd(req.exitPrice.value)}
                   {req.dividends > 0 ? `, plus ${usd(req.dividends)} in dividends` : ""}. That turns
-                  today&apos;s {usd(levers.price)} into {pct(r)} a year. Any path to the same end EPS
-                  works: a flat year and two strong years give the same result.
+                  today&apos;s {usd(levers.price)} into {pct(r)} a year. Any path to the same end
+                  EPS works: a flat year and two strong years give the same result.
                 </>
               )}
             </InfoTip>
           </div>
-          <div className="big num v-req" data-walk="required" data-testid="required-growth" style={{ margin: "8px 0 6px" }}>
+          <div
+            className="big num v-req"
+            data-walk="required"
+            data-testid="required-growth"
+            style={{ margin: "8px 0 6px" }}
+          >
             {R !== null ? pct(R) : noGrowth ? "none" : "n/a"}
             {(R !== null || noGrowth) && <small>/ yr</small>}
           </div>
@@ -184,10 +192,10 @@ export function PricedInPanel() {
             )}
             <InfoTip label="About the verdict">
               <b>The verdict</b>
-              <span className="pill good">Undemanding</span> your baseline beats the required
-              growth by more than 1.5 pp. <span className="pill warn">Tight</span> within 1.5 pp
-              either way. <span className="pill bad">Demanding</span> the baseline falls short by
-              more than 1.5 pp.
+              <span className="pill good">Undemanding</span> your baseline beats the required growth
+              by more than 1.5 pp. <span className="pill warn">Tight</span> within 1.5 pp either
+              way. <span className="pill bad">Demanding</span> the baseline falls short by more than
+              1.5 pp.
             </InfoTip>
           </div>
         </div>

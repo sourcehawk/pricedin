@@ -18,7 +18,11 @@ function compareLine(ev: Evaluation) {
   const values = [b.weighted.value, b.today.value, b.trailing.growth.value];
   const below = R === null ? 0 : values.filter((v) => v !== null && v < R).length;
   const count =
-    below === 3 ? "All three are below" : below > 0 ? `${String(below)} of 3 are below` : "None is below";
+    below === 3
+      ? "All three are below"
+      : below > 0
+        ? `${String(below)} of 3 are below`
+        : "None is below";
   return (
     <>
       Weighted <b>{pct(b.weighted.value)}</b>, today <b>{pct(b.today.value)}</b>, trailing{" "}
@@ -52,7 +56,9 @@ function verdictLine(ev: Evaluation, sym: string) {
       </>
     );
   } else {
-    next = <>It stays {pill("good", "Undemanding")} as long as growth holds above the requirement.</>;
+    next = (
+      <>It stays {pill("good", "Undemanding")} as long as growth holds above the requirement.</>
+    );
   }
   return (
     <>
@@ -125,8 +131,7 @@ export function pricedInSteps({ sym, r, n, price, eps }: StepContext): Walkthrou
           In dollars: EPS must go from <b>{usd(eps)}</b> today to{" "}
           <b>{usd(ev.required.eps.value)}</b> in {years(n)}. At {times(ev.exitPe.inUse.value?.pe)}{" "}
           that is a share price of <b>{usd(ev.required.exitPrice.value)}</b>, which turns
-          today&apos;s {usd(price)}{" "}
-          into {pct(r)} a year.
+          today&apos;s {usd(price)} into {pct(r)} a year.
         </>
       ),
     },
@@ -169,8 +174,8 @@ export function pricedInSteps({ sym, r, n, price, eps }: StepContext): Walkthrou
                 : "It needs a clear acceleration, which the record does not show yet.";
         return (
           <>
-            Your baseline ({baselineName(ev)}, {pct(ev.baselines.growth.value)}) is{" "}
-            <b>{pp(gap)}</b> from the requirement. {note}
+            Your baseline ({baselineName(ev)}, {pct(ev.baselines.growth.value)}) is <b>{pp(gap)}</b>{" "}
+            from the requirement. {note}
           </>
         );
       },
@@ -242,8 +247,8 @@ export function pricedInSteps({ sym, r, n, price, eps }: StepContext): Walkthrou
         const gap = ev.gap.value;
         return (
           <>
-            <strong>{sym} in one line:</strong> the price requires{" "}
-            {pct(ev.required.growth.value)} EPS growth a year; the company&apos;s weighted trend is{" "}
+            <strong>{sym} in one line:</strong> the price requires {pct(ev.required.growth.value)}{" "}
+            EPS growth a year; the company&apos;s weighted trend is{" "}
             {pct(ev.baselines.weighted.value)}.{" "}
             {gap !== null && gap >= 0
               ? "The current pace clears the bar."
