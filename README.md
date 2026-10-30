@@ -50,7 +50,9 @@ To log in to the web app, give the stack an owner:
    ```
 
 3. Run `make up-fixtures` again.
-4. Open the web app (http://localhost:3000, or your `PRICEDIN_WEB_PORT`) and log in with that email and password.
+4. Open the web app (http://localhost:3000, or your `PRICEDIN_WEB_PORT`). It shows the login page. Log in with that email and password.
+
+After the login, the stock page opens. Find a fixture company, such as GRMN, in the stock search of the left panel. The left panel also holds every lever: target return, holding period, exit P/E and the growth baseline, each with a text field. The main column holds the panels. The data page (`/data`) shows how fresh the data is, lists the latest ingest runs, and loads or refreshes a company.
 
 `make down-fixtures` stops the stack and keeps its data.
 

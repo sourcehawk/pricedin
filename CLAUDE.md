@@ -6,7 +6,7 @@ Product principle: show what must happen for an investment to succeed, not what 
 
 ## Status
 
-v1 is in development. The server side is complete. The web app is a placeholder page, and the stock page comes with the open web-shell and panel issues. The repository has these parts:
+v1 is in development. The server side is complete. The web app has the login page, the stock page with the stock search, every lever and the inline walkthrough, and the data page. Its panels come with the panel issues (#13 to #16). The repository has these parts:
 
 - `server/`: Go module `github.com/sourcehawk/pricedin/server`, one binary `pricedin` (`cmd/pricedin`) with these subcommands: `serve` (the HTTP API with the owner login), `migrate`, `jobs list|run`, `ingest company`, `scheduler`, `prices verify`, `auth hash-password|token|sessions`, and `healthcheck`.
   - `internal/engine`: the Go calculation engine, the source of truth.
@@ -15,7 +15,7 @@ v1 is in development. The server side is complete. The web app is a placeholder 
   - `internal/ingest`: the ingestion jobs, their advisory locks and the scheduler.
   - `internal/store`: Postgres access and the migrations. `internal/blob`: the raw-file store (file system or S3).
   - `internal/stocks`, `internal/httpapi`, `internal/auth`: the API. `api/openapi.yaml` is its contract.
-- `web/`: Next.js app (App Router, TypeScript). `src/engine` is the TypeScript port of the engine. Both engines pass the shared cases in `testdata/engine/`.
+- `web/`: Next.js app (App Router, TypeScript). `src/proxy.ts` sends `/api/*` to the API at request time and sends a visitor without a session to `/login`. `src/api` holds the typed client and the types generated from `server/api/openapi.yaml`. `src/engine` is the TypeScript port of the engine. Both engines pass the shared cases in `testdata/engine/`.
 - `e2e/`: Playwright tests that run against the Docker Compose stack.
 - `deploy/`: the Fly.io app (`fly/server.toml`) and the SQL script of the app role (`sql/roles.sql`). `.github/workflows/deploy.yml` deploys by hand. Nothing is deployed yet.
 - `docs/`: architecture, data sources, API, runbook and development guide. `docs/superpowers/` holds the design, the plan and the state of v1.

@@ -81,6 +81,8 @@ docker run --rm -it pricedin-server:dev auth hash-password
 
 Put the hash in single quotes in `.env`, because it holds `$` characters. Compose allows logins from `http://localhost:<PRICEDIN_WEB_PORT>`.
 
+The web app has three pages: the login page (`/login`), the stock page (`/`) with the stock search and the levers in the left panel and the panels in the main column, and the data page (`/data`) with the freshness of the data, the latest ingest runs and an action that loads one company. `web/src/proxy.ts` sends a visitor without a session cookie to the login page, and sends each `/api/*` request to `PRICEDIN_API_URL`, which Compose sets to `http://server:8080`.
+
 For a script, make an API token:
 
 ```sh
@@ -126,11 +128,12 @@ Never change a migration that is on `main`. Production has applied it.
 
 | Files | Command | When |
 | --- | --- | --- |
+| `web/src/api/schema.d.ts`, the TypeScript types of the API | `make generate-api-types` | After a change to `server/api/openapi.yaml`. Commit the new file. `make lint` (`lint-api-types`), and thus CI, fails while the committed types are stale |
 | `testdata/engine/cases.json` and `evaluation-example.json` | `make generate-engine-cases` | After a change to the oracle in `tools/engine-oracle/`, the script that runs the prototype's math to get the expected engine values. Commit the new files. `make lint`, and thus CI, fails while the committed cases are stale |
 | `testdata/prices/massive/` | `make generate-price-fixtures` | After a change to `tools/price-fixtures/` or to the SEC fixtures, whose earnings set the synthetic closes |
 | `testdata/sec/` | `go run .` in `tools/sec-fixtures/` (see its README) | Only to download the SEC files again. It needs `PRICEDIN_SEC_USER_AGENT` |
 
-`make generate` runs the first two.
+`make generate` runs the first three.
 
 ## Layout
 

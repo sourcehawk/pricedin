@@ -8,7 +8,7 @@ PricedIn has five parts of its own, and two external sources.
 
 | Part | What it does | Where it runs in production |
 | --- | --- | --- |
-| Web app | Next.js app in TypeScript. It shows the stock page and runs the browser copy of the calculation engine. It sends every `/api/*` request on to the server. | Vercel |
+| Web app | Next.js app in TypeScript: the login page, the stock page with its levers, panels and walkthroughs, and the data page. It runs the browser copy of the calculation engine, and sends every `/api/*` request on to the server. | Vercel |
 | API server | `pricedin serve`: the HTTP API, the owner login, the on-demand load of one company, and the Prometheus metrics. | Fly.io, process group `app` |
 | Scheduler | `pricedin scheduler`: runs the `daily` ingestion job once a day. | Fly.io, process group `scheduler` |
 | Postgres | The database: reference data, facts, prices, derived quarters, job runs, sessions and API tokens. | A managed Postgres 18, such as Neon |
@@ -77,10 +77,10 @@ v1 has one user, the owner. Nobody else gets an account.
 
 - The owner's email and an Argon2id hash of the password come from the server's environment (`PRICEDIN_OWNER_EMAIL`, `PRICEDIN_OWNER_PASSWORD_HASH`).
 - A login creates a session row and sets the cookie `pricedin_session` (`HttpOnly`, `Secure`, `SameSite=Lax`). The database keeps only a hash of the cookie's token.
-- The web app sends `/api/*` on to the server through a Next.js rewrite. Thus the cookie belongs to the web app's own domain.
+- The web app sends `/api/*` on to the server through `web/src/proxy.ts`. For each request, it reads `PRICEDIN_API_URL` and rewrites the request to that server with `NextResponse.rewrite`. The value is read at request time, not at build time, so one image serves Compose and production. Thus the cookie belongs to the web app's own domain. The same proxy sends a visitor without a session cookie to `/login`. A forwarded request can take 150 s (`proxyTimeout` in `web/next.config.ts`), because a company load can take two minutes.
 - A login, and a state-changing request with the cookie, must carry an `Origin` header from `PRICEDIN_PUBLIC_ORIGIN`.
 - Scripts use API tokens in `Authorization: Bearer <token>`. `pricedin auth token create` makes one. The database keeps only its hash.
-- Login attempts are limited per client address. `PRICEDIN_TRUSTED_PROXY_HEADER` and `PRICEDIN_TRUSTED_PROXY_HOPS` tell the server where it finds that address behind Vercel and Fly.io.
+- Login attempts are limited per client address. `PRICEDIN_TRUSTED_PROXY_HEADER` and `PRICEDIN_TRUSTED_PROXY_HOPS` tell the server where it finds that address behind Vercel and Fly.io. Compose sets neither, because the Next.js proxy does not add the browser's address to `X-Forwarded-For`. Issue #33 tracks a header that only the web app can set, so that a direct request to the API cannot choose its address.
 
 `docs/api.md` shows the requests.
 
@@ -120,7 +120,11 @@ Every job is safe to run again. A second run with the same upstream data changes
 | Health probes | `server/internal/health` |
 | API contract | `server/api/openapi.yaml` |
 | Fixture server for offline work and tests | `server/cmd/fixtureserver`, `server/internal/fixtureserver` |
-| Web app and the TypeScript engine | `web/src/app`, `web/src/components`, `web/src/engine` |
+| Web app pages: the stock page, `/login`, `/data` | `web/src/app`, `web/src/components` |
+| Forwarding of `/api/*` and the login redirect | `web/src/proxy.ts`, `web/src/routing.ts` |
+| Typed API client, and the API types generated from the contract | `web/src/api` (`schema.d.ts`) |
+| Lever state | `web/src/state` |
+| TypeScript engine | `web/src/engine` |
 | End-to-end tests | `e2e/` |
 | Shared test data | `testdata/` |
 | Programs that make test data | `tools/` |

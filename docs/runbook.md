@@ -163,7 +163,7 @@ It checks a known split, a list of dividends and a CIK, and prints only dates, r
    - Root Directory: `web`
    - Framework Preset: Next.js
    - Node.js Version: the major version of `nodejs` in `.tool-versions`, or the newest that Vercel offers
-   - Environment variable `PRICEDIN_API_URL` = `https://pricedin-api.fly.dev`, for Production. The build reads it.
+   - Environment variable `PRICEDIN_API_URL` = `https://pricedin-api.fly.dev`, for Production. The proxy of the web app (`web/src/proxy.ts`) reads it for each request, not at build time. Vercel gives a changed value to the next deployment.
 
 3. Deploy:
 
@@ -171,13 +171,13 @@ It checks a known split, a list of dividends and a CIK, and prints only dates, r
    pnpm exec vercel deploy --prod
    ```
 
-`web/vercel.json` turns off the deployments from Git pushes, so that only you or the workflow deploy. The browser calls `/api/*` on the Vercel domain, and the web app sends those requests on to Fly. The session cookie thus belongs to the Vercel domain, and it is `Secure`.
+`web/vercel.json` turns off the deployments from Git pushes, so that only you or the workflow deploy. The browser calls `/api/*` on the Vercel domain, and the proxy of the web app rewrites those requests to Fly. The session cookie thus belongs to the Vercel domain, and it is `Secure`.
 
 If the domain differs from `PRICEDIN_PUBLIC_ORIGIN`, set the secret again. A wrong origin makes each login answer 403 `forbidden-origin`.
 
 ### 7. Log in and confirm the client address
 
-1. Open the web app and log in.
+1. Open the web app. It shows the login page (`/login`). Log in with `PRICEDIN_OWNER_EMAIL` and your password.
 2. Find the address that the server recorded for your session:
 
    ```sh
@@ -186,9 +186,9 @@ If the domain differs from `PRICEDIN_PUBLIC_ORIGIN`, set the secret again. A wro
 
 3. Make sure that `ip` is your own public address.
 
-The login rate limit counts attempts per address. Vercel writes the client address into `X-Forwarded-For`, and the Fly proxy adds the address of Vercel after it. Thus `server.toml` takes the second entry from the right (`PRICEDIN_TRUSTED_PROXY_HOPS = "2"`). If `ip` is an address of Vercel, the count is wrong: fix it in `server.toml` and deploy again.
+The login rate limit counts attempts per address. `server.toml` takes the second entry from the right of `X-Forwarded-For` (`PRICEDIN_TRUSTED_PROXY_HOPS = "2"`): the address that Vercel writes, before the address of Vercel that the Fly proxy adds. That count is not yet confirmed on a deployment, so this step confirms it. If `ip` is an address of Vercel or of Fly, the count is wrong: fix it in `server.toml` and deploy again.
 
-The Fly hostname also accepts requests that do not come through Vercel. Such a request can choose the address that the rate limit sees. A long password protects the login against that. The Argon2id hash makes each guess slow.
+The Fly hostname also accepts requests that do not come through Vercel. Such a request can choose the address that the rate limit sees. A long password protects the login against that. The Argon2id hash makes each guess slow. Issue #33 tracks a header that only the web app can set, which removes this risk.
 
 ### 8. Load the data
 
@@ -236,7 +236,7 @@ If an SSH session ends, run the same command again. Each job continues where the
 
 The full universe needs several gigabytes of database storage. Make sure that the database plan has that much.
 
-To load one company only, use `flyctl ssh console --app pricedin-api -C '/pricedin ingest company GRMN'`, or open the company in the web app and load it there.
+To load one company only, use `flyctl ssh console --app pricedin-api -C '/pricedin ingest company GRMN'`. In the web app, pick the company in the stock search and choose "Load this company", or use "Load or refresh" on the data page.
 
 ### 9. Make an API token
 
@@ -277,7 +277,7 @@ If the scheduler was down, it runs the job when it starts again, because no dail
 
 To see the state of the data:
 
-- the data page of the web app, or `GET /api/v1/status`: the newest run of each job, the newest close, and the number of loaded companies;
+- the data page of the web app (`/data`), or `GET /api/v1/status`: the newest run of each job, the newest close, and the number of loaded companies. The data page also loads or refreshes one company ("Load or refresh");
 - `flyctl ssh console --app pricedin-api -C '/pricedin jobs list'`: each job with its latest run;
 - `flyctl logs --app pricedin-api`: the logs of both machines, in JSON;
 - the metrics on port 9090 of the API machine, which Fly collects (Fly dashboard, Metrics).
