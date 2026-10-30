@@ -7,8 +7,10 @@
 # flyctl changes into the folder server before it reads --config, so a
 # relative config path would point into server.
 #
-# docs/runbook.md lists the secrets to set first. Nothing in this file is a
-# secret.
+# Apply the migrations first, as the owner role, from your machine or the
+# deploy workflow. The app has no release command, so that the owner's
+# credentials never reach Fly. docs/runbook.md lists the secrets to set
+# first. Nothing in this file is a secret.
 
 # The name of your Fly app. `flyctl deploy --app <name>` overrides it.
 app = "pricedin-api"
@@ -20,13 +22,6 @@ primary_region = "iad"
   # Relative to this file. The build context is the folder that the deploy
   # command names (server).
   dockerfile = "../../server/Dockerfile"
-
-[deploy]
-  # Runs in a temporary machine before the new version starts, and stops
-  # the deploy when it fails. It connects as the owner role, through
-  # PRICEDIN_DATABASE_MIGRATE_URL.
-  release_command = "migrate up"
-  release_command_timeout = "10m"
 
 # The entrypoint of the image is /pricedin, so each command is a subcommand.
 [processes]

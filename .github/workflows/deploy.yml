@@ -29,8 +29,9 @@ jobs:
     env:
       # The name of the Fly app. Empty means the app in deploy/fly/server.toml.
       FLY_APP: ${{ vars.FLY_APP }}
-      FLYCTL_VERSION: 0.5.1
-      FLYCTL_SHA256: 47803bc5dc3eb7c7a45626ff76f0082e8c5b5fb8b805efbe00469d04757e1b1b
+      # Update both together, from the release's checksums file.
+      FLYCTL_VERSION: 0.4.118
+      FLYCTL_SHA256: 0f2fabbb29904a7bac8bd96009314d26751084c33e098fcc393e2dac6c472f60
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -39,7 +40,8 @@ jobs:
         id: gate
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-        run: scripts/deploy-gate.sh server FLY_API_TOKEN
+          PRICEDIN_DATABASE_MIGRATE_URL: ${{ secrets.PRICEDIN_DATABASE_MIGRATE_URL }}
+        run: scripts/deploy-gate.sh server FLY_API_TOKEN PRICEDIN_DATABASE_MIGRATE_URL
       - name: Install flyctl
         if: steps.gate.outputs.ready == 'true'
         run: |
@@ -49,16 +51,26 @@ jobs:
           mkdir -p "$RUNNER_TEMP/flyctl"
           tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP/flyctl" flyctl
           echo "$RUNNER_TEMP/flyctl" >> "$GITHUB_PATH"
+      - name: Build the server image
+        if: steps.gate.outputs.ready == 'true'
+        run: docker build --tag pricedin-server:deploy server
+      # The owner role's URL is a GitHub secret only. The Fly app never
+      # holds it, so the migrations run here, before the new version starts.
+      - name: Apply the migrations
+        if: steps.gate.outputs.ready == 'true'
+        env:
+          PRICEDIN_DATABASE_MIGRATE_URL: ${{ secrets.PRICEDIN_DATABASE_MIGRATE_URL }}
+        run: docker run --rm --env PRICEDIN_DATABASE_MIGRATE_URL pricedin-server:deploy migrate up
       - name: Deploy the server
         if: steps.gate.outputs.ready == 'true'
-        # The release command of server.toml runs the migrations before the
-        # new machines start. --ha=false keeps one machine per process group.
-        # The config path is absolute, because flyctl changes into server
-        # before it reads it.
+        # --local-only builds the image with the Docker of this job, from
+        # the checkout that the migrations came from. --ha=false keeps one
+        # machine per process group. The config path is absolute, because
+        # flyctl changes into server before it reads it.
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
         run: |
-          set -- --config "$GITHUB_WORKSPACE/deploy/fly/server.toml" --remote-only --ha=false
+          set -- --config "$GITHUB_WORKSPACE/deploy/fly/server.toml" --local-only --ha=false
           if [ -n "$FLY_APP" ]; then set -- "$@" --app "$FLY_APP"; fi
           flyctl deploy server "$@"
 
@@ -70,7 +82,6 @@ jobs:
       # The Vercel CLI reads the team and the project from these two.
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-      VERCEL_CLI: vercel@65.8.0
       VERCEL_TELEMETRY_DISABLED: "1"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -81,10 +92,18 @@ jobs:
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: scripts/deploy-gate.sh web VERCEL_TOKEN VERCEL_ORG_ID VERCEL_PROJECT_ID
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        if: steps.gate.outputs.ready == 'true'
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         if: steps.gate.outputs.ready == 'true'
         with:
           node-version-file: .tool-versions
+          cache: pnpm
+      # The Vercel CLI is a devDependency of the workspace, at the version
+      # of the lockfile.
+      - name: Install the Vercel CLI
+        if: steps.gate.outputs.ready == 'true'
+        run: make deps-node
       # The project settings on Vercel give the root directory (web) and the
       # environment, such as PRICEDIN_API_URL. The build runs here and
       # uploads only its output.
@@ -93,10 +112,10 @@ jobs:
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
-          npx --yes "$VERCEL_CLI" pull --yes --environment=production --token="$VERCEL_TOKEN"
-          npx --yes "$VERCEL_CLI" build --prod --token="$VERCEL_TOKEN"
+          pnpm exec vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
+          pnpm exec vercel build --prod --token="$VERCEL_TOKEN"
       - name: Deploy the web app
         if: steps.gate.outputs.ready == 'true'
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-        run: npx --yes "$VERCEL_CLI" deploy --prebuilt --prod --token="$VERCEL_TOKEN"
+        run: pnpm exec vercel deploy --prebuilt --prod --token="$VERCEL_TOKEN"

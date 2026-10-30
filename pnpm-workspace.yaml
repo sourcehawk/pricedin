@@ -3,3 +3,6 @@ packages:
   - e2e
 allowBuilds:
   unrs-resolver: false
+  # The Vercel CLI runs esbuild from its platform package, which pnpm
+  # installs; the install script of esbuild adds only a fallback download.
+  esbuild: false
