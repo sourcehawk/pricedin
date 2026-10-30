@@ -750,8 +750,9 @@ components:
             quarters added; the inputs are the quarters),
             `recurring_dividends_12m` (the recurring dividends with an ex-date
             in the last 12 months, split-adjusted), `price_over_ttm_eps` (a
-            P/E).
-          enum: [reported, ytd_difference, fy_difference, weighted_average_q4, derived, ttm, recurring_dividends_12m, price_over_ttm_eps]
+            P/E), `not_available` (no data was ever fetched; the value is
+            the lever's default, 0).
+          enum: [reported, ytd_difference, fy_difference, weighted_average_q4, derived, ttm, recurring_dividends_12m, price_over_ttm_eps, not_available]
         estimate: { type: boolean, description: "The value is not exact." }
         label: { type: string, description: "`ttm` only: the fiscal quarter the TTM ends with." }
         inputs:
@@ -859,8 +860,14 @@ components:
           description: The TTM diluted EPS known today; the source lists its four quarters. Null when it cannot be derived.
           $ref: "#/components/schemas/NullableSourcedNumber"
         ttmDividend:
-          description: The recurring dividends per share with an ex-date in the last 12 months, split-adjusted; 0 when none. As of today.
-          $ref: "#/components/schemas/SourcedNumber"
+          description: |
+            The recurring dividends per share with an ex-date in the last 12
+            months, split-adjusted; 0 when none. `asOf` is the day the
+            dividend data was fetched. Missing with reason `no_dividend_data`
+            when it never was.
+          oneOf:
+            - $ref: "#/components/schemas/SourcedNumber"
+            - $ref: "#/components/schemas/Missing"
         pe:
           description: latestClose over ttmEps; null without both or when the TTM EPS is zero or negative.
           $ref: "#/components/schemas/NullableSourcedNumber"
@@ -1185,8 +1192,10 @@ components:
     # --- Engine output: shared ---------------------------------------------
     Reason:
       type: string
-      description: Why a value is missing.
-      enum: [needs_positive_eps, dividends_reach_target, insufficient_history, missing_data, non_positive_base, growth_out_of_range, too_few_points, zero_variance, not_applicable]
+      description: |
+        Why a value is missing. `no_dividend_data` comes from the API, not
+        the engine: no dividend data was ever fetched for the symbol.
+      enum: [needs_positive_eps, dividends_reach_target, insufficient_history, missing_data, non_positive_base, growth_out_of_range, too_few_points, zero_variance, not_applicable, no_dividend_data]
     Tone:
       type: string
       enum: [good, warn, bad, neutral]

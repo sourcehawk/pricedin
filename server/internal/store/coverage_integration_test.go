@@ -4,7 +4,9 @@ package store_test
 
 import (
 	"context"
+	"errors"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 
@@ -108,5 +110,47 @@ func TestListSymbolTickersGivesEveryRowOfTheSymbol(t *testing.T) {
 	none, err := s.ListSymbolTickers(ctx, "NOPE")
 	if err != nil || len(none) != 0 {
 		t.Errorf("ListSymbolTickers(unknown) = %v, %v; want no rows", none, err)
+	}
+}
+
+func TestGetDividendsLoadedAt(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	s, _ := newStore(t)
+	if _, err := s.GetDividendsLoadedAt(ctx, "KO"); !errors.Is(err, store.ErrNotFound) {
+		t.Errorf("GetDividendsLoadedAt() before a load error = %v, want ErrNotFound", err)
+	}
+	before := time.Now().Add(-time.Minute)
+	d := domain.Dividend{Symbol: "KO", ExDate: date(t, "2026-09-14"), CashAmount: 0.52, Currency: "USD", Type: "recurring", Source: "massive", ProviderID: "e1"}
+	if _, err := s.UpsertDividends(ctx, []domain.Dividend{d}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.GetDividendsLoadedAt(ctx, "ko")
+	if err != nil || got.Before(before) {
+		t.Errorf("GetDividendsLoadedAt() = %v, %v; want the time of the load", got, err)
+	}
+}
+
+func TestGetLatestSucceededIngestRun(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	s, _ := newStore(t)
+	if _, err := s.GetLatestSucceededIngestRun(ctx, "price-reference"); !errors.Is(err, store.ErrNotFound) {
+		t.Errorf("GetLatestSucceededIngestRun() without runs error = %v, want ErrNotFound", err)
+	}
+	ok, _ := s.StartIngestRun(ctx, "price-reference")
+	if err := s.FinishIngestRun(ctx, ok, store.RunSucceeded, nil, ""); err != nil {
+		t.Fatal(err)
+	}
+	failed, _ := s.StartIngestRun(ctx, "price-reference")
+	if err := s.FinishIngestRun(ctx, failed, store.RunFailed, nil, "boom"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.StartIngestRun(ctx, "price-reference"); err != nil { // still running
+		t.Fatal(err)
+	}
+	got, err := s.GetLatestSucceededIngestRun(ctx, "price-reference")
+	if err != nil || got.ID != ok || got.FinishedAt == nil {
+		t.Errorf("GetLatestSucceededIngestRun() = %+v, %v; want run %d", got, err, ok)
 	}
 }

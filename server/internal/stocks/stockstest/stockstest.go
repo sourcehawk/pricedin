@@ -36,6 +36,8 @@ type Store struct {
 	Dividends []domain.Dividend
 	Runs      []store.IngestRun
 	Coverage  store.Coverage
+	// DividendsLoadedAt is the time each symbol's dividends were stored.
+	DividendsLoadedAt map[string]time.Time
 }
 
 // GetCurrentTicker returns the open row of symbol, or store.ErrNotFound.
@@ -176,6 +178,32 @@ func (m *Store) GetLatestPriceDateOverall(context.Context) (domain.Date, error) 
 	return latest, nil
 }
 
+// GetDividendsLoadedAt returns DividendsLoadedAt of symbol, or
+// store.ErrNotFound.
+func (m *Store) GetDividendsLoadedAt(_ context.Context, symbol string) (time.Time, error) {
+	at, ok := m.DividendsLoadedAt[strings.ToUpper(symbol)]
+	if !ok {
+		return time.Time{}, store.ErrNotFound
+	}
+	return at, nil
+}
+
+// GetLatestSucceededIngestRun returns the succeeded run of job in Runs
+// that finished last, or store.ErrNotFound.
+func (m *Store) GetLatestSucceededIngestRun(_ context.Context, job string) (store.IngestRun, error) {
+	var out *store.IngestRun
+	for i := range m.Runs {
+		r := &m.Runs[i]
+		if r.Job == job && r.Status == store.RunSucceeded && r.FinishedAt != nil && (out == nil || r.FinishedAt.After(*out.FinishedAt)) {
+			out = r
+		}
+	}
+	if out == nil {
+		return store.IngestRun{}, store.ErrNotFound
+	}
+	return *out, nil
+}
+
 // GetCoverage returns Coverage.
 func (m *Store) GetCoverage(context.Context) (store.Coverage, error) {
 	return m.Coverage, nil
@@ -208,7 +236,7 @@ func Testdata(t testing.TB, path string) []byte {
 // MSFT with a ticker and a company but no data.
 func Fixture(t testing.TB) *Store {
 	t.Helper()
-	m := &Store{Loaded: map[domain.CIK]bool{}}
+	m := &Store{Loaded: map[domain.CIK]bool{}, DividendsLoadedAt: map[string]time.Time{}}
 	entries, err := sec.ParseTickers(Testdata(t, "sec/www.sec.gov/files/company_tickers_exchange.json"), domain.NewDate(2026, 10, 1))
 	if err != nil {
 		t.Fatal(err)
@@ -256,6 +284,9 @@ func Fixture(t testing.TB) *Store {
 			t.Fatal(err)
 		}
 		m.Dividends = append(m.Dividends, divs.Items...)
+		// The store's loaded_at is the time of the load, so Seed and the
+		// fixtures agree.
+		m.DividendsLoadedAt[sym] = time.Now()
 	}
 	return m
 }

@@ -261,6 +261,7 @@ func reusedSymbolStore(t *testing.T) *stockstest.Store {
 	}
 	m.Splits = append(m.Splits, domain.Split{Symbol: "ACME", Date: date(t, "2025-06-02"), From: 1, To: 2, Source: "massive"})
 	m.Dividends = append(m.Dividends, domain.Dividend{Symbol: "ACME", ExDate: date(t, "2026-01-15"), CashAmount: 9, Type: "recurring", Source: "massive", ProviderID: "x"})
+	m.DividendsLoadedAt["ACME"] = stockstest.Now
 	return m
 }
 
@@ -273,7 +274,7 @@ func TestProfileUsesOnlyTheBarsAndDividendsOfTheCurrentIssuer(t *testing.T) {
 	if p.LatestClose == nil || p.LatestClose.Value != 21 {
 		t.Errorf("LatestClose = %+v, want 21", p.LatestClose)
 	}
-	if p.TTMDividend.Value != 0 {
+	if p.TTMDividend.Number == nil || p.TTMDividend.Number.Value != 0 {
 		t.Errorf("TTMDividend = %+v, want 0: the dividend belongs to the old issuer", p.TTMDividend)
 	}
 }
@@ -311,8 +312,8 @@ func TestTTMDividendCountsRecurringDividendsOfTheLastTwelveMonths(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	d := p.TTMDividend
-	if !near(d.Value, 0.5+0.52+0.52+0.52) {
+	d := p.TTMDividend.Number
+	if d == nil || !near(d.Value, 0.5+0.52+0.52+0.52) {
 		t.Fatalf("TTMDividend = %+v, want 2.06 (ex-dates 2025-12-01 to 2026-09-14; not the future 2026-11-30)", d)
 	}
 	src, ok := d.Source.(stocks.DerivedSource)
@@ -322,8 +323,8 @@ func TestTTMDividendCountsRecurringDividendsOfTheLastTwelveMonths(t *testing.T) 
 	if first, _ := src.Inputs[0].(stocks.DividendSource); first.ExDate != date(t, "2025-12-01") || first.Provider != "massive" {
 		t.Errorf("first input = %+v, want the massive dividend of 2025-12-01", first)
 	}
-	if d.AsOf != date(t, "2026-10-30") {
-		t.Errorf("TTMDividend.AsOf = %s, want today 2026-10-30", d.AsOf)
+	if want := fetchDate(t, stockstest.Fixture(t).DividendsLoadedAt["KO"]); d.AsOf != want {
+		t.Errorf("TTMDividend.AsOf = %s, want the day the dividends were fetched, %s", d.AsOf, want)
 	}
 }
 
@@ -340,7 +341,7 @@ func TestTTMDividendLeavesOutSpecialDividendsAndAdjustsForSplits(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !near(p.TTMDividend.Value, 0.5+0.5) {
+	if p.TTMDividend.Number == nil || !near(p.TTMDividend.Number.Value, 0.5+0.5) {
 		t.Errorf("TTMDividend = %+v, want 1/2 + 0.5 = 1", p.TTMDividend)
 	}
 }
@@ -361,7 +362,7 @@ func TestEvaluateWithDefaultsMatchesTheEngine(t *testing.T) {
 		t.Fatal(err)
 	}
 	wantLevers := engine.Levers{
-		Price: p.LatestClose.Value, TTMEPS: p.TTMEPS.Value, Dividend: p.TTMDividend.Value,
+		Price: p.LatestClose.Value, TTMEPS: p.TTMEPS.Value, Dividend: p.TTMDividend.Number.Value,
 		TargetReturn: 0.15, HoldingYears: 3,
 		ExitPE:     engine.ExitPELever{Mode: engine.ExitPEEstimated},
 		Baseline:   engine.BaselineLever{Mode: engine.BaselineWeighted, Custom: engine.CustomGrowth{Rates: []float64{}}},
@@ -812,5 +813,51 @@ func TestStoredDataOutsideTheEngineBoundsStillEvaluates(t *testing.T) {
 			}
 			tt.check(t, ev, h)
 		})
+	}
+}
+
+// fetchDate is the New York date of a fetch time.
+func fetchDate(t *testing.T, at time.Time) domain.Date {
+	t.Helper()
+	ny, err := time.LoadLocation("America/New_York")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return domain.DateOf(at.In(ny))
+}
+
+func TestDividendWithoutDividendDataIsMissing(t *testing.T) {
+	m := stockstest.Fixture(t)
+	delete(m.DividendsLoadedAt, "NVDA")
+	svc := newService(t, m, nil)
+	p, err := svc.Profile(context.Background(), "NVDA")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.TTMDividend.Number != nil || p.TTMDividend.Reason != stocks.ReasonNoDividendData {
+		t.Errorf("TTMDividend = %+v, want missing with reason no_dividend_data", p.TTMDividend)
+	}
+	ev, err := svc.Evaluate(context.Background(), "NVDA", stocks.LeversInput{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	src, _ := ev.Sources.Dividend.Source.(stocks.DerivedSource)
+	if ev.Levers.Dividend != 0 || src.Method != "not_available" || ev.Sources.Dividend.AsOf != date(t, "2026-10-30") {
+		t.Errorf("dividend lever %v from %+v, want 0 from a not_available source as of today", ev.Levers.Dividend, ev.Sources.Dividend)
+	}
+}
+
+func TestDividendFetchedWithoutRowsIsZeroAsOfTheFetch(t *testing.T) {
+	m := stockstest.Fixture(t)
+	delete(m.DividendsLoadedAt, "NVDA")
+	m.Dividends = slices.DeleteFunc(m.Dividends, func(d domain.Dividend) bool { return d.Symbol == "NVDA" })
+	finished := time.Date(2026, 10, 29, 23, 0, 0, 0, time.UTC)
+	m.Runs = []store.IngestRun{{ID: 1, Job: "price-reference", Status: store.RunSucceeded, StartedAt: finished.Add(-time.Hour), FinishedAt: &finished}}
+	p, err := newService(t, m, nil).Profile(context.Background(), "NVDA")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d := p.TTMDividend.Number; d == nil || d.Value != 0 || d.AsOf != date(t, "2026-10-29") {
+		t.Errorf("TTMDividend = %+v, want 0 as of the run's day 2026-10-29", p.TTMDividend)
 	}
 }

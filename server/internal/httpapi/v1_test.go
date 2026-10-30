@@ -466,3 +466,24 @@ func TestStoredDataOutsideTheEngineBoundsAnswers200(t *testing.T) {
 		t.Errorf("ttmEps %v, price %v, required %+v; want 0, 81.38 and needs_positive_eps", got.Levers.TTMEPS, got.Levers.Price, got.Evaluation.Required.Growth)
 	}
 }
+
+func TestEvaluationWithoutDividendData(t *testing.T) {
+	h := newHarness(t)
+	delete(h.data.DividendsLoadedAt, "KO")
+	res := h.do(t, withBearer(request(t, http.MethodPost, "/api/v1/stocks/KO/evaluation", map[string]any{}), h.token(t)), true)
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, body %.300s", res.StatusCode, res.body)
+	}
+	var got struct {
+		Sources struct {
+			Dividend struct {
+				Value  float64        `json:"value"`
+				Source map[string]any `json:"source"`
+			} `json:"dividend"`
+		} `json:"sources"`
+	}
+	res.json(t, &got)
+	if got.Sources.Dividend.Value != 0 || got.Sources.Dividend.Source["method"] != "not_available" {
+		t.Errorf("dividend = %+v, want 0 from a not_available source", got.Sources.Dividend)
+	}
+}

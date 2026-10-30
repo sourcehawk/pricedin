@@ -35,6 +35,8 @@ type Store interface {
 	ListPriceBars(ctx context.Context, symbol string, from, to domain.Date) ([]domain.PriceBar, error)
 	ListPriceSplits(ctx context.Context, symbol string) ([]domain.Split, error)
 	ListDividends(ctx context.Context, symbol string) ([]domain.Dividend, error)
+	GetDividendsLoadedAt(ctx context.Context, symbol string) (time.Time, error)
+	GetLatestSucceededIngestRun(ctx context.Context, job string) (store.IngestRun, error)
 	SearchTickers(ctx context.Context, query string, limit int) ([]store.TickerMatch, error)
 	ListLatestIngestRuns(ctx context.Context) ([]store.IngestRun, error)
 	GetLatestPriceDateOverall(ctx context.Context) (domain.Date, error)
@@ -142,6 +144,9 @@ type stock struct {
 	// came to this company.
 	rawBars   []domain.PriceBar
 	dividends []domain.Dividend
+	// dividendsFetched is the day the dividend data was fetched, nil when
+	// it never was.
+	dividendsFetched *domain.Date
 	// splits are the splits in effect: the provider's, and after
 	// withFundamentals the confirmed ones, which add the splits that only
 	// the filings give. bars are rawBars adjusted for them.
@@ -231,6 +236,33 @@ func (s *Service) readPrices(ctx context.Context, st *stock) error {
 			st.dividends = append(st.dividends, dividends[i])
 		}
 	}
+	return s.readDividendsFetched(ctx, st)
+}
+
+// priceReferenceJob is the ingestion job that fetches the provider's
+// splits and dividends of every symbol.
+const priceReferenceJob = "price-reference"
+
+// readDividendsFetched finds the day the dividends were fetched: the last
+// change of the symbol's dividends, else the last price-reference run,
+// which also covers a symbol that pays none.
+func (s *Service) readDividendsFetched(ctx context.Context, st *stock) error {
+	at, err := s.store.GetDividendsLoadedAt(ctx, st.ticker.Symbol)
+	if errors.Is(err, store.ErrNotFound) {
+		run, rerr := s.store.GetLatestSucceededIngestRun(ctx, priceReferenceJob)
+		switch {
+		case errors.Is(rerr, store.ErrNotFound) || (rerr == nil && run.FinishedAt == nil):
+			return nil
+		case rerr != nil:
+			return rerr
+		}
+		at, err = *run.FinishedAt, nil
+	}
+	if err != nil {
+		return err
+	}
+	day := domain.DateOf(at.In(s.newYork))
+	st.dividendsFetched = &day
 	return nil
 }
 
@@ -340,9 +372,13 @@ func (st *stock) ttmEPS() *SourcedNumber {
 }
 
 // ttmDividend adds the recurring dividends in US dollars with an ex-date
-// in the twelve months up to today, split-adjusted. Its as-of date is
-// today.
-func (st *stock) ttmDividend() SourcedNumber {
+// in the twelve months up to today, split-adjusted. Its as-of date is the
+// day the dividends were fetched. It is missing with
+// ReasonNoDividendData when they never were.
+func (st *stock) ttmDividend() MaybeSourced {
+	if st.dividendsFetched == nil {
+		return MaybeSourced{Reason: ReasonNoDividendData}
+	}
 	start := domain.DateOf(st.today.Time().AddDate(-1, 0, 0))
 	src := DerivedSource{Method: "recurring_dividends_12m"}
 	total := 0.0
@@ -364,7 +400,7 @@ func (st *stock) ttmDividend() SourcedNumber {
 		})
 	}
 	// The lever's bound; no real dividend comes near it.
-	return SourcedNumber{Value: math.Min(total, maxPerShare), Source: src, AsOf: st.today}
+	return MaybeSourced{Number: &SourcedNumber{Value: math.Min(total, maxPerShare), Source: src, AsOf: *st.dividendsFetched}}
 }
 
 // boundedEPS returns a TTM EPS within the engine's bounds: 0 for a value

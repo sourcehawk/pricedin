@@ -45,8 +45,9 @@ type Profile struct {
 	// derived.
 	TTMEPS *SourcedNumber `json:"ttmEps"`
 	// TTMDividend adds the recurring dividends with an ex-date in the last
-	// twelve months, split-adjusted; zero when there are none.
-	TTMDividend SourcedNumber `json:"ttmDividend"`
+	// twelve months, split-adjusted; zero when there are none, and missing
+	// when no dividend data was ever fetched.
+	TTMDividend MaybeSourced `json:"ttmDividend"`
 	// PE is LatestClose over TTMEPS; nil without both or when TTM EPS is
 	// zero or negative.
 	PE        *SourcedNumber `json:"pe"`

@@ -2,7 +2,9 @@ package store
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -70,4 +72,36 @@ func (s *Store) ListSymbolTickers(ctx context.Context, symbol string) ([]TickerR
 		return nil, fmt.Errorf("list tickers of symbol %q: %w", symbol, err)
 	}
 	return out, nil
+}
+
+// GetDividendsLoadedAt returns the latest time at which a dividend of
+// symbol was stored or changed, or ErrNotFound when none is stored. The
+// lookup upper-cases symbol. A symbol whose dividends were fetched but
+// that pays none has no row, so this time alone cannot tell that case
+// from one that was never fetched.
+func (s *Store) GetDividendsLoadedAt(ctx context.Context, symbol string) (time.Time, error) {
+	var at pgtype.Timestamptz
+	if err := s.db.QueryRow(ctx, `SELECT max(loaded_at) FROM dividends WHERE symbol = upper($1)`, symbol).Scan(&at); err != nil {
+		return time.Time{}, fmt.Errorf("dividends loaded at of %s: %w", symbol, err)
+	}
+	if !at.Valid {
+		return time.Time{}, notFound("dividends loaded at of %s", symbol)
+	}
+	return at.Time, nil
+}
+
+// GetLatestSucceededIngestRun returns the newest run of job that
+// succeeded, or ErrNotFound.
+func (s *Store) GetLatestSucceededIngestRun(ctx context.Context, job string) (IngestRun, error) {
+	r, err := scanIngestRun(s.db.QueryRow(ctx, `
+		SELECT `+ingestRunColumns+` FROM ingest_runs
+		WHERE job = $1 AND status = 'succeeded'
+		ORDER BY finished_at DESC, id DESC LIMIT 1`, job))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return IngestRun{}, notFound("latest succeeded run of %s", job)
+	}
+	if err != nil {
+		return IngestRun{}, fmt.Errorf("latest succeeded run of %s: %w", job, err)
+	}
+	return r, nil
 }

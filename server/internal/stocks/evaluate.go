@@ -90,10 +90,13 @@ func (s *Service) Evaluate(ctx context.Context, ticker string, in LeversInput) (
 	default:
 		return Evaluation{}, &MissingInputError{Input: "ttmEps"}
 	}
-	if in.Dividend != nil {
+	switch d := st.ttmDividend(); {
+	case in.Dividend != nil:
 		src.Dividend = user(*in.Dividend)
-	} else {
-		src.Dividend = st.ttmDividend()
+	case d.Number != nil:
+		src.Dividend = *d.Number
+	default:
+		src.Dividend = SourcedNumber{Value: 0, Source: DerivedSource{Method: "not_available"}, AsOf: st.today}
 	}
 
 	l := engine.Levers{

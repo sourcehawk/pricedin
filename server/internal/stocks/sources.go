@@ -151,6 +151,29 @@ func withKindInline(kind SourceKind, v any) ([]byte, error) {
 	return append(out, body[1:]...), nil
 }
 
+// ReasonNoDividendData says that no dividend data was ever fetched for the
+// symbol, so its dividend is unknown, not 0.
+const ReasonNoDividendData = "no_dividend_data"
+
+// MaybeSourced is a SourcedNumber that can be missing. It marshals as the
+// SourcedNumber, or as {"value": null, "reason": Reason} when Number is
+// nil.
+type MaybeSourced struct {
+	Number *SourcedNumber
+	Reason string
+}
+
+// MarshalJSON writes the number, or the missing value with its reason.
+func (m MaybeSourced) MarshalJSON() ([]byte, error) {
+	if m.Number != nil {
+		return json.Marshal(m.Number)
+	}
+	return json.Marshal(struct {
+		Value  *float64 `json:"value"`
+		Reason string   `json:"reason"`
+	}{nil, m.Reason})
+}
+
 // SourcedNumber is a number with its source and the date it is valid for.
 type SourcedNumber struct {
 	Value  float64     `json:"value"`

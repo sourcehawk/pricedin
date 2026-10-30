@@ -88,7 +88,7 @@ func TestCocaColaDividendOverPostgres(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !near(p.TTMDividend.Value, 2.06) {
-		t.Errorf("TTM dividend = %v, want 2.06", p.TTMDividend.Value)
+	if p.TTMDividend.Number == nil || !near(p.TTMDividend.Number.Value, 2.06) {
+		t.Errorf("TTM dividend = %+v, want 2.06", p.TTMDividend)
 	}
 }
