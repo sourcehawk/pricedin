@@ -1,0 +1,58 @@
+/* The custom baseline's tag: the user's own rate, in the color of the YOU cell. */
+.custom {
+  border: 1px solid var(--s4);
+  color: var(--s4);
+}
+
+.views {
+  min-width: 270px;
+}
+
+.views button {
+  white-space: nowrap;
+}
+
+/* A walkthrough fades the panel's leaves to a low opacity, which would show a hidden outline. */
+.mark:not(:global(.on)) {
+  visibility: hidden;
+}
+
+/* Each cell takes its color from the engine's tone and its depth from --shade. */
+.grid {
+  --shade-max: 100%;
+}
+
+/* In the dark theme the deepest shades leave the text below a 4.5:1 contrast; 45% keeps each tone above it. */
+@media (prefers-color-scheme: dark) {
+  :global(:root:not([data-theme="light"])) .grid {
+    --shade-max: 45%;
+  }
+}
+
+:global(:root[data-theme="dark"]) .grid {
+  --shade-max: 45%;
+}
+
+.grid td:global(.good) {
+  background: color-mix(in srgb, var(--good) min(var(--shade), var(--shade-max)), var(--surface));
+}
+
+.grid td:global(.warn) {
+  background: color-mix(in srgb, var(--warn) min(var(--shade), var(--shade-max)), var(--surface));
+}
+
+.grid td:global(.bad) {
+  background: color-mix(in srgb, var(--bad) min(var(--shade), var(--shade-max)), var(--surface));
+}
+
+.viewSet {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+
+.viewSet:disabled button {
+  cursor: default;
+  opacity: 0.55;
+}
