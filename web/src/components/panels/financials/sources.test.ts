@@ -64,6 +64,16 @@ describe("latestFiling", () => {
     });
   });
 
+  it("names the newer quarter when a filing also restates an older one", () => {
+    const filed = filedOn("2026-09-30");
+    const restated = history.quarters.map((q) =>
+      q.periodEnd === "2025-09-30" && q.revenue?.kind === "sec"
+        ? { ...q, revenue: { ...q.revenue, filed } }
+        : q,
+    );
+    expect(latestFiling(view, restated)?.label).toBe("Q3 FY26");
+  });
+
   it("is null without any filing", () => {
     expect(latestFiling(view, [])).toBeNull();
   });

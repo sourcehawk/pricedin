@@ -62,7 +62,10 @@ export interface LatestFiling {
   url: string;
 }
 
-/** latestFiling returns the newest filing among the sources of the view's quarters; null without one. */
+/**
+ * latestFiling returns the newest filing among the sources of the view's
+ * quarters, labeled with the newest quarter that it reports; null without one.
+ */
 export function latestFiling(
   view: FinancialsView,
   quarters: readonly QuarterSources[],
@@ -77,7 +80,7 @@ export function latestFiling(
     for (const m of allMetrics()) {
       const src = s[m];
       const f = src === null ? null : newestFiling(src);
-      if (f !== null && (best === null || f.filed > best.filed)) {
+      if (f !== null && (best === null || f.filed >= best.filed)) {
         best = { label: q.label, form: f.form, filed: f.filed, url: f.url };
       }
     }
