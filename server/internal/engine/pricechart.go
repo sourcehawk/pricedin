@@ -333,8 +333,8 @@ func PriceChart(daily []PricePoint, quarters []Quarter, rng ChartRange) Maybe[Ch
 
 	out := Chart{Range: rng, Start: pts[0].Date, End: end, Points: pts}
 	lo, hi := math.Inf(1), math.Inf(-1)
-	for _, p := range pts {
-		lo, hi = math.Min(lo, p.Close), math.Max(hi, p.Close)
+	for i := range pts {
+		lo, hi = math.Min(lo, pts[i].Close), math.Max(hi, pts[i].Close)
 	}
 	out.High, out.Low = hi, lo
 	mn, mx := lo*0.9, hi*1.06
@@ -342,7 +342,8 @@ func PriceChart(daily []PricePoint, quarters []Quarter, rng ChartRange) Maybe[Ch
 	out.PriceAxis = newAxis(math.Floor(mn/st)*st, math.Ceil(mx/st)*st, st)
 	var eps, pes []float64
 	changes := []float64{0}
-	for _, p := range pts {
+	for i := range pts {
+		p := &pts[i]
 		if p.TTMEPS != nil {
 			eps = append(eps, *p.TTMEPS)
 		}
@@ -396,7 +397,8 @@ func PriceChart(daily []PricePoint, quarters []Quarter, rng ChartRange) Maybe[Ch
 		out.Last12Months.PEChange = Some((1+r12.Get())/(1+g12.Get()) - 1)
 	}
 	var xs, ys []float64
-	for _, p := range pts {
+	for i := range pts {
+		p := &pts[i]
 		if p.PriceChange12M.Ok() && p.EPSGrowth12M.Ok() {
 			xs, ys = append(xs, p.PriceChange12M.Get()), append(ys, p.EPSGrowth12M.Get())
 		}
