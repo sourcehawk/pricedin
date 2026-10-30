@@ -1,11 +1,11 @@
 "use client";
 
 import type { ReactNode } from "react";
-import type { QuarterSources, SecSource, Source, SourcedNumber } from "@/api/types";
+import type { QuarterSources, SourcedNumber } from "@/api/types";
 import type { Evaluation, Verdict } from "@/engine";
 import { pct, pp, signedPct, times, usd, years } from "@/components/format";
 import { baselineName } from "@/components/rail/notes";
-import { Sourced } from "@/components/Sourced";
+import { newestFiling, Sourced } from "@/components/Sourced";
 import { InfoTip } from "@/components/tip/InfoTip";
 import { Walkthrough } from "@/components/walkthrough/Walkthrough";
 import { useEvaluation } from "@/state/StockProvider";
@@ -39,18 +39,6 @@ function verdictText(ev: Evaluation): string | null {
   }
 }
 
-/** secInputs returns the filings behind a source, at any depth. */
-function secInputs(s: Source): SecSource[] {
-  switch (s.kind) {
-    case "sec":
-      return [s];
-    case "derived":
-      return s.inputs.flatMap(secInputs);
-    default:
-      return [];
-  }
-}
-
 /** yoySource is the YoY growth of quarter i with the sources of the two quarters it compares; null without a filing behind both. */
 function yoySource(q: readonly QuarterSources[], i: number, value: number): SourcedNumber | null {
   const now = q[i]?.eps;
@@ -58,12 +46,12 @@ function yoySource(q: readonly QuarterSources[], i: number, value: number): Sour
   if (!now || !before) {
     return null;
   }
-  const nowFilings = secInputs(now);
-  const beforeFilings = secInputs(before);
-  if (nowFilings.length === 0 || beforeFilings.length === 0) {
+  const nowFiling = newestFiling(now);
+  const beforeFiling = newestFiling(before);
+  if (nowFiling === null || beforeFiling === null) {
     return null;
   }
-  const asOf = [...nowFilings, ...beforeFilings].reduce((a, f) => (f.filed > a ? f.filed : a), "");
+  const asOf = nowFiling.filed > beforeFiling.filed ? nowFiling.filed : beforeFiling.filed;
   return {
     value,
     source: {
