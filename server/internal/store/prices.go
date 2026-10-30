@@ -112,6 +112,13 @@ func (s *Store) GetLatestPriceDate(ctx context.Context, symbol string) (domain.D
 		`SELECT max(date) FROM prices_daily WHERE symbol = $1`, symbol)
 }
 
+// GetEarliestPriceDate returns the date of the oldest bar of symbol, or
+// ErrNotFound when it has none.
+func (s *Store) GetEarliestPriceDate(ctx context.Context, symbol string) (domain.Date, error) {
+	return s.latestDate(ctx, fmt.Sprintf("earliest price date of %s", symbol),
+		`SELECT min(date) FROM prices_daily WHERE symbol = $1`, symbol)
+}
+
 // GetLatestPriceDateOverall returns the date of the newest bar of any
 // symbol, or ErrNotFound when no bar is stored.
 func (s *Store) GetLatestPriceDateOverall(ctx context.Context) (domain.Date, error) {

@@ -19,6 +19,8 @@ const pricesDailyLookback = 30
 // which a per-symbol load asks for in full.
 const providerHistoryDays = 5 * 365
 
+const historyStartSlack = 10
+
 // PriceReferenceResult counts what price-reference wrote.
 type PriceReferenceResult struct {
 	ProviderTickers int64 // tickers in the provider's list
@@ -350,17 +352,24 @@ func storeBars(ctx context.Context, tx *store.Store, bars []domain.PriceBar) (in
 	return tx.UpsertPriceBars(ctx, bars)
 }
 
-// symbolBars loads the per-symbol daily bars of symbol after its newest
-// stored bar, or for the provider's whole history window when it has none.
+// symbolBars loads the per-symbol daily bars of symbol up to the last
+// finished session. It starts after the newest stored bar when the stored
+// bars reach back to within historyStartSlack days of the start of the
+// provider's history window, and at the start of the window otherwise. It
+// does not fill gaps between stored bars.
 func (r *Runner) symbolBars(ctx context.Context, symbol string) (int64, error) {
 	last := prices.LastFinishedSession(r.now())
 	from := last.AddDays(-providerHistoryDays + 1)
-	newest, err := r.store.GetLatestPriceDate(ctx, symbol)
+	oldest, err := r.store.GetEarliestPriceDate(ctx, symbol)
 	switch {
 	case errors.Is(err, store.ErrNotFound):
 	case err != nil:
 		return 0, err
-	default:
+	case !oldest.After(from.AddDays(historyStartSlack)):
+		newest, err := r.store.GetLatestPriceDate(ctx, symbol)
+		if err != nil {
+			return 0, err
+		}
 		from = newest.AddDays(1)
 	}
 	if from.After(last) {

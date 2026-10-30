@@ -369,3 +369,20 @@ func TestLoadCompanyFetchesOnlyTheBarsAfterTheNewestOne(t *testing.T) {
 		t.Errorf("requested ranges (-want +got):\n%s", diff)
 	}
 }
+
+// A symbol whose only bars came from the daily price job, a few weeks of
+// them, gets its whole history from its first on-demand load.
+func TestLoadCompanyFetchesTheHistoryBehindRecentBars(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	e := newEnv(t, envOptions{})
+	must(e.runner.SECTickers(ctx))(t)
+	must(e.runner.PricesDaily(ctx))(t)
+	if n := e.count(t, `SELECT count(*) FROM prices_daily WHERE symbol = 'NVDA'`); n > 30 {
+		t.Fatalf("NVDA has %d bars before its load, want only the recent ones", n)
+	}
+	must(e.runner.LoadCompanyResult(ctx, "NVDA"))(t)
+	if n := e.count(t, `SELECT count(*) FROM prices_daily WHERE symbol = 'NVDA'`); n < 1200 {
+		t.Errorf("NVDA has %d bars after its load, want five years", n)
+	}
+}
