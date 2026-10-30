@@ -139,7 +139,7 @@ describe("PriceChartPanel", () => {
       "Close from Massive, adjusted for splits",
     );
     expect(screen.getByRole("tooltip")).toHaveTextContent(
-      "TTM EPS adds up the four quarters to Q3 FY23, first reported on 2023-09-30, with the values of the latest filings; the newest is Form 10-Q, filed 2023-09-30. P/E is the close over this TTM EPS.",
+      "TTM EPS adds up Q4 FY22, Q1 FY23, Q2 FY23 and Q3 FY23, known from the filings on 2023-09-30, with the values of the latest filings; the newest is Form 10-Q, filed 2023-09-30. P/E is the close over this TTM EPS.",
     );
     fireEvent.pointerLeave(svg, { pointerType: "mouse" });
     expect(within(chips()).getByText("Price").parentElement).toHaveTextContent("Price$270.00");

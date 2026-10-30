@@ -4,8 +4,9 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import { joinNames } from "@/components/copy";
 import { multiple, shareCount, signedPct, times, usd } from "@/components/format";
 import { colorVar } from "@/components/Swatch";
+import { newestFiling } from "@/components/Sourced";
 import { useTip, useTipHandlers } from "@/components/tip/TipProvider";
-import type { QuarterSources, SecSource, Source } from "@/api/types";
+import type { QuarterSources, SecSource } from "@/api/types";
 import type { Chart, ChartPoint, ShareEvent } from "@/engine";
 import {
   bandSegments,
@@ -249,47 +250,34 @@ function DayTip({
         {feed === null
           ? "Daily close"
           : `Close from ${feed.charAt(0).toUpperCase()}${feed.slice(1)}`}
-        , adjusted for splits. {ttmNote(p.date, quarters)}
+        , adjusted for splits. {ttmNote(p, quarters)}
       </div>
     </>
   );
 }
 
-function secSources(s: Source | null): SecSource[] {
-  if (s === null) {
-    return [];
-  }
-  if (s.kind === "sec") {
-    return [s];
-  }
-  return s.kind === "derived" ? s.inputs.flatMap(secSources) : [];
-}
-
 /**
- * ttmNote names the quarters behind the TTM EPS of a day: the four up to the
- * last quarter whose TTM EPS was known on that day. The chart plots their
- * latest filed values, which can be amendments filed after that day.
+ * ttmNote names the quarters behind the TTM EPS of a day, as the engine
+ * gives them, and the newest filing among them. The chart plots their latest
+ * filed values, which can be amendments filed after that day.
  */
-function ttmNote(date: string, quarters: readonly QuarterSources[]): string {
-  let k = -1;
-  quarters.forEach((q, i) => {
-    if (q.ttmEpsKnownOn !== null && q.ttmEpsKnownOn <= date) {
-      k = i;
-    }
-  });
-  const q = quarters[k];
+function ttmNote(p: ChartPoint, quarters: readonly QuarterSources[]): string {
+  const last = p.ttmQuarters.at(-1);
+  const q = quarters.find((x) => x.label === last);
   if (q === undefined || q.ttmEpsKnownOn === null) {
     return "TTM EPS adds up the last four reported quarters.";
   }
+  const behind = quarters.filter((x) => p.ttmQuarters.includes(x.label));
   let newest: SecSource | null = null;
-  for (const f of quarters.slice(Math.max(0, k - 3), k + 1).flatMap((x) => secSources(x.eps))) {
-    if (newest === null || f.filed > newest.filed) {
+  for (const x of behind) {
+    const f = x.eps === null ? null : newestFiling(x.eps);
+    if (f !== null && (newest === null || f.filed > newest.filed)) {
       newest = f;
     }
   }
   const filing =
     newest === null ? "" : `; the newest is Form ${newest.form}, filed ${newest.filed}`;
-  return `TTM EPS adds up the four quarters to ${q.label}, first reported on ${q.ttmEpsKnownOn}, with the values of the latest filings${filing}. P/E is the close over this TTM EPS.`;
+  return `TTM EPS adds up ${joinNames(p.ttmQuarters)}, known from the filings on ${q.ttmEpsKnownOn}, with the values of the latest filings${filing}. P/E is the close over this TTM EPS.`;
 }
 
 /** dayLine is the day's values as one sentence, for the screen reader. */
