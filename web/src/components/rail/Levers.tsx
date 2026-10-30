@@ -191,8 +191,9 @@ export function ExitPeLever() {
             for slower growth. When growth is already slow or negative and today&apos;s P/E is above
             the stock&apos;s typical level, it uses that level instead. The typical P/E line under
             the slider shows that level, and you can change its months there without picking
-            Trailing. Today: keeps today&apos;s P/E. Trailing: the median P/E over the months you choose (36 by default), the
-            stock&apos;s typical level. Custom: type or drag your own number.
+            Trailing. Today: keeps today&apos;s P/E. Trailing: the median P/E over the months you
+            choose (36 by default), the stock&apos;s typical level. Custom: type or drag your own
+            number.
           </InfoTip>
         </span>
         <span className="numfield">
