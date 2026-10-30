@@ -165,9 +165,15 @@ down: ## Stop the Compose stack (keeps the database volume)
 logs: ## Follow the logs of the Compose stack
 	$(COMPOSE) logs --follow
 
+# `make migrate MIGRATE_ARGS=status` lists the migrations; `down` rolls one back.
+MIGRATE_ARGS ?= up
+
+# The migrate service of the Compose stack runs the command, so the
+# database settings come from .env as Compose reads it, and the command
+# line that make prints holds no password.
 .PHONY: migrate
-migrate: ## Apply database migrations (none yet)
-	@echo 'migrate: no migrations exist yet; `pricedin migrate` arrives with the database store'
+migrate: ## Run the migrations on the Compose database (MIGRATE_ARGS=status|down)
+	$(COMPOSE) run --rm --build migrate migrate $(MIGRATE_ARGS)
 
 # --- CI -----------------------------------------------------------------------
 .PHONY: ci
