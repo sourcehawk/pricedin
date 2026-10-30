@@ -2,6 +2,7 @@ import type { Evaluation } from "@/engine";
 import { pct, pp, signedPct, times, usd, years } from "@/components/format";
 import { baselineLabel, dividendsReach, orDividends } from "@/components/copy";
 import { Swatch } from "@/components/Swatch";
+import type { StepContext } from "@/components/walkthrough/steps";
 import type { WalkthroughStep } from "@/components/walkthrough/Walkthrough";
 
 const pill = (tone: "good" | "warn" | "bad", text: string) => (
@@ -105,19 +106,9 @@ function directionLine(ev: Evaluation) {
   );
 }
 
-/** StepContext holds the lever values that the steps quote. */
-export interface StepContext {
-  sym: string;
-  /** The target return. */
-  r: number;
-  /** The holding period in years. */
-  n: number;
-  price: number;
-  eps: number;
-}
-
 /** pricedInSteps are the walkthrough steps of the priced-in panel. */
-export function pricedInSteps({ sym, r, n, price, eps }: StepContext): WalkthroughStep[] {
+export function pricedInSteps({ ticker: sym, levers }: StepContext): WalkthroughStep[] {
+  const { targetReturn: r, holdingYears: n, price, ttmEps: eps } = levers;
   const noGrowth = (
     <>
       {sym} needs no EPS growth: your dividends alone reach <b>{pct(r)}</b> a year.

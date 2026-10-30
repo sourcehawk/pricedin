@@ -3,19 +3,9 @@ import type { Evaluation, Grid, GridOutcome } from "@/engine";
 import { multiple, pct, points, signedPct, times, usd, years } from "@/components/format";
 import { baselineLabel, baselineName, dividendsReach, orDividends } from "@/components/copy";
 import { Swatch } from "@/components/Swatch";
+import type { StepContext } from "@/components/walkthrough/steps";
 import type { WalkthroughStep } from "@/components/walkthrough/Walkthrough";
 import { exampleRow, exitColumn, tagStyles, toneClass } from "./layout";
-
-/** StepContext holds the lever values that the steps quote. */
-export interface StepContext {
-  sym: string;
-  /** The target return. */
-  r: number;
-  /** The holding period in years. */
-  n: number;
-  price: number;
-  eps: number;
-}
 
 const tag = (t: "required" | "weighted" | "today" | "trailing") => (
   <span className={`tag ${tagStyles[t].className}`}>{tagStyles[t].label}</span>
@@ -57,7 +47,8 @@ const withGrid =
   };
 
 /** gridSteps are the walkthrough steps of the return grid. */
-export function gridSteps({ sym, r, n, price, eps }: StepContext): WalkthroughStep[] {
+export function gridSteps({ ticker: sym, levers }: StepContext): WalkthroughStep[] {
+  const { targetReturn: r, holdingYears: n, price, ttmEps: eps } = levers;
   const target = pct(r);
   const noGrowth = (
     <>

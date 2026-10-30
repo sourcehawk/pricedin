@@ -31,6 +31,7 @@ import {
 } from "./layout";
 import styles from "./ReturnGrid.module.css";
 import { gridSteps } from "./steps";
+import { useStepContext } from "@/components/walkthrough/steps";
 
 const walkId = "return-grid";
 /** The steps that box one cell: where the example row meets the user's column, and the YOU cell. */
@@ -328,7 +329,7 @@ export function ReturnGridPanel() {
   const n = state.holdingYears;
   const grid = ev.returnGrid.value;
 
-  const steps = gridSteps({ sym, r, n, price: levers.price, eps: levers.ttmEps });
+  const steps = gridSteps(useStepContext());
   const walkthrough = (
     <Walkthrough
       id={walkId}

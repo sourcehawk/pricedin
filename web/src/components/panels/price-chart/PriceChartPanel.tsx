@@ -25,6 +25,7 @@ import { PricePlot, type Marker } from "./PricePlot";
 import styles from "./PriceChart.module.css";
 import { closeSourced, ttmSourced } from "./sources";
 import { bandsStep, priceSteps } from "./steps";
+import { useStepContext } from "@/components/walkthrough/steps";
 
 const ranges: readonly ChartRange[] = ["6M", "1Y", "3Y"];
 const walkthroughId = "price-chart";
@@ -184,7 +185,7 @@ export function PriceChartPanel() {
   };
   const [hover] = useState(createHoverStore);
   const { active } = useWalkthrough();
-  const steps = useMemo(() => priceSteps(ticker), [ticker]);
+  const steps = priceSteps(useStepContext());
   const chart = ev.priceChart.value;
 
   const markers = useMemo(
