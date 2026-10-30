@@ -1151,8 +1151,8 @@ components:
       required: [name, growth, exitPe]
       properties:
         name: { type: string }
-        growth: { type: number }
-        exitPe: { type: number }
+        growth: { type: number, minimum: -1e30, maximum: 1e30, description: "The engine refuses a value beyond 10^30 in size." }
+        exitPe: { type: number, minimum: -1e30, maximum: 1e30, description: "The engine refuses a value beyond 10^30 in size." }
     Levers:
       type: object
       description: The levers the engine ran with, every default filled in.
@@ -1630,8 +1630,8 @@ components:
       required: [name, growth, exitPe, result]
       properties:
         name: { type: string }
-        growth: { type: number }
-        exitPe: { type: number }
+        growth: { type: number, minimum: -1e30, maximum: 1e30, description: "The engine refuses a value beyond 10^30 in size." }
+        exitPe: { type: number, minimum: -1e30, maximum: 1e30, description: "The engine refuses a value beyond 10^30 in size." }
         result:
           oneOf:
             - type: object
