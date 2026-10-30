@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, type ReactNode } from "react";
-import { signedPct, times, usd } from "@/components/format";
+import { coefficient, multiple, signedPct, times, usd } from "@/components/format";
 import { filingLink, Sourced } from "@/components/Sourced";
 import { InfoTip } from "@/components/tip/InfoTip";
 import { Walkthrough } from "@/components/walkthrough/Walkthrough";
@@ -10,7 +10,7 @@ import type { Chart, ChartRange } from "@/engine";
 import { useEvaluation, useView } from "@/state/StockProvider";
 import { Panel } from "../Panel";
 import { Chips } from "./Chips";
-import { dayLabel, multipleLabel, spanLabel } from "./geometry";
+import { dayLabel, spanLabel } from "./geometry";
 import { createHoverStore } from "./hover";
 import {
   allOverlays,
@@ -47,7 +47,7 @@ function BandCaption({ chart, lifted }: { chart: Chart; lifted: number | null })
   if (bands === null) {
     text = "P/E bands need a positive TTM EPS.";
   } else if (band !== undefined) {
-    const m = multipleLabel(band.multiple);
+    const m = multiple(band.multiple);
     const vs = band.vsPrice.value;
     text = (
       <>
@@ -185,7 +185,7 @@ export function PriceChartPanel() {
         <>
           {" · "}
           <span className={["pxcorr", styles.link].join(" ")} data-walk="link">
-            price–earnings link: {link.class} ({link.correlation.toFixed(2)})
+            price–earnings link: {link.class} ({coefficient(link.correlation)})
           </span>
           <InfoTip label="About the price–earnings link">
             <b>Price–earnings link</b>

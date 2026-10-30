@@ -1,9 +1,9 @@
 import type { ReactNode } from "react";
-import { pct, signedPct, times, usd } from "@/components/format";
+import { coefficient, multiple, pct, signedPct, times, usd } from "@/components/format";
 import { LineSample, Swatch } from "@/components/Swatch";
 import type { WalkthroughStep } from "@/components/walkthrough/Walkthrough";
 import type { Chart, Evaluation } from "@/engine";
-import { multipleLabel, spanLabel } from "./geometry";
+import { spanLabel } from "./geometry";
 
 /** span names the period of the chart, such as "over 3Y". */
 function span(c: Chart): string {
@@ -247,13 +247,13 @@ export function priceSteps(ticker: string): WalkthroughStep[] {
         if (b === null || near === null || a === null || z === null) {
           return null;
         }
-        const crossed = b.crossed.map(multipleLabel).join(", ");
+        const crossed = b.crossed.map((m) => multiple(m)).join(", ");
         const rose = z > a;
         const priceUp = c.priceChange >= 0;
         return (
           <>
-            The <LineSample color="var(--s3)" /> line is the <b>{multipleLabel(near)}</b> band, the
-            one closest to today&apos;s P/E. <Span c={c} /> the P/E went from <b>{times(a)}</b> to{" "}
+            The <LineSample color="var(--s3)" /> line is the <b>{multiple(near)}</b> band, the one
+            closest to today&apos;s P/E. <Span c={c} /> the P/E went from <b>{times(a)}</b> to{" "}
             <b>{times(z)}</b>.{" "}
             {b.crossed.length === 0 ? (
               "No band line lies between the first and the last P/E."
@@ -362,7 +362,7 @@ export function priceSteps(ticker: string): WalkthroughStep[] {
         }
         return (
           <>
-            <Span c={c} /> the correlation is <b>{link.correlation.toFixed(2)}</b>, {link.class}:{" "}
+            <Span c={c} /> the correlation is <b>{coefficient(link.correlation)}</b>, {link.class}:{" "}
             {linkMeaning[link.class]}
           </>
         );

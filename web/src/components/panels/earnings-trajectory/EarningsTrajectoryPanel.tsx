@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { pct, signedPct, times, usd, years } from "@/components/format";
+import { pct, signedPct, signedUsd, times, usd, years } from "@/components/format";
 import { baselineLabel } from "@/components/copy";
 import { InfoTip } from "@/components/tip/InfoTip";
 import { Walkthrough, type WalkthroughStep } from "@/components/walkthrough/Walkthrough";
@@ -36,10 +36,6 @@ function yearsOut(k: number): string {
     return "today";
   }
   return `${String(k / 4)} ${k === 4 ? "year" : "years"} out`;
-}
-
-function signedUsd(v: number | null): string {
-  return v === null ? "n/a" : `${v >= 0 ? "+" : ""}${usd(v)}`;
 }
 
 /** EarningsTrajectoryPanel shows TTM EPS by quarter, then the baseline path and the path the price requires. */

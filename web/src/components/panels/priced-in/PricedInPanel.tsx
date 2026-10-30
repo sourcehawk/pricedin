@@ -117,7 +117,7 @@ export function PricedInPanel() {
   } else if (pe === null) {
     sub = "The exit P/E needs more price and earnings history.";
   } else {
-    sub = `For ${pct(r)} a year over ${years(n)}, exiting at ${pe.toFixed(1)}× earnings${ev.exitPe.mode === "estimated" ? " (estimated)" : ""}${req.dividends > 0 ? ", with dividends" : ""}.`;
+    sub = `For ${pct(r)} a year over ${years(n)}, exiting at ${times(pe)} earnings${ev.exitPe.mode === "estimated" ? " (estimated)" : ""}${req.dividends > 0 ? ", with dividends" : ""}.`;
   }
 
   const gap = ev.gap.value;

@@ -223,11 +223,6 @@ export function nearestIndex(xs: readonly number[], vx: number): number {
   return Math.abs((xs[lo] ?? 0) - vx) <= Math.abs((xs[hi] ?? 0) - vx) ? lo : hi;
 }
 
-/** multipleLabel shows a band's multiple: "25×", "17.5×". */
-export function multipleLabel(m: number): string {
-  return `${String(m)}×`;
-}
-
 /** priceTick shows a value of the price axis: "$50", "$1,250", "$2.5", and "$12.5k" from $10,000, which fits the left margin. */
 export function priceTick(v: number): string {
   const r = Number(v.toFixed(6));

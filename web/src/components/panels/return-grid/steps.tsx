@@ -1,10 +1,10 @@
 import type { ReactNode } from "react";
 import type { Evaluation, Grid, GridOutcome } from "@/engine";
-import { pct, signedPct, times, usd, years } from "@/components/format";
+import { multiple, pct, points, signedPct, times, usd, years } from "@/components/format";
 import { baselineLabel, baselineName, dividendsReach, orDividends } from "@/components/copy";
 import { Swatch } from "@/components/Swatch";
 import type { WalkthroughStep } from "@/components/walkthrough/Walkthrough";
-import { exampleRow, exitColumn, peLabel, tagStyles, toneClass } from "./layout";
+import { exampleRow, exitColumn, tagStyles, toneClass } from "./layout";
 
 /** StepContext holds the lever values that the steps quote. */
 export interface StepContext {
@@ -20,8 +20,6 @@ export interface StepContext {
 const tag = (t: "required" | "weighted" | "today" | "trailing") => (
   <span className={`tag ${tagStyles[t].className}`}>{tagStyles[t].label}</span>
 );
-
-const points = (x: number, decimals = 1) => (Math.abs(x) * 100).toFixed(decimals);
 
 /** The grid and the column of the exit P/E in use; a step that needs them shows no line without them. */
 interface At {
@@ -45,7 +43,7 @@ function at(ev: Evaluation): At | null {
   return {
     grid,
     col: ci,
-    pe: `${peLabel(col.exitPe)}×`,
+    pe: multiple(col.exitPe),
     cells: grid.rows.map((r) => r.cells[ci]).filter((c) => c !== undefined),
   };
 }
@@ -352,8 +350,8 @@ export function gridSteps({ sym, r, n, price, eps }: StepContext): WalkthroughSt
         }
         return (
           <>
-            At your {pct(ev.baselines.growth.value)} baseline, selling at {peLabel(first.exitPe)}×
-            earns <b>{signedPct(a.yearlyReturn)}</b> a year and selling at {peLabel(last.exitPe)}×
+            At your {pct(ev.baselines.growth.value)} baseline, selling at {multiple(first.exitPe)}{" "}
+            earns <b>{signedPct(a.yearlyReturn)}</b> a year and selling at {multiple(last.exitPe)}{" "}
             earns <b>{signedPct(b.yearlyReturn)}</b> a year. The exit P/E alone moves your yearly
             return by <b>{points(b.yearlyReturn - a.yearlyReturn, 0)} points</b>.
           </>
@@ -519,8 +517,8 @@ export function gridSteps({ sym, r, n, price, eps }: StepContext): WalkthroughSt
         return (
           <>
             <strong>{sym} in one line:</strong> the price requires {pct(ev.required.growth.value)}{" "}
-            EPS growth a year for {target} at a {pe === undefined ? "n/a" : `${peLabel(pe)}×`} exit.
-            The weighted trend is {pct(ev.baselines.weighted.value)} and the latest quarter{" "}
+            EPS growth a year for {target} at a {multiple(pe)} exit. The weighted trend is{" "}
+            {pct(ev.baselines.weighted.value)} and the latest quarter{" "}
             {pct(ev.baselines.today.value)}.{" "}
             {gap === null ? null : (
               <>

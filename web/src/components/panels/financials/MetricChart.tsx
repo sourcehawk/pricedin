@@ -8,8 +8,7 @@ import { filingLink, newestFiling, SourceTip } from "@/components/Sourced";
 import { useTipHandlers } from "@/components/tip/TipProvider";
 import type { FinancialsView, Metric, Range } from "@/engine";
 import styles from "./Financials.module.css";
-import { metricValue } from "./metricFormat";
-import { cls, metricInfo, toneClass } from "./metrics";
+import { cls, metricInfo, metricValue, toneClass } from "./metrics";
 
 const W = 760;
 const H = 210;

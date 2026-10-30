@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { Swatch } from "@/components/Swatch";
+import { money, shareCount, usd } from "@/components/format";
 import type { Metric, Missing, Tone } from "@/engine";
 
 /** cls joins class names, leaving out the missing ones. */
@@ -107,5 +108,17 @@ export function missingText(m: Missing): string {
       return "not enough quarters";
     default:
       return "not reported";
+  }
+}
+
+/** metricValue shows a value of metric m; decimals applies to amounts in billions. */
+export function metricValue(m: Metric, x: number | null | undefined, decimals = 1): string {
+  switch (m) {
+    case "eps":
+      return usd(x, 2);
+    case "dilutedShares":
+      return shareCount(x);
+    default:
+      return money(x, decimals);
   }
 }

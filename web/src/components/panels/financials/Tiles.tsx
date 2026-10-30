@@ -7,8 +7,7 @@ import { Sourced } from "@/components/Sourced";
 import { InfoTip } from "@/components/tip/InfoTip";
 import type { FinancialsView, MaybeNumber, Metric, Tile as EngineTile, Tone } from "@/engine";
 import styles from "./Financials.module.css";
-import { metricValue } from "./metricFormat";
-import { cls, marginTip, metricInfo, missingText, toneClass } from "./metrics";
+import { cls, marginTip, metricInfo, metricValue, missingText, toneClass } from "./metrics";
 
 function Tile({
   walk,

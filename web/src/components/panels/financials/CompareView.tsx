@@ -3,7 +3,7 @@
 import { useMemo, type ReactNode } from "react";
 import type { SourcedNumber } from "@/api/types";
 import { linePath, shortLabel, useColumns, YAxis } from "@/components/charts/smallChart";
-import { pct, signedPct } from "@/components/format";
+import { coefficient, pct, signedPct } from "@/components/format";
 import { newestFiling } from "@/components/Sourced";
 import { colorVar } from "@/components/Swatch";
 import { InfoTip } from "@/components/tip/InfoTip";
@@ -18,8 +18,7 @@ import {
 } from "@/engine";
 import { useView } from "@/state/StockProvider";
 import styles from "./Financials.module.css";
-import { metricValue } from "./metricFormat";
-import { cls, metricInfo } from "./metrics";
+import { cls, metricInfo, metricValue } from "./metrics";
 import type { MetricSources } from "./sources";
 
 /** CompareMode is what the compare chart plots: the change since the first quarter, or from each quarter to the next. */
@@ -323,7 +322,7 @@ function CorrelationCell({
       </b>
       {r === null
         ? "Correlation n/a: one of them did not change, or a change is missing."
-        : `Correlation ${r.correlation.toFixed(2)}: ${classWords[r.class]}.` +
+        : `Correlation ${coefficient(r.correlation)}: ${classWords[r.class]}.` +
           (r.correlation >= 0.3
             ? ` In quarters when ${al} grew faster, ${bl} usually did too.`
             : r.correlation <= -0.3
@@ -340,7 +339,7 @@ function CorrelationCell({
       style={{ background: `color-mix(in srgb, ${c} ${String(strength)}%, var(--surface))` }}
       {...handlers}
     >
-      {r === null ? "n/a" : r.correlation.toFixed(2)}
+      {r === null ? "n/a" : coefficient(r.correlation)}
     </td>
   );
 }

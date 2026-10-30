@@ -1,15 +1,15 @@
 import type { Evaluation, Levers } from "@/engine";
-import { pct, pp, usd } from "@/components/format";
+import { pct, pp, times, usd } from "@/components/format";
 
 // The notes under the levers, from the prototype's copy. They read the
 // engine's rule codes and numbers; they compute nothing themselves.
 
-const half = (v: number): string => (Math.round(v * 2) / 2).toFixed(1);
+const half = (v: number): number => Math.round(v * 2) / 2;
 
 /** typicalText describes the typical P/E: "typical 22.5× (the median of the last 36 months)". */
 export function typicalText(ev: Evaluation): string {
   const t = ev.exitPe.typical;
-  const pe = t.pe.value === null ? "n/a" : `${half(t.pe.value)}×`;
+  const pe = t.pe.value === null ? "n/a" : times(half(t.pe.value));
   return `typical ${pe} (the median of the last ${String(t.months)} months)`;
 }
 
@@ -21,15 +21,15 @@ export function exitPeNote(ev: Evaluation): string {
   if (now === null || inUse === null) {
     return "A P/E needs positive EPS. Loss-making companies need a different method.";
   }
-  const today = `${now.toFixed(1)}×`;
+  const today = times(now);
   switch (inUse.rule) {
     case "fade":
-      return `Today the market pays ${today} earnings. Investors pay more for fast growth, and growth usually slows. If growth slows from ${pct(x.g0.value)} now to about ${pct(x.gExit.value)} when you sell, the estimate is ${inUse.pe.toFixed(1)}×.`;
+      return `Today the market pays ${today} earnings. Investors pay more for fast growth, and growth usually slows. If growth slows from ${pct(x.g0.value)} now to about ${pct(x.gExit.value)} when you sell, the estimate is ${times(inUse.pe)}.`;
     case "slowGrowerTypical": {
       const g0 = x.g0.value;
       const growth =
         g0 !== null && g0 < 0 ? `shrinking (${pct(g0)})` : `growing slowly (${pct(g0)})`;
-      return `Today the market pays ${today} earnings, above the stock's ${typicalText(ev)}. With earnings ${growth}, a P/E above the usual level rarely lasts, so the estimate uses that typical ${inUse.pe.toFixed(1)}×.`;
+      return `Today the market pays ${today} earnings, above the stock's ${typicalText(ev)}. With earnings ${growth}, a P/E above the usual level rarely lasts, so the estimate uses that typical ${times(inUse.pe)}.`;
     }
     case "slowGrowerKeep":
       return x.g0.value === null
@@ -40,10 +40,10 @@ export function exitPeNote(ev: Evaluation): string {
     case "today":
       return `Assumes the market still pays today's ${today} earnings when you sell.`;
     case "trailing":
-      return `Uses the stock's typical P/E: the median of its quarter-end P/Es over the last ${String(x.typical.months)} months, ${inUse.pe.toFixed(1)}×. A P/E often drifts back toward its usual level.`;
+      return `Uses the stock's typical P/E: the median of its quarter-end P/Es over the last ${String(x.typical.months)} months, ${times(inUse.pe)}. A P/E often drifts back toward its usual level.`;
     case "custom": {
       const est = x.estimate.value;
-      return `Your own number. For comparison, the estimate is ${est === null ? "n/a" : `${est.pe.toFixed(1)}×`} and today's P/E is ${today}.`;
+      return `Your own number. For comparison, the estimate is ${times(est?.pe)} and today's P/E is ${today}.`;
     }
   }
 }
@@ -86,7 +86,7 @@ export function trajectoryParts(ev: Evaluation): TrajectoryParts | null {
   }
   return {
     lead: `Over the last year the weighted trend went from ${pct(t.previous.value)} to ${pct(ev.baselines.weighted.value)} (${pp(t.slope)}). If it keeps ${t.slope < 0 ? "slowing" : "speeding up"}, but less each year: `,
-    rates: t.rates.map((r) => `${(r * 100).toFixed(1)}%`).join(", "),
+    rates: t.rates.map((r) => pct(r)).join(", "),
     tail: `.${t.capped ? ` Growth is not projected above its highest reading of the last two years (${pct(t.highest)}).` : ""}`,
   };
 }

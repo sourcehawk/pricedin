@@ -523,7 +523,7 @@ describe("PriceChartPanel", () => {
       const marker = within(chart()).getByRole("link", { name: /^Q4 FY25: buyback/ });
       pointer(marker, "pointerdown", "touch");
       expect(fireEvent.click(marker)).toBe(false);
-      expect(screen.getByRole("tooltip")).toHaveTextContent("Shares195.92M → 191.71M");
+      expect(screen.getByRole("tooltip")).toHaveTextContent("Shares195.9M → 191.7M");
       pointer(marker, "pointerdown", "touch");
       expect(fireEvent.click(marker)).toBe(true);
     });
@@ -582,7 +582,7 @@ describe("PriceChartPanel", () => {
         </WhenReady>,
       );
       expect(within(chart()).getByLabelText(/^Q3 FY26: dilution/)).toHaveAccessibleName(
-        "Q3 FY26: dilution, 1.00M to 1.03M diluted shares, +3.0%",
+        "Q3 FY26: dilution, 1.000M to 1.030M diluted shares, +3.0%",
       );
     });
 

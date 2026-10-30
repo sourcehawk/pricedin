@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import type { Evaluation } from "@/engine";
-import { pct } from "@/components/format";
+import { pct, times } from "@/components/format";
 import { useTipHandlers } from "@/components/tip/TipProvider";
 
 interface Mark {
@@ -39,9 +39,8 @@ function marksOf(ev: Evaluation, targetReturn: number): Mark[] {
       tip: (
         <>
           <b>Required: {pct(req)} a year</b>
-          The average EPS growth that gets you {pct(targetReturn)} a year at a{" "}
-          {pe === undefined ? "n/a" : `${pe.toFixed(1)}×`} exit. Growth in the shaded part of the
-          scale beats it.
+          The average EPS growth that gets you {pct(targetReturn)} a year at a {times(pe)} exit.
+          Growth in the shaded part of the scale beats it.
         </>
       ),
     });

@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { pct, signedPct, times, usd } from "@/components/format";
+import { pct, points, signedPct, times, usd } from "@/components/format";
 import { InfoTip } from "@/components/tip/InfoTip";
 import { Walkthrough, type WalkthroughStep } from "@/components/walkthrough/Walkthrough";
 import type { Demanding, Evaluation } from "@/engine";
@@ -112,15 +112,15 @@ export function HowDemandingPanel() {
         if (a === null || b === null) {
           return null;
         }
-        const points = (Math.abs(b - a) * 100).toFixed(1);
+        const size = points(b - a);
         return b > a ? (
           <>
-            The required growth rose by <b>{points} points</b>, so the stock got more demanding: the
+            The required growth rose by <b>{size} points</b>, so the stock got more demanding: the
             price ran ahead of earnings.
           </>
         ) : (
           <>
-            The required growth fell by <b>{points} points</b>, so the stock got easier to own.
+            The required growth fell by <b>{size} points</b>, so the stock got easier to own.
           </>
         );
       },

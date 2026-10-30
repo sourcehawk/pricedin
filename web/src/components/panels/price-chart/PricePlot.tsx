@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { joinNames } from "@/components/copy";
-import { signedPct, times, usd } from "@/components/format";
+import { multiple, shareCount, signedPct, times, usd } from "@/components/format";
 import { colorVar } from "@/components/Swatch";
 import { useTip, useTipHandlers } from "@/components/tip/TipProvider";
 import type { QuarterSources, SecSource, Source } from "@/api/types";
@@ -17,7 +17,6 @@ import {
   left,
   linePath,
   monthTicks,
-  multipleLabel,
   nearestIndex,
   pointsPath,
   priceTick,
@@ -311,13 +310,6 @@ function dayLine(p: ChartPoint, shown: ReadonlySet<OverlayKey>): string {
   return `${dayLabel(p.date)}: ${parts.join(", ")}`;
 }
 
-function shares(n: number): string {
-  if (n >= 1e9) {
-    return `${(n / 1e9).toFixed(2)}B`;
-  }
-  return n >= 1e6 ? `${(n / 1e6).toFixed(2)}M` : n.toLocaleString("en-US");
-}
-
 function MarkerMark({ m, x }: { m: Marker; x: number }) {
   const e = m.event;
   const dilution = e.kind === "dilution";
@@ -354,7 +346,7 @@ function MarkerMark({ m, x }: { m: Marker; x: number }) {
       <div className="row">
         <span>Shares</span>
         <span>
-          {shares(e.from)} → {shares(e.to)}
+          {shareCount(e.from)} → {shareCount(e.to)}
         </span>
       </div>
       <div className="row">
@@ -369,7 +361,7 @@ function MarkerMark({ m, x }: { m: Marker; x: number }) {
       </div>
     </>
   ));
-  const label = `${e.label}: ${e.kind}, ${shares(e.from)} to ${shares(e.to)} diluted shares, ${change}`;
+  const label = `${e.label}: ${e.kind}, ${shareCount(e.from)} to ${shareCount(e.to)} diluted shares, ${change}`;
   const body = (
     <>
       <line
@@ -664,7 +656,7 @@ export function PricePlot({
 
   const bandName = (m: number) => {
     const band = chart.bands.value?.multiples.find((b) => b.multiple === m);
-    return `${multipleLabel(m)} band: ${usd(band?.priceToday.value)} today`;
+    return `${multiple(m)} band: ${usd(band?.priceToday.value)} today`;
   };
   const walkBand = (m: number) => (m === nearest ? "bands band-near" : "bands");
   const bh = (m: number) => (m === lifted ? " bh" : "");
@@ -905,7 +897,7 @@ export function PricePlot({
               textAnchor="middle"
               style={{ fontSize: 10, fill: "var(--ink)" }}
             >
-              {multipleLabel(l.multiple)}
+              {multiple(l.multiple)}
             </text>
           </g>
         );

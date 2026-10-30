@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import type { Evaluation, Grid, GridOutcome, GridTag } from "@/engine";
-import { pct, pp, signedPct, times, usd } from "@/components/format";
+import { factor, multiple, pct, pp, signedPct, times, usd } from "@/components/format";
 import { baselineName } from "@/components/copy";
 import { Seg } from "@/components/rail/Levers";
 import { InfoTip } from "@/components/tip/InfoTip";
@@ -22,7 +22,6 @@ import {
   exampleRow,
   exitColumn,
   growthLabel,
-  peLabel,
   tagOrder,
   tagStyles,
   taggedRow,
@@ -61,7 +60,7 @@ function cellText(c: GridOutcome, view: GridView): string {
     case "cum":
       return signedPct(c.totalReturn, 0);
     case "px":
-      return `$${Math.round(c.exitPrice).toLocaleString("en-US")}`;
+      return usd(c.exitPrice, 0);
     default:
       return signedPct(c.yearlyReturn, 0);
   }
@@ -269,7 +268,7 @@ function onArrows(e: KeyboardEvent<HTMLTableElement>) {
 function tagTip(ev: Evaluation, grid: Grid, tag: GridTag, r: number): ReactNode {
   const col = exitColumn(grid, ev);
   const pe = grid.columns[col]?.exitPe;
-  const peText = pe === undefined ? "n/a" : `${peLabel(pe)}×`;
+  const peText = multiple(pe);
   const ri = taggedRow(grid, tag);
   const at = signedPct(grid.rows[ri]?.cells[col]?.yearlyReturn);
   const outlined = `The outlined row (${growthLabel(grid, ri)})`;
@@ -445,8 +444,8 @@ function GridTable({
     if (row === undefined || col === undefined || c === undefined) {
       return null;
     }
-    const pe = peLabel(col.exitPe);
-    const multiple = col.today
+    const pe = factor(col.exitPe);
+    const peChange = col.today
       ? "This column sells at roughly today's multiple. "
       : peNow !== null && col.exitPe < peNow
         ? `Multiple shrinks from ${times(peNow)}, which costs return. `
@@ -487,7 +486,7 @@ function GridTable({
           <span>{pp(c.vsTarget)}</span>
         </div>
         <div className="tm">
-          {multiple}Growth is an average: any path to {usd(row.epsAtExit)} gives the same result.
+          {peChange}Growth is an average: any path to {usd(row.epsAtExit)} gives the same result.
         </div>
       </>
     );
@@ -513,7 +512,7 @@ function GridTable({
                 className={ci === youCol ? "colsel" : undefined}
                 data-walk={ci === youCol ? "you-col" : undefined}
               >
-                {peLabel(c.exitPe)}×
+                {multiple(c.exitPe)}
                 {c.today && (
                   <>
                     <br />
@@ -642,8 +641,7 @@ function Legend({
           tip={() => (
             <>
               <b>YOU: your case</b>Your growth baseline ({baselineName(ev)},{" "}
-              {pct(ev.baselines.growth.value)}) at your exit P/E of{" "}
-              {pe === undefined ? "n/a" : `${peLabel(pe)}×`}. That earns{" "}
+              {pct(ev.baselines.growth.value)}) at your exit P/E of {multiple(pe)}. That earns{" "}
               {signedPct(ab?.yearlyReturn)} a year against your {pct(r)} target. Hover any cell to
               see its calculation.
             </>
