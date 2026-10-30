@@ -179,7 +179,9 @@ describe("Walkthrough", () => {
     );
     await start();
     await userEvent.click(screen.getByRole("button", { name: "End the walkthrough" }));
-    expect(document.querySelector("[data-tour-on], [data-thl], [data-tside], [data-tl]")).toBeNull();
+    expect(
+      document.querySelector("[data-tour-on], [data-thl], [data-tside], [data-tl]"),
+    ).toBeNull();
   });
 
   it("keeps a highlight when a component in the panel re-renders its element from its own state", async () => {
