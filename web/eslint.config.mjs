@@ -9,6 +9,10 @@ const engineNoUi = {
   group: ["react", "react/*", "react-dom", "react-dom/*", "next", "next/*", "@testing-library/*"],
   message: "The engine has no UI code: no React, no Next.js and no DOM.",
 };
+const engineNoApp = {
+  group: ["@/*"],
+  message: "The engine imports nothing from the rest of the app.",
+};
 
 export default defineConfig([
   globalIgnores([".next/**", "next-env.d.ts", "coverage/**"]),
@@ -30,10 +34,19 @@ export default defineConfig([
   {
     files: ["src/engine/**/*.ts"],
     rules: {
-      "no-restricted-imports": [
+      "no-restricted-imports": ["error", { patterns: [engineNoUi, engineNoApp] }],
+      "import/no-restricted-paths": [
         "error",
         {
-          patterns: [engineNoUi],
+          basePath: import.meta.dirname,
+          zones: [
+            {
+              target: "./src/engine",
+              from: "./src",
+              except: ["./engine"],
+              message: "The engine imports nothing from the rest of the app.",
+            },
+          ],
         },
       ],
       "no-restricted-globals": [
@@ -57,6 +70,7 @@ export default defineConfig([
         {
           patterns: [
             engineNoUi,
+            engineNoApp,
             {
               group: ["node:*"],
               message: "The engine runs in the browser and has no I/O.",
@@ -64,6 +78,7 @@ export default defineConfig([
           ],
         },
       ],
+      "import/no-nodejs-modules": "error",
     },
   },
   {
