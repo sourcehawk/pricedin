@@ -65,6 +65,17 @@ describe("the priced-in panel", () => {
     expect(pill).toHaveClass("pill", "good");
   });
 
+  it("names a custom baseline without a second your in the label", async () => {
+    const panel = await renderPanel(
+      { type: "setTargetReturn", value: 0.05 },
+      { type: "setBaselineMode", mode: "custom" },
+      { type: "setCustomRate", value: 0.3 },
+    );
+    expect(
+      within(panel).getByText("Undemanding: the custom growth clears the bar"),
+    ).toBeInTheDocument();
+  });
+
   it("labels a baseline within 1.5 pp of the requirement as tight", async () => {
     // At 8% over 3 years the GRMN example requires about 16.3%, within
     // 1.5 pp of the 16.0% weighted trend.

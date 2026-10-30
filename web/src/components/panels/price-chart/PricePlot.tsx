@@ -1,15 +1,9 @@
 "use client";
 
-import {
-  useCallback,
-  useEffect,
-  useId,
-  useMemo,
-  useRef,
-  useState,
-  type CSSProperties,
-} from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { joinNames } from "@/components/copy";
 import { signedPct, times, usd } from "@/components/format";
+import { colorVar } from "@/components/Swatch";
 import { useTip, useTipHandlers } from "@/components/tip/TipProvider";
 import type { QuarterSources, SecSource, Source } from "@/api/types";
 import type { Chart, ChartPoint, ShareEvent } from "@/engine";
@@ -70,13 +64,6 @@ const overlayNames: Record<OverlayKey, string> = {
   bands: "P/E bands",
   sh: "share-change markers",
 };
-
-function listed(names: readonly string[]): string {
-  if (names.length <= 1) {
-    return names.join("");
-  }
-  return `${names.slice(0, -1).join(", ")} and ${names.at(-1) ?? ""}`;
-}
 
 function draw(chart: Chart, bandsOn: boolean) {
   const pts = chart.points;
@@ -217,7 +204,7 @@ function TipRow({
   return (
     <div className="prow">
       <span>
-        <i className={dash ? "sw dash" : "sw"} style={{ "--c": color } as CSSProperties} />
+        <i className={dash ? "sw dash" : "sw"} style={colorVar(color)} />
         {label}
       </span>
       <strong>{value}</strong>
@@ -673,7 +660,7 @@ export function PricePlot({
   const last = chart.points.at(-1);
   const summary =
     `${ticker} daily close ${spanLabel(chart.start, chart.end, chart.range)}, from ${usd(first?.close)} to ${usd(last?.close)}` +
-    (names.length > 0 ? `, with ${listed(names)}` : "");
+    (names.length > 0 ? `, with ${joinNames(names)}` : "");
 
   const bandName = (m: number) => {
     const band = chart.bands.value?.multiples.find((b) => b.multiple === m);

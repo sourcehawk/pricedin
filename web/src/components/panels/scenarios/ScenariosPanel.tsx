@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { joinNames } from "@/components/copy";
 import { pct, signedPct, times, usd, years } from "@/components/format";
 import { NumberField } from "@/components/rail/NumberField";
 import { InfoTip } from "@/components/tip/InfoTip";
@@ -33,14 +34,6 @@ function clamp(v: number, lo: number, hi: number): number {
 /** percentText shows a growth fraction as the percent the case editor holds: 0.105 is "10.5". */
 function percentText(g: number): string {
   return String(Number((g * 100).toFixed(2)));
-}
-
-/** joinNames lists names as a sentence does: "Bear", "Bear and Bull", "Bear, Base and Bull". */
-function joinNames(names: readonly string[]): string {
-  if (names.length <= 1) {
-    return names.join("");
-  }
-  return `${names.slice(0, -1).join(", ")} and ${names.at(-1) ?? ""}`;
 }
 
 const bodies: ReactNode[] = [

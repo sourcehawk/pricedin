@@ -10,7 +10,7 @@ import {
 } from "react";
 import type { Evaluation, Grid, GridOutcome, GridTag } from "@/engine";
 import { pct, pp, signedPct, times, usd } from "@/components/format";
-import { baselineName } from "@/components/rail/notes";
+import { baselineName } from "@/components/copy";
 import { Seg } from "@/components/rail/Levers";
 import { InfoTip } from "@/components/tip/InfoTip";
 import { useTipHandlers } from "@/components/tip/TipProvider";

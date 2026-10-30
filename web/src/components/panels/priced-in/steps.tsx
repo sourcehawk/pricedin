@@ -1,36 +1,12 @@
-import type { CSSProperties, ReactNode } from "react";
 import type { Evaluation } from "@/engine";
 import { pct, pp, signedPct, times, usd, years } from "@/components/format";
-import { baselineName } from "@/components/rail/notes";
+import { baselineLabel, dividendsReach, orDividends } from "@/components/copy";
+import { Swatch } from "@/components/Swatch";
 import type { WalkthroughStep } from "@/components/walkthrough/Walkthrough";
-
-const swatch = (color: string) => (
-  <i className="sq" style={{ "--c": color } as CSSProperties} aria-hidden="true" />
-);
 
 const pill = (tone: "good" | "warn" | "bad", text: string) => (
   <span className={`pill ${tone}`}>{text}</span>
 );
-
-/** dividendsReach reports whether the dividends alone reach the target, so no EPS growth is required. */
-export function dividendsReach(ev: Evaluation): boolean {
-  return (
-    ev.required.growth.value === null && ev.required.growth.reason === "dividends_reach_target"
-  );
-}
-
-/** orDividends returns a step line that shows noGrowth in place of line when the dividends alone reach the target. */
-export function orDividends(
-  noGrowth: ReactNode,
-  line: (ev: Evaluation) => ReactNode,
-): (ev: Evaluation) => ReactNode {
-  return (ev) => (dividendsReach(ev) ? noGrowth : line(ev));
-}
-
-/** baselineLabel names the baseline in use without a leading "your". */
-export function baselineLabel(ev: Evaluation): string {
-  return baselineName(ev).replace(/^your /, "");
-}
 
 function compareLine(ev: Evaluation) {
   const b = ev.baselines;
@@ -195,8 +171,8 @@ export function pricedInSteps({ sym, r, n, price, eps }: StepContext): Walkthrou
           latest quarters counting most. Today uses only the latest quarter. Trailing growth is the
           average yearly growth over the months you set next to Trailing growth in the left panel
           (12 by default). On the scale, the large dot is the requirement. Any growth rate in the
-          shaded part of the scale {swatch("var(--good)")}beats it. A smaller dot to the left of the
-          large dot falls short.
+          shaded part of the scale <Swatch color="var(--good)" />
+          beats it. A smaller dot to the left of the large dot falls short.
         </p>
       ),
       you: orDividends(noGrowth, compareLine),

@@ -1,9 +1,9 @@
-import type { CSSProperties, ReactNode } from "react";
+import type { ReactNode } from "react";
 import type { Evaluation, Grid, GridOutcome } from "@/engine";
 import { pct, signedPct, times, usd, years } from "@/components/format";
-import { baselineName } from "@/components/rail/notes";
+import { baselineLabel, baselineName, dividendsReach, orDividends } from "@/components/copy";
+import { Swatch } from "@/components/Swatch";
 import type { WalkthroughStep } from "@/components/walkthrough/Walkthrough";
-import { baselineLabel, dividendsReach, orDividends } from "../priced-in/steps";
 import { exampleRow, exitColumn, peLabel, tagStyles, toneClass } from "./layout";
 
 /** StepContext holds the lever values that the steps quote. */
@@ -16,10 +16,6 @@ export interface StepContext {
   price: number;
   eps: number;
 }
-
-const swatch = (color: string) => (
-  <i className="sq" style={{ "--c": color } as CSSProperties} aria-hidden="true" />
-);
 
 const tag = (t: "required" | "weighted" | "today" | "trailing") => (
   <span className={`tag ${tagStyles[t].className}`}>{tagStyles[t].label}</span>
@@ -163,7 +159,12 @@ export function gridSteps({ sym, r, n, price, eps }: StepContext): WalkthroughSt
       }),
     },
     {
-      title: <>{swatch("var(--bad)")}Cells that fall short of your target</>,
+      title: (
+        <>
+          <Swatch color="var(--bad)" />
+          Cells that fall short of your target
+        </>
+      ),
       highlight: ["tone-bad"],
       body: (
         <p>
@@ -201,7 +202,12 @@ export function gridSteps({ sym, r, n, price, eps }: StepContext): WalkthroughSt
       }),
     },
     {
-      title: <>{swatch("var(--good)")}Cells that beat your target</>,
+      title: (
+        <>
+          <Swatch color="var(--good)" />
+          Cells that beat your target
+        </>
+      ),
       highlight: ["tone-good"],
       body: (
         <p>
@@ -242,7 +248,12 @@ export function gridSteps({ sym, r, n, price, eps }: StepContext): WalkthroughSt
       }),
     },
     {
-      title: <>{swatch("var(--warn)")}Follow the cells near your target</>,
+      title: (
+        <>
+          <Swatch color="var(--warn)" />
+          Follow the cells near your target
+        </>
+      ),
       highlight: ["tone-warn"],
       body: (
         <p>
@@ -308,7 +319,7 @@ export function gridSteps({ sym, r, n, price, eps }: StepContext): WalkthroughSt
           const color = { bad: "var(--bad)", warn: "var(--warn)", good: "var(--good)" }[tone];
           return (
             <>
-              Your cell {swatch(color)}
+              Your cell <Swatch color={color} />
               <b>{word}</b>: {signedPct(ab.yearlyReturn)} a year against your {target} target. You
               reach the target at <b>{pct(ev.required.growth.value)}</b> growth (yours is{" "}
               {pct(ev.baselines.growth.value)}) or at a <b>{times(ab.exitPeNeeded.value)}</b> exit

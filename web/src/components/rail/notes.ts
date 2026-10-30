@@ -48,20 +48,6 @@ export function exitPeNote(ev: Evaluation): string {
   }
 }
 
-/** baselineName names the baseline in use, as the verdict and the notes say it. */
-export function baselineName(ev: Evaluation): string {
-  switch (ev.baselines.active) {
-    case "weighted":
-      return "weighted trend";
-    case "today":
-      return "latest quarter";
-    case "trailing":
-      return `trailing ${String(ev.baselines.trailing.months)}-month growth`;
-    case "custom":
-      return "your custom growth";
-  }
-}
-
 /** baselineNote explains the growth baseline in use. */
 export function baselineNote(ev: Evaluation, levers: Levers): string {
   switch (ev.baselines.active) {

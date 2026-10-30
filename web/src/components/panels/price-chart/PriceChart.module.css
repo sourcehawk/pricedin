@@ -1,14 +1,3 @@
-.swatch {
-  display: inline-block;
-  width: 11px;
-  height: 11px;
-  border-radius: 3px;
-  margin: 0 4px 0 2px;
-  vertical-align: -1px;
-  background: color-mix(in srgb, var(--c) 35%, transparent);
-  box-shadow: inset 0 0 0 1.5px var(--c);
-}
-
 .range {
   min-width: 170px;
 }

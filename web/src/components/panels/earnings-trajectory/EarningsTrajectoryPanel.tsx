@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import { pct, signedPct, times, usd, years } from "@/components/format";
-import { baselineName } from "@/components/rail/notes";
+import { baselineLabel } from "@/components/copy";
 import { InfoTip } from "@/components/tip/InfoTip";
 import { Walkthrough, type WalkthroughStep } from "@/components/walkthrough/Walkthrough";
 import type { Evaluation, Paths } from "@/engine";
@@ -10,7 +10,7 @@ import { useEvaluation } from "@/state/StockProvider";
 import { Panel } from "../Panel";
 import { endLabels, linePath, TipRow, useColumns, YAxis } from "@/components/charts/smallChart";
 import { FromLevers } from "@/components/Sourced";
-import { colorVar } from "@/components/Swatch";
+import { colorVar, LineSample, Swatch } from "@/components/Swatch";
 
 const W = 520;
 const H = 270;
@@ -52,7 +52,7 @@ export function EarningsTrajectoryPanel() {
     {
       title: (
         <>
-          <span className="lg" style={colorVar(ink)} /> The reported EPS line
+          <LineSample color={ink} /> The reported EPS line
         </>
       ),
       body: (
@@ -76,7 +76,7 @@ export function EarningsTrajectoryPanel() {
     {
       title: (
         <>
-          <span className="lg d" style={colorVar(muted)} /> The baseline line
+          <LineSample color={muted} dash /> The baseline line
         </>
       ),
       body: (
@@ -89,7 +89,7 @@ export function EarningsTrajectoryPanel() {
       levers: ["baseline"],
       you: (e) => (
         <>
-          At your {baselineName(e)} of <b>{pct(e.baselines.growth.value)}</b>, EPS reaches{" "}
+          At your {baselineLabel(e)} of <b>{pct(e.baselines.growth.value)}</b>, EPS reaches{" "}
           <b>{usd(pathsOf(e).future.at(-1)?.baseline.value)}</b> in {years(n)}.
         </>
       ),
@@ -97,7 +97,7 @@ export function EarningsTrajectoryPanel() {
     {
       title: (
         <>
-          <span className="lg d" style={colorVar(accent)} /> The required line
+          <LineSample color={accent} dash /> The required line
         </>
       ),
       body: (
@@ -146,11 +146,11 @@ export function EarningsTrajectoryPanel() {
         <p>
           The shaded area is the gap between the two dashed lines.
           <span className="vl">
-            <i className="sq" style={colorVar("var(--bad)")} />
+            <Swatch color="var(--bad)" />
             The company grows too slowly for your target, so you would earn less than you want.
           </span>
           <span className="vl">
-            <i className="sq" style={colorVar("var(--good)")} />
+            <Swatch color="var(--good)" />
             The company grows fast enough, so you would earn more than you want.
           </span>
           The wider the gap at the right edge, the bigger the difference.
@@ -212,7 +212,7 @@ export function EarningsTrajectoryPanel() {
         }
         return (
           <>
-            <strong>{ticker} in one line:</strong> at your {baselineName(e)}, EPS ends{" "}
+            <strong>{ticker} in one line:</strong> at your {baselineLabel(e)}, EPS ends{" "}
             {usd(Math.abs(gap))} per share {gap < 0 ? "short of" : "above"} what the price needs.
           </>
         );
@@ -279,7 +279,7 @@ function shadingLine(e: Evaluation, ticker: string, targetReturn: number): React
   if (gap === null || at === null) {
     return null;
   }
-  const name = baselineName(e);
+  const name = baselineLabel(e);
   const g = pct(e.baselines.growth.value);
   if (gap < 0) {
     return (

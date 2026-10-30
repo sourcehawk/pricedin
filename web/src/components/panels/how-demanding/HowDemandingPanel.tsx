@@ -8,7 +8,7 @@ import type { Demanding, Evaluation } from "@/engine";
 import { useEvaluation } from "@/state/StockProvider";
 import { endLabels, linePath, TipRow, useColumns, YAxis } from "@/components/charts/smallChart";
 import { FromLevers } from "@/components/Sourced";
-import { colorVar } from "@/components/Swatch";
+import { colorVar, LineSample } from "@/components/Swatch";
 import { Panel } from "../Panel";
 
 const W = 520;
@@ -51,7 +51,7 @@ export function HowDemandingPanel() {
     {
       title: (
         <>
-          <span className="lg" style={colorVar(accent)} /> The required growth line
+          <LineSample color={accent} /> The required growth line
         </>
       ),
       body: (
@@ -75,7 +75,7 @@ export function HowDemandingPanel() {
     {
       title: (
         <>
-          <span className="lg" style={colorVar(ink)} /> The delivered growth line
+          <LineSample color={ink} /> The delivered growth line
         </>
       ),
       body: (

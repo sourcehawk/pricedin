@@ -1,12 +1,6 @@
 import type { ReactNode } from "react";
-import { colorVar } from "@/components/Swatch";
+import { Swatch } from "@/components/Swatch";
 import type { Metric, Missing, Tone } from "@/engine";
-import styles from "./Financials.module.css";
-
-/** Sample shows a color sample in text instead of the color's name. */
-export function Sample({ color }: { color: string }) {
-  return <i className={styles.sample} style={colorVar(color)} aria-hidden="true" />;
-}
 
 /** cls joins class names, leaving out the missing ones. */
 export function cls(...names: (string | undefined | false)[]): string {
@@ -44,8 +38,8 @@ export const metricInfo: Record<Metric, MetricInfo> = {
         salaries, research, marketing and administration. It equals revenue minus operating income.
         Rising costs are not bad by themselves, because a growing business spends more, and cutting
         research or marketing can hurt later. What matters is costs against revenue: the change
-        shows as <Sample color="var(--warn)" /> when costs grow faster than revenue, because that
-        squeezes the margin, and as <Sample color="var(--muted)" /> otherwise.
+        shows as <Swatch color="var(--warn)" /> when costs grow faster than revenue, because that
+        squeezes the margin, and as <Swatch color="var(--muted)" /> otherwise.
       </>
     ),
     color: "var(--s6)",
@@ -80,7 +74,7 @@ export const metricInfo: Record<Metric, MetricInfo> = {
         The number of shares, counting stock options and grants that will turn into shares. When it
         rises (dilution), each share owns a smaller slice of the profit, so EPS grows slower than
         profit. When it falls (buybacks), EPS grows faster than profit. An increase shows as{" "}
-        <Sample color="var(--bad)" />.
+        <Swatch color="var(--bad)" />.
       </>
     ),
     color: "var(--ink)",

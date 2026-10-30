@@ -1,6 +1,7 @@
 "use client";
 
-import { useSyncExternalStore, type CSSProperties } from "react";
+import { useSyncExternalStore } from "react";
+import { colorVar } from "@/components/Swatch";
 import { InfoTip } from "@/components/tip/InfoTip";
 import { useTipHandlers } from "@/components/tip/TipProvider";
 import type { ChartPoint } from "@/engine";
@@ -9,12 +10,7 @@ import { overlays, priceOverlay, type Overlay, type OverlayKey } from "./overlay
 import styles from "./PriceChart.module.css";
 
 function Sample({ o }: { o: Overlay }) {
-  return (
-    <span
-      className={o.dash === true ? "sw dash" : "sw"}
-      style={{ "--c": o.color } as CSSProperties}
-    />
-  );
+  return <span className={o.dash === true ? "sw dash" : "sw"} style={colorVar(o.color)} />;
 }
 
 function PriceChip({ p }: { p: ChartPoint }) {
