@@ -66,10 +66,10 @@ type Value struct {
 	Inputs []SourceRef
 	// Filed is the latest filing date among Inputs.
 	Filed domain.Date
-	// FirstFiled is the date on which the value first became known: the
-	// first filing of each input period, taken for the latest input. Later
-	// filings repeat earlier periods as comparatives, so FirstFiled is
-	// usually much earlier than Filed.
+	// FirstFiled is the date on which the filings first gave the quarter,
+	// also through inputs that are not in Inputs. Later filings repeat
+	// earlier periods as comparatives, so FirstFiled is usually much
+	// earlier than Filed.
 	FirstFiled domain.Date
 }
 

@@ -196,10 +196,7 @@ func (d *deriver) values(q quarterSpan) map[Metric]Value {
 }
 
 // flow derives a value that adds up over time, from the first concept that
-// gives one. All inputs of a value come from that one concept. Its
-// FirstFiled is the earliest date on which any concept gave the quarter in
-// any way: a quarter reported only in a later filing was known before from
-// year-to-date values.
+// gives one. All inputs of a value come from that one concept.
 func (d *deriver) flow(concepts []sec.Concept, q quarterSpan) (Value, bool) {
 	var out Value
 	found := false
@@ -237,8 +234,7 @@ func (d *deriver) flow(concepts []sec.Concept, q quarterSpan) (Value, bool) {
 
 // shares derives the diluted share count. A weighted average does not add
 // up over time, so only Q4 is derived, with each quarter weighted by its
-// days, and the result is an estimate. A reported count wins, and the
-// earlier of the two ways dates the quarter.
+// days, and the result is an estimate.
 func (d *deriver) shares(q quarterSpan) (Value, bool) {
 	c := sec.WeightedAverageNumberOfDilutedSharesOutstanding
 	weighted, wok := d.weightedQ4(c, q)
@@ -253,8 +249,6 @@ func (d *deriver) shares(q quarterSpan) (Value, bool) {
 	return v, true
 }
 
-// weightedQ4 returns the Q4 count that makes the duration-weighted
-// quarters match the full-year average.
 func (d *deriver) weightedQ4(c sec.Concept, q quarterSpan) (Value, bool) {
 	if q.n != 4 {
 		return Value{}, false
