@@ -36,6 +36,16 @@ describe("markScope", () => {
     expect(scope.querySelector(".tour-card p")).not.toHaveAttribute("data-tl");
   });
 
+  it("does not fade an element that holds a highlighted element", () => {
+    const scope = panel();
+    const p = document.createElement("p");
+    p.innerHTML = 'Required <b data-walk="req">14.8%</b> a year';
+    scope.prepend(p);
+    markScope(scope, ["req"], null);
+    expect(p).not.toHaveAttribute("data-tl");
+    expect(scope.querySelector("dt")).toHaveAttribute("data-tl");
+  });
+
   it("fades nothing when no element matches", () => {
     const scope = panel();
     expect(markScope(scope, ["missing"], null)).toEqual([]);
