@@ -134,7 +134,7 @@ const (
 	// used.
 	ConflictShareScale ConflictKind = "share_scale"
 	// ConflictSplitEvidence is a split that SEC data gives and that no
-	// provider event matches, although provider events were passed. When a
+	// provider event matches, although the provider was checked. When a
 	// provider event of another ratio lies near its date, only the provider
 	// event is applied. Otherwise the SEC split is applied too.
 	ConflictSplitEvidence ConflictKind = "split_evidence"
@@ -167,6 +167,10 @@ type Options struct {
 	// Splits are confirmed split events from the price provider. They may
 	// be empty.
 	Splits []domain.Split
+	// ProviderChecked says that the provider was asked for splits, also
+	// when it has none. Then an SEC split that no provider event matches
+	// gives a ConflictSplitEvidence, as it does when Splits is not empty.
+	ProviderChecked bool
 }
 
 func quarterLabel(fiscalYear, fiscalQuarter int) string {

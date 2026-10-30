@@ -3,6 +3,7 @@ package fundamentals_test
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -535,5 +536,27 @@ func TestDeriveFindsCocaColasRestatementOfAShiftedPeriod(t *testing.T) {
 	}
 	if in := v.Inputs[0]; in.PeriodStart.String() != "2011-04-03" || v.FirstFiled.String() != "2011-08-01" {
 		t.Errorf("input period starts %s, FirstFiled %s; want the filed start 2011-04-03 and 2011-08-01", in.PeriodStart, v.FirstFiled)
+	}
+}
+
+func TestDeriveCitesTheFirstFilingOfEachSECSplit(t *testing.T) {
+	tests := []struct {
+		name string
+		cik  domain.CIK
+		want []string
+	}{
+		{"NVDA", cikNVDA, []string{"0001045810-21-000131", "0001045810-24-000264"}},
+		{"AAPL", cikAAPL, []string{"0001193125-14-277160", "0000320193-20-000096"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var got []string
+			for _, sp := range deriveFixture(t, tt.cik, fundamentals.Options{}).Splits {
+				got = append(got, sp.Evidence)
+			}
+			if !slices.Equal(got, tt.want) {
+				t.Errorf("evidence = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }

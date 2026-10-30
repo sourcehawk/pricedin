@@ -291,6 +291,11 @@ func TestDeriveFlagsAValueThatAFilingAfterTheSplitRepeatsUnchanged(t *testing.T)
 	if diff := cmp.Diff(want, s.Conflicts, conflictSummary); diff != "" {
 		t.Errorf("Conflicts (-want +got):\n%s", diff)
 	}
+	// The repeated value contradicts the split, so the first filing,
+	// adjusted, stays in use.
+	if v := value(t, s, "Q2 FY24", fundamentals.EPSDiluted); v.V != 1.05 || v.Inputs[0].Accession != "q2-2024" || v.Inputs[0].SplitRatio != 2 {
+		t.Errorf("Q2 FY24 EPS = %v from %v, want 1.05 from q2-2024 divided by 2", v.V, accessions(v))
+	}
 }
 
 func TestDeriveMatchesSECEvidenceToTheProviderEventWithItsRatio(t *testing.T) {
@@ -342,5 +347,27 @@ func TestDeriveLetsAnAmendedSplitRatioReplaceTheOriginal(t *testing.T) {
 	}
 	if v := value(t, s, "Q1 FY24", fundamentals.EPSDiluted); !near(v.V, 2.0/3, 1e-12) {
 		t.Errorf("Q1 FY24 EPS = %v, want 2/3", v.V)
+	}
+}
+
+func TestDeriveFlagsSECSplitEvidenceWhenTheProviderHasNoSplits(t *testing.T) {
+	var facts []domain.Fact
+	y25 := splitYears(t, &facts, 1.05)
+	y25.q2.add(sec.StockholdersEquityNoteStockSplitConversionRatio1, "", "2025-06-10", 2)
+
+	s := derive(t, facts, fundamentals.Options{ProviderChecked: true})
+	if len(s.Splits) != 1 || countConflicts(s, fundamentals.ConflictSplitEvidence) != 1 {
+		t.Errorf("Splits = %+v, Conflicts = %+v; want the SEC split and one split_evidence conflict", s.Splits, s.Conflicts)
+	}
+}
+
+func TestDeriveCitesTheFirstFilingOfTheSplitRatio(t *testing.T) {
+	var facts []domain.Fact
+	y25 := splitYears(t, &facts, 1.05)
+	y25.q2.add(sec.StockholdersEquityNoteStockSplitConversionRatio1, "", "2025-06-10", 2)
+	y25.q3.add(sec.StockholdersEquityNoteStockSplitConversionRatio1, "", "2025-06-10", 2)
+
+	if s := derive(t, facts, fundamentals.Options{}); len(s.Splits) != 1 || s.Splits[0].Evidence != "q2-2025" {
+		t.Errorf("Splits = %+v, want one with evidence q2-2025", s.Splits)
 	}
 }

@@ -33,14 +33,10 @@ func confirmSplits(cik domain.CIK, ratios []domain.Fact, opts Options) ([]domain
 	for _, group := range groupRatios(ratios) {
 		r := group[0].Value
 		var date domain.Date
-		evidence := group[0]
 		for i := range group {
-			f := &group[i]
-			date = latestDate(date, f.PeriodEnd)
-			if f.Filed.Before(evidence.Filed) || (f.Filed.Equal(evidence.Filed) && f.Accession < evidence.Accession) {
-				evidence = *f
-			}
+			date = latestDate(date, group[i].PeriodEnd)
 		}
+		evidence := firstReport(ratios, group)
 		if opts.AsOf != nil && date.After(*opts.AsOf) {
 			continue
 		}
@@ -59,7 +55,7 @@ func confirmSplits(cik domain.CIK, ratios []domain.Fact, opts Options) ([]domain
 		if !slices.ContainsFunc(splits[:provider], near) {
 			splits = append(splits, split)
 		}
-		if len(opts.Splits) > 0 {
+		if len(opts.Splits) > 0 || opts.ProviderChecked {
 			conflicts = append(conflicts, Conflict{
 				Kind:        ConflictSplitEvidence,
 				Concept:     evidence.Concept,
@@ -120,6 +116,29 @@ func latestByPeriod(ratios []domain.Fact) []domain.Fact {
 		}
 	}
 	return slices.Collect(maps.Values(latest))
+}
+
+// firstReport returns the earliest filing among ratios that reports the
+// ratio of group for one of the group's periods.
+func firstReport(ratios, group []domain.Fact) domain.Fact {
+	first := group[0]
+	for i := range ratios {
+		f := &ratios[i]
+		if f.Value != first.Value || !slices.ContainsFunc(group, func(g domain.Fact) bool { return samePeriod(f, &g) }) {
+			continue
+		}
+		if f.Filed.Before(first.Filed) || (f.Filed.Equal(first.Filed) && f.Accession < first.Accession) {
+			first = *f
+		}
+	}
+	return first
+}
+
+func samePeriod(a, b *domain.Fact) bool {
+	if (a.PeriodStart == nil) != (b.PeriodStart == nil) || !a.PeriodEnd.Equal(b.PeriodEnd) {
+		return false
+	}
+	return a.PeriodStart == nil || a.PeriodStart.Equal(*b.PeriodStart)
 }
 
 func abs(n int) int {
@@ -193,12 +212,27 @@ func reconcile(obs []observation) (observation, []Conflict) {
 		c.Kind = ConflictShareScale
 	case expected != 1:
 		c.Kind = ConflictSplitMismatch
+		// A filing after the split that repeats the old value has not
+		// restated it, so the adjusted value of the old basis stays.
+		if restatedAt(kind, a, b, 1, 0) {
+			use = latestOnBasis(obs, first.ratio)
+		}
 	case cleanRatio(kind, a, b):
 		c.Kind = ConflictUnconfirmedSplit
 	default:
 		return use, nil
 	}
 	return use, []Conflict{c}
+}
+
+// latestOnBasis returns the latest observation adjusted by ratio.
+func latestOnBasis(obs []observation, ratio float64) observation {
+	for i := len(obs) - 1; i >= 0; i-- {
+		if obs[i].ratio == ratio {
+			return obs[i]
+		}
+	}
+	return obs[0]
 }
 
 // scaled reports whether big is small times factor, to the rounding of
