@@ -2,6 +2,8 @@ package ingest
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -42,9 +44,9 @@ const (
 
 // Options configure a Runner.
 type Options struct {
-	// Pool is the database. The Runner takes its advisory locks on it, so
-	// it needs a few connections beyond the store's: about four for the
-	// daily job.
+	// Pool is the database. The Runner opens a second, small pool with the
+	// same settings for its advisory locks, so that held locks never take
+	// the connections that the jobs' queries need; Close closes it.
 	Pool *pgxpool.Pool
 	// Blob keeps the bulk archives. The clients record the other responses
 	// themselves, with a Recorder over the same store.
@@ -72,14 +74,18 @@ type Options struct {
 //
 // Every job takes a Postgres advisory lock for its name and records one
 // ingest_runs row. When another runner holds the lock, a job returns
-// ErrAlreadyRunning at once and records nothing, unless
-// Options.WaitForLocks is set; LoadCompany always waits for the other load
-// of the same company. Every SEC request also
-// takes the shared lock "sec-api", one company or one file at a time, so
-// that all processes together stay within the SEC rate limit.
+// ErrAlreadyRunning and records nothing, unless Options.WaitForLocks is
+// set; LoadCompany always waits for the other load of the same company.
+// Every SEC request also takes the shared lock "sec-api", one company or
+// one file at a time, and a process that takes it over from another one
+// starts no sooner than a second after that one released it, so that all
+// processes together stay within the SEC rate limit. At most maxJobs
+// top-level jobs run at once in one Runner; more wait for their turn.
 type Runner struct {
 	store        *store.Store
 	locks        locker
+	lockPool     *pgxpool.Pool
+	slots        chan struct{}
 	blob         blob.Store
 	sec          *sec.Client
 	prices       prices.Provider
@@ -90,14 +96,25 @@ type Runner struct {
 	logger       *slog.Logger
 }
 
-// New returns a Runner. Pool and Blob are required.
-func New(opts Options) (*Runner, error) {
+// New returns a Runner. Pool and Blob are required. The caller closes the
+// Runner with Close.
+func New(ctx context.Context, opts Options) (*Runner, error) {
 	if opts.Pool == nil || opts.Blob == nil {
 		return nil, errors.New("ingest: a database pool and a blob store are required")
 	}
+	lockCfg := opts.Pool.Config().Copy()
+	lockCfg.MaxConns, lockCfg.MinConns = maxJobs*locksPerJob, 0
+	lockPool, err := pgxpool.NewWithConfig(ctx, lockCfg)
+	if err != nil {
+		return nil, fmt.Errorf("ingest: lock pool: %w", err)
+	}
+	holder := make([]byte, 8)
+	_, _ = rand.Read(holder)
 	r := &Runner{
 		store:        store.New(opts.Pool),
-		locks:        locker{pool: opts.Pool},
+		locks:        locker{pool: lockPool, holder: hex.EncodeToString(holder)},
+		lockPool:     lockPool,
+		slots:        make(chan struct{}, maxJobs),
 		blob:         opts.Blob,
 		sec:          opts.SEC,
 		prices:       opts.Prices,
@@ -117,6 +134,12 @@ func New(opts Options) (*Runner, error) {
 		r.logger = slog.New(slog.DiscardHandler)
 	}
 	return r, nil
+}
+
+// Close closes the pool of the advisory locks. Call it after the last job
+// ended.
+func (r *Runner) Close() {
+	r.lockPool.Close()
 }
 
 // today is the current date in UTC.
@@ -144,31 +167,51 @@ type Result interface {
 	Stats() map[string]int64
 }
 
+// maxJobs is the most jobs that one Runner runs at once, and locksPerJob
+// the most advisory locks that one of them holds together: its own, a
+// step's, and the SEC lock. Together they size the lock pool, so a holder
+// always gets the connection for its next lock.
+const (
+	maxJobs     = 4
+	locksPerJob = 3
+)
+
+// inJobKey marks the context of a running job, whose steps run as jobs of
+// their own without a slot of their own.
+type inJobKey struct{}
+
 // runJob runs fn as job: it takes the advisory lock lockName (waiting for
-// it when wait is true, else returning ErrAlreadyRunning), records an
+// it when wait or Options.WaitForLocks is set, else returning
+// ErrAlreadyRunning), records an
 // ingest_runs row, and finishes the row with the result's counts and the
-// error.
+// error. A job that no other job started waits for one of the Runner's
+// slots first.
 func runJob[T Result](ctx context.Context, r *Runner, job, lockName string, wait bool, fn func(context.Context) (T, error)) (T, error) {
 	var zero T
-	var release func()
-	if wait || r.waitForLocks {
-		var err error
-		if release, err = r.locks.wait(ctx, lockName); err != nil {
-			return zero, err
+	if ctx.Value(inJobKey{}) == nil {
+		select {
+		case r.slots <- struct{}{}:
+		case <-ctx.Done():
+			return zero, ctx.Err()
 		}
-	} else {
-		var ok bool
-		var err error
-		release, ok, err = r.locks.try(ctx, lockName)
-		if err != nil {
-			return zero, err
-		}
-		if !ok {
-			r.logger.InfoContext(ctx, "ingest: job is already running elsewhere; skipping", "job", job, "lock", lockName)
-			return zero, fmt.Errorf("%s: %w", job, ErrAlreadyRunning)
-		}
+		defer func() { <-r.slots }()
+		ctx = context.WithValue(ctx, inJobKey{}, true)
 	}
-	defer release()
+	var lk *lock
+	var err error
+	if wait || r.waitForLocks {
+		lk, err = r.locks.wait(ctx, lockName)
+	} else {
+		lk, err = r.locks.try(ctx, lockName)
+	}
+	if err != nil {
+		return zero, err
+	}
+	if lk == nil {
+		r.logger.InfoContext(ctx, "ingest: job is already running elsewhere; skipping", "job", job, "lock", lockName)
+		return zero, fmt.Errorf("%s: %w", job, ErrAlreadyRunning)
+	}
+	defer lk.release(ctx)
 
 	id, err := r.store.StartIngestRun(ctx, job)
 	if err != nil {

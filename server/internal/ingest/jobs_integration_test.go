@@ -196,8 +196,8 @@ func TestSECDailyLoadsTheUniverseCompaniesThatFiled(t *testing.T) {
 	if res.Indexes != 1 || res.Filers != 1 || res.Companies != 1 || res.Facts == 0 {
 		t.Errorf("SECDaily() = %+v, want one index and NVDA loaded", res)
 	}
-	if diff := cmp.Diff([]domain.CIK{1045810}, res.FactsAdded); diff != "" {
-		t.Errorf("FactsAdded (-want +got):\n%s", diff)
+	if diff := cmp.Diff([]domain.CIK{1045810}, must(e.store.ListPendingFundamentals(ctx))(t)); diff != "" {
+		t.Errorf("pending rebuilds (-want +got):\n%s", diff)
 	}
 	cursor := must(e.store.GetIngestCursor(ctx, ingest.JobSECDaily))(t)
 	if cursor != domain.NewDate(2026, 8, 26) {
@@ -268,7 +268,7 @@ func TestOnlyOneRunnerRunsAJobAtATime(t *testing.T) {
 	}})
 	must(e.runner.SECTickers(ctx))(t)
 	// A second process: its own pool and its own clients.
-	other := e.newRunner(t, newPool(t, e.url), 0)
+	other := e.newRunner(t, newPool(t, e.url), 0, nil)
 
 	done := make(chan error, 1)
 	go func() {

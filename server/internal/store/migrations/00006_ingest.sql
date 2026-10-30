@@ -51,7 +51,28 @@ CREATE TABLE ingest_cursors (
     updated_at timestamptz NOT NULL DEFAULT now()
 );
 
+-- The companies whose derived quarters must be built again, because their
+-- facts or provider splits changed. The write that changes an input marks
+-- the company in the same transaction; a rebuild clears the mark only when
+-- version is still the one it read, so a change during the rebuild keeps it.
+CREATE TABLE fundamentals_pending (
+    cik       bigint PRIMARY KEY REFERENCES companies (cik),
+    version   bigint NOT NULL DEFAULT 1,
+    marked_at timestamptz NOT NULL DEFAULT now()
+);
+
+-- The last release of an advisory lock that the processes hand over, such
+-- as the SEC lock: the next holder from another process waits until a
+-- second after it, so that two rate limiters never overlap.
+CREATE TABLE ingest_lock_releases (
+    name        text PRIMARY KEY,
+    holder      text NOT NULL,
+    released_at timestamptz NOT NULL
+);
+
 -- +goose Down
+DROP TABLE ingest_lock_releases;
+DROP TABLE fundamentals_pending;
 DROP TABLE ingest_cursors;
 DROP TABLE price_reference_checks;
 DROP TABLE price_grouped_loads;

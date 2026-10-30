@@ -66,28 +66,46 @@ func (r *Runner) LoadCompanyResult(ctx context.Context, symbol string) (CompanyR
 
 // lookupSymbol finds the current mapping of symbol. When the stored ticker
 // map lacks it and the SEC map was not loaded today, it loads the SEC map
-// first.
+// first, or waits for a load that another runner started.
 func (r *Runner) lookupSymbol(ctx context.Context, symbol string) (domain.Ticker, error) {
 	t, err := r.store.GetCurrentTicker(ctx, symbol)
 	if !errors.Is(err, store.ErrNotFound) {
 		return t, err
 	}
-	last, err := r.store.GetLastSucceededIngestRun(ctx, JobSECTickers)
-	switch {
-	case errors.Is(err, store.ErrNotFound):
-	case err != nil:
+	fresh, err := r.tickersLoadedToday(ctx)
+	if err != nil {
 		return domain.Ticker{}, err
-	case !domain.DateOf(last.StartedAt.UTC()).Before(r.today()):
-		return domain.Ticker{}, fmt.Errorf("%q: %w", symbol, ErrUnknownSymbol)
 	}
-	if _, err := r.SECTickers(ctx); err != nil && !errors.Is(err, ErrAlreadyRunning) {
-		return domain.Ticker{}, err
+	if !fresh {
+		_, err := runJob(ctx, r, JobSECTickers, JobSECTickers, true, func(ctx context.Context) (SECTickersResult, error) {
+			// The load that this one waited for counts too.
+			if fresh, err := r.tickersLoadedToday(ctx); err != nil || fresh {
+				return SECTickersResult{}, err
+			}
+			return r.syncSECTickers(ctx)
+		})
+		if err != nil {
+			return domain.Ticker{}, err
+		}
 	}
 	t, err = r.store.GetCurrentTicker(ctx, symbol)
 	if errors.Is(err, store.ErrNotFound) {
 		return domain.Ticker{}, fmt.Errorf("%q: %w", symbol, ErrUnknownSymbol)
 	}
 	return t, err
+}
+
+// tickersLoadedToday reports whether a sec-tickers run that started today
+// succeeded.
+func (r *Runner) tickersLoadedToday(ctx context.Context) (bool, error) {
+	last, err := r.store.GetLastSucceededIngestRun(ctx, JobSECTickers)
+	if errors.Is(err, store.ErrNotFound) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return !domain.DateOf(last.StartedAt.UTC()).Before(r.today()), nil
 }
 
 func (r *Runner) loadCompany(ctx context.Context, t domain.Ticker) (CompanyResult, error) {

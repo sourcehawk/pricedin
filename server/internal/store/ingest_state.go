@@ -146,3 +146,111 @@ func (s *Store) ListCompanyCIKs(ctx context.Context) ([]domain.CIK, error) {
 	}
 	return out, nil
 }
+
+// MarkFundamentalsPending marks the companies whose derived quarters must
+// be built again. A CIK that is not a stored company is skipped. Call it in
+// the transaction that changes the inputs.
+func (s *Store) MarkFundamentalsPending(ctx context.Context, ciks []domain.CIK) error {
+	ids := make([]int64, len(ciks))
+	for i, c := range ciks {
+		ids[i] = int64(c)
+	}
+	_, err := s.db.Exec(ctx, `
+		INSERT INTO fundamentals_pending (cik)
+		SELECT DISTINCT c.cik FROM companies c WHERE c.cik = ANY($1::bigint[])
+		ORDER BY c.cik
+		ON CONFLICT (cik) DO UPDATE SET version = fundamentals_pending.version + 1, marked_at = now()`, ids)
+	if err != nil {
+		return fmt.Errorf("mark fundamentals pending: %w", err)
+	}
+	return nil
+}
+
+// MarkFundamentalsPendingForSymbols marks the companies that the symbols
+// map to now in the SEC ticker map, as MarkFundamentalsPending does.
+func (s *Store) MarkFundamentalsPendingForSymbols(ctx context.Context, symbols []string) error {
+	_, err := s.db.Exec(ctx, `
+		INSERT INTO fundamentals_pending (cik)
+		SELECT DISTINCT t.cik FROM tickers t
+		WHERE t.source = '`+TickerSourceSEC+`' AND t.valid_to IS NULL AND t.symbol = ANY($1::text[])
+		ORDER BY t.cik
+		ON CONFLICT (cik) DO UPDATE SET version = fundamentals_pending.version + 1, marked_at = now()`, symbols)
+	if err != nil {
+		return fmt.Errorf("mark fundamentals pending: %w", err)
+	}
+	return nil
+}
+
+// GetFundamentalsPending returns the version of the CIK's mark, and false
+// when the CIK is not marked.
+func (s *Store) GetFundamentalsPending(ctx context.Context, cik domain.CIK) (int64, bool, error) {
+	var v int64
+	err := s.db.QueryRow(ctx, `SELECT version FROM fundamentals_pending WHERE cik = $1`, int64(cik)).Scan(&v)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return 0, false, nil
+	}
+	if err != nil {
+		return 0, false, fmt.Errorf("fundamentals pending of %s: %w", cik, err)
+	}
+	return v, true, nil
+}
+
+// ClearFundamentalsPending removes the CIK's mark when its version is still
+// version, and keeps a mark that a later change raised.
+func (s *Store) ClearFundamentalsPending(ctx context.Context, cik domain.CIK, version int64) error {
+	if _, err := s.db.Exec(ctx, `DELETE FROM fundamentals_pending WHERE cik = $1 AND version = $2`, int64(cik), version); err != nil {
+		return fmt.Errorf("clear fundamentals pending of %s: %w", cik, err)
+	}
+	return nil
+}
+
+// ListPendingFundamentals returns the marked CIKs in ascending order.
+func (s *Store) ListPendingFundamentals(ctx context.Context) ([]domain.CIK, error) {
+	rows, err := s.db.Query(ctx, `SELECT cik FROM fundamentals_pending ORDER BY cik`)
+	if err != nil {
+		return nil, fmt.Errorf("list pending fundamentals: %w", err)
+	}
+	out, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (domain.CIK, error) {
+		var c int64
+		err := row.Scan(&c)
+		return domain.CIK(c), err
+	})
+	if err != nil {
+		return nil, fmt.Errorf("list pending fundamentals: %w", err)
+	}
+	return out, nil
+}
+
+// LockCompanyFundamentals takes a transaction lock on the derived quarters
+// of the CIK, so that two rebuilds of one company run one after the other.
+// It must run in WithTx; the lock ends with the transaction.
+func (s *Store) LockCompanyFundamentals(ctx context.Context, cik domain.CIK) error {
+	if _, err := s.db.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended('fundamentals:' || $1::bigint::text, 0))`, int64(cik)); err != nil {
+		return fmt.Errorf("lock fundamentals of %s: %w", cik, err)
+	}
+	return nil
+}
+
+// ListSymbolsWithSplitsBetween returns the symbols with a provider split
+// that executed after after and on or before upTo, sorted. A zero after
+// means no lower bound.
+func (s *Store) ListSymbolsWithSplitsBetween(ctx context.Context, after, upTo domain.Date) ([]string, error) {
+	rows, err := s.db.Query(ctx, `
+		SELECT DISTINCT symbol FROM price_splits
+		WHERE ($1::date IS NULL OR execution_date > $1) AND execution_date <= $2
+		ORDER BY symbol`, pgDate(after), pgDate(upTo))
+	if err != nil {
+		return nil, fmt.Errorf("list symbols with splits: %w", err)
+	}
+	out, err := pgx.CollectRows(rows, pgx.RowTo[string])
+	if err != nil {
+		return nil, fmt.Errorf("list symbols with splits: %w", err)
+	}
+	return out, nil
+}
+
+// GetEarliestGroupedPriceDate returns the oldest date whose grouped daily
+// bars were loaded, or ErrNotFound.
+func (s *Store) GetEarliestGroupedPriceDate(ctx context.Context) (domain.Date, error) {
+	return s.latestDate(ctx, "earliest grouped price date", `SELECT min(date) FROM price_grouped_loads`)
+}

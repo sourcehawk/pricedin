@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 
 	"github.com/sourcehawk/pricedin/server/internal/domain"
 	"github.com/sourcehawk/pricedin/server/internal/store"
@@ -249,5 +250,102 @@ func TestAddCompaniesKeepsStoredDetails(t *testing.T) {
 	}
 	if n, err := s.AddCompanies(ctx, []domain.Company{other}); err != nil || n != 0 {
 		t.Errorf("second AddCompanies() = %d, %v; want 0", n, err)
+	}
+}
+
+func TestFundamentalsPendingKeepsAMarkThatALaterChangeRaised(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	s, _ := newStore(t)
+	mustUpsertCompanies(t, s, acme, globex)
+	if _, err := s.SyncTickers(ctx, store.TickerSourceSEC, date(t, "2026-10-30"), []domain.Ticker{{Symbol: "GLBX", CIK: globex.CIK, Exchange: "NYSE"}}); err != nil {
+		t.Fatal(err)
+	}
+
+	// A CIK that is not a stored company is skipped.
+	if err := s.MarkFundamentalsPending(ctx, []domain.CIK{acme.CIK, 999999}); err != nil {
+		t.Fatalf("MarkFundamentalsPending() error = %v", err)
+	}
+	if err := s.MarkFundamentalsPendingForSymbols(ctx, []string{"GLBX", "NOPE"}); err != nil {
+		t.Fatalf("MarkFundamentalsPendingForSymbols() error = %v", err)
+	}
+	pending, err := s.ListPendingFundamentals(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if diff := cmp.Diff([]domain.CIK{min(acme.CIK, globex.CIK), max(acme.CIK, globex.CIK)}, pending); diff != "" {
+		t.Errorf("ListPendingFundamentals() (-want +got):\n%s", diff)
+	}
+
+	v, ok, err := s.GetFundamentalsPending(ctx, acme.CIK)
+	if err != nil || !ok {
+		t.Fatalf("GetFundamentalsPending() = %d, %v, %v", v, ok, err)
+	}
+	// A change after the rebuild read the version raises it.
+	if err := s.MarkFundamentalsPending(ctx, []domain.CIK{acme.CIK}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.ClearFundamentalsPending(ctx, acme.CIK, v); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok, _ := s.GetFundamentalsPending(ctx, acme.CIK); !ok {
+		t.Error("the mark of a later change was cleared")
+	}
+	v2, _, _ := s.GetFundamentalsPending(ctx, acme.CIK)
+	if err := s.ClearFundamentalsPending(ctx, acme.CIK, v2); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok, _ := s.GetFundamentalsPending(ctx, acme.CIK); ok {
+		t.Error("the mark stayed after a clear with its version")
+	}
+}
+
+func TestListSymbolsWithSplitsBetween(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	s, _ := newStore(t)
+	if _, err := s.UpsertPriceSplits(ctx, []domain.Split{
+		{Symbol: "NVDA", Date: date(t, "2024-06-10"), From: 1, To: 10, Source: "massive", Evidence: "a"},
+		{Symbol: "KO", Date: date(t, "2026-11-02"), From: 1, To: 2, Source: "massive", Evidence: "b"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	tests := []struct {
+		after, upTo string
+		want        []string
+	}{
+		{"", "2026-10-29", []string{"NVDA"}},
+		{"2024-06-10", "2026-11-02", []string{"KO"}},
+		{"2024-06-09", "2026-11-02", []string{"KO", "NVDA"}},
+		{"2024-06-10", "2026-10-29", []string{}},
+	}
+	for _, tt := range tests {
+		var after domain.Date
+		if tt.after != "" {
+			after = date(t, tt.after)
+		}
+		got, err := s.ListSymbolsWithSplitsBetween(ctx, after, date(t, tt.upTo))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if diff := cmp.Diff(tt.want, got, cmpopts.EquateEmpty()); diff != "" {
+			t.Errorf("(%s, %s] (-want +got):\n%s", tt.after, tt.upTo, diff)
+		}
+	}
+}
+
+func TestGetEarliestGroupedPriceDate(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	s, _ := newStore(t)
+	_, err := s.GetEarliestGroupedPriceDate(ctx)
+	wantNotFound(t, "GetEarliestGroupedPriceDate() without loads", err)
+	for _, d := range []string{"2026-10-28", "2026-10-26"} {
+		if err := s.MarkGroupedPricesLoaded(ctx, date(t, d), 1); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got, err := s.GetEarliestGroupedPriceDate(ctx); err != nil || got != date(t, "2026-10-26") {
+		t.Errorf("GetEarliestGroupedPriceDate() = %v, %v; want 2026-10-26", got, err)
 	}
 }

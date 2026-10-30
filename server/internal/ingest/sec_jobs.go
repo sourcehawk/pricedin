@@ -42,14 +42,17 @@ const secLock = "sec-api"
 // first run.
 const secDailyLookback = 7
 
-// withSEC runs fn under the SEC lock and with the time limit of one SEC
-// call.
+// withSEC runs fn under the SEC lock, after the handoff gap, and with the
+// time limit of one SEC call.
 func (r *Runner) withSEC(ctx context.Context, timeout time.Duration, fn func(context.Context) error) error {
-	release, err := r.locks.wait(ctx, secLock)
+	lk, err := r.locks.wait(ctx, secLock)
 	if err != nil {
 		return err
 	}
-	defer release()
+	defer r.locks.releaseHandedOff(ctx, lk)
+	if err := r.locks.waitForHandoff(ctx, lk); err != nil {
+		return err
+	}
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	return fn(ctx)
@@ -163,9 +166,6 @@ type SECCompanyResult struct {
 	Filings   int64 // filings added
 	Facts     int64 // facts added
 	Failed    int64
-	// FactsAdded lists the companies that got new facts, whose quarters
-	// must be derived again.
-	FactsAdded []domain.CIK `json:",omitempty"`
 }
 
 // Stats implements Result.
@@ -184,7 +184,6 @@ func (s *SECCompanyResult) add(o SECCompanyResult) {
 	s.Filings += o.Filings
 	s.Facts += o.Facts
 	s.Failed += o.Failed
-	s.FactsAdded = append(s.FactsAdded, o.FactsAdded...)
 }
 
 // SECCompany loads the submissions and the company facts of one company,
@@ -240,7 +239,7 @@ func (r *Runner) loadSECCompany(ctx context.Context, cik domain.CIK, withFacts b
 }
 
 // storeSECCompany stores the company before the rows that refer to it, in
-// one transaction.
+// one transaction, and marks its quarters pending when it got new facts.
 func (r *Runner) storeSECCompany(ctx context.Context, sub sec.Submissions, facts []domain.Fact) (SECCompanyResult, error) {
 	res := SECCompanyResult{Companies: 1}
 	err := r.store.WithTx(ctx, func(tx *store.Store) error {
@@ -251,12 +250,11 @@ func (r *Runner) storeSECCompany(ctx context.Context, sub sec.Submissions, facts
 		if res.Filings, err = tx.InsertFilings(ctx, sub.Filings); err != nil {
 			return err
 		}
-		res.Facts, err = tx.InsertFacts(ctx, facts)
-		return err
+		if res.Facts, err = tx.InsertFacts(ctx, facts); err != nil || res.Facts == 0 {
+			return err
+		}
+		return tx.MarkFundamentalsPending(ctx, []domain.CIK{sub.Company.CIK})
 	})
-	if res.Facts > 0 {
-		res.FactsAdded = []domain.CIK{sub.Company.CIK}
-	}
 	return res, err
 }
 
@@ -395,16 +393,20 @@ func (r *Runner) loadFactsArchive(ctx context.Context, ciks []domain.CIK, res *S
 		if !want[cik] {
 			return nil
 		}
-		n, err := r.store.InsertFacts(ctx, facts)
+		var n int64
+		err := r.store.WithTx(ctx, func(tx *store.Store) error {
+			var err error
+			if n, err = tx.InsertFacts(ctx, facts); err != nil || n == 0 {
+				return err
+			}
+			return tx.MarkFundamentalsPending(ctx, []domain.CIK{cik})
+		})
 		if err != nil {
 			return err
 		}
 		fromArchive[cik] = true
 		res.ArchiveCompanies++
 		res.Facts += n
-		if n > 0 {
-			res.FactsAdded = append(res.FactsAdded, cik)
-		}
 		return nil
 	})
 	if err != nil {

@@ -2,6 +2,7 @@ package ingest
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"maps"
 	"slices"
@@ -39,11 +40,14 @@ func (f *FundamentalsResult) add(o FundamentalsResult) {
 	f.Failed += o.Failed
 }
 
-// FundamentalsRebuild derives the quarters of one company again from its
-// stored facts and its provider splits, and replaces its stored quarters
-// and conflicts. ref is a ticker, a CIK, or "all" for every company with
-// facts.
+// FundamentalsRebuild derives quarters again from stored facts and provider
+// splits, and replaces the stored quarters and conflicts. ref is a ticker,
+// a CIK, "all" for every company with facts, or "pending" for the companies
+// whose quarters are marked pending.
 func (r *Runner) FundamentalsRebuild(ctx context.Context, ref string) (FundamentalsResult, error) {
+	if strings.EqualFold(ref, "pending") {
+		return r.rebuildPending(ctx)
+	}
 	if strings.EqualFold(ref, "all") {
 		return runJob(ctx, r, JobFundamentalsRebuild, JobFundamentalsRebuild+":all", false, func(ctx context.Context) (FundamentalsResult, error) {
 			latest, err := r.store.ListLatestFiled(ctx)
@@ -62,10 +66,14 @@ func (r *Runner) FundamentalsRebuild(ctx context.Context, ref string) (Fundament
 	})
 }
 
-// rebuildChanged rebuilds the companies in ciks, as the daily job does for
-// the companies whose facts or splits changed.
-func (r *Runner) rebuildChanged(ctx context.Context, ciks []domain.CIK) (FundamentalsResult, error) {
-	return runJob(ctx, r, JobFundamentalsRebuild, JobFundamentalsRebuild+":changed", false, func(ctx context.Context) (FundamentalsResult, error) {
+// A mark stays until a rebuild succeeds, so a company whose rebuild failed
+// or did not run is rebuilt by a later run.
+func (r *Runner) rebuildPending(ctx context.Context) (FundamentalsResult, error) {
+	return runJob(ctx, r, JobFundamentalsRebuild, JobFundamentalsRebuild+":pending", false, func(ctx context.Context) (FundamentalsResult, error) {
+		ciks, err := r.store.ListPendingFundamentals(ctx)
+		if err != nil {
+			return FundamentalsResult{}, err
+		}
 		return r.rebuildMany(ctx, ciks)
 	})
 }
@@ -89,53 +97,73 @@ func (r *Runner) rebuildMany(ctx context.Context, ciks []domain.CIK) (Fundamenta
 	return total, fails.err(len(ciks))
 }
 
-// rebuild derives and stores the quarters of one company.
+// rebuild derives and stores the quarters of one company in one
+// transaction. Rebuilds of one company may run at the same time: the last
+// to commit read the newest inputs. When it commits, it clears the
+// company's pending mark, unless the mark was set again after it read the
+// mark.
 func (r *Runner) rebuild(ctx context.Context, cik domain.CIK) (FundamentalsResult, error) {
-	facts, err := r.store.ListFacts(ctx, cik, store.FactQuery{})
-	if err != nil {
-		return FundamentalsResult{}, err
-	}
-	splits, checked, err := r.providerSplits(ctx, cik)
-	if err != nil {
-		return FundamentalsResult{}, err
-	}
-	series, err := fundamentals.Derive(cik, facts, fundamentals.Options{Splits: splits, ProviderChecked: checked})
-	if err != nil {
-		return FundamentalsResult{}, fmt.Errorf("derive %s: %w", cik, err)
-	}
-	values := quarterlyValues(series)
-	conflicts := storeConflicts(series.Conflicts)
-	var secSplits []domain.Split
-	for _, s := range series.Splits {
-		if s.Source == store.TickerSourceSEC {
-			s.CIK = cik
-			secSplits = append(secSplits, s)
+	var res FundamentalsResult
+	err := r.store.WithTx(ctx, func(tx *store.Store) error {
+		if err := tx.LockCompanyFundamentals(ctx, cik); err != nil {
+			return err
 		}
-	}
-	res := FundamentalsResult{
-		Companies: 1, Quarters: int64(len(series.Quarters)),
-		Values: int64(len(values)), Conflicts: int64(len(conflicts)),
-	}
-	err = r.store.WithTx(ctx, func(tx *store.Store) error {
+		version, pending, err := tx.GetFundamentalsPending(ctx, cik)
+		if err != nil {
+			return err
+		}
+		facts, err := tx.ListFacts(ctx, cik, store.FactQuery{})
+		if err != nil {
+			return err
+		}
+		splits, checked, err := r.providerSplits(ctx, tx, cik)
+		if err != nil {
+			return err
+		}
+		series, err := fundamentals.Derive(cik, facts, fundamentals.Options{Splits: splits, ProviderChecked: checked})
+		if err != nil {
+			return fmt.Errorf("derive %s: %w", cik, err)
+		}
+		values := quarterlyValues(series)
+		conflicts := storeConflicts(series.Conflicts)
+		var secSplits []domain.Split
+		for _, s := range series.Splits {
+			if s.Source == store.TickerSourceSEC {
+				s.CIK = cik
+				secSplits = append(secSplits, s)
+			}
+		}
+		res = FundamentalsResult{
+			Companies: 1, Quarters: int64(len(series.Quarters)),
+			Values: int64(len(values)), Conflicts: int64(len(conflicts)),
+		}
 		if err := tx.ReplaceQuarterlyFundamentals(ctx, cik, values); err != nil {
 			return err
 		}
 		if err := tx.ReplaceFundamentalConflicts(ctx, cik, conflicts); err != nil {
 			return err
 		}
-		var err error
-		res.SECSplits, err = tx.InsertStockSplits(ctx, secSplits)
-		return err
+		if res.SECSplits, err = tx.InsertStockSplits(ctx, secSplits); err != nil {
+			return err
+		}
+		if !pending {
+			return nil
+		}
+		return tx.ClearFundamentalsPending(ctx, cik, version)
 	})
-	return res, err
+	if err != nil {
+		return FundamentalsResult{}, err
+	}
+	return res, nil
 }
 
 // providerSplits returns the provider's split events of the company's
-// current SEC symbols, and whether any of them was checked with the
-// provider. Share classes split together, so an event that two symbols
-// share counts once.
-func (r *Runner) providerSplits(ctx context.Context, cik domain.CIK) ([]domain.Split, bool, error) {
-	records, err := r.store.ListTickers(ctx, cik)
+// current SEC symbols that are dated on or before the symbol's newest bar,
+// and none for a symbol without bars. It also reports whether any symbol
+// was checked with the provider. Share classes split together, so an event
+// that two symbols share counts once.
+func (r *Runner) providerSplits(ctx context.Context, tx *store.Store, cik domain.CIK) ([]domain.Split, bool, error) {
+	records, err := tx.ListTickers(ctx, cik)
 	if err != nil {
 		return nil, false, err
 	}
@@ -145,7 +173,7 @@ func (r *Runner) providerSplits(ctx context.Context, cik domain.CIK) ([]domain.S
 		if t.Source != store.TickerSourceSEC || t.ValidTo != nil {
 			continue
 		}
-		ok, err := r.store.IsPriceReferenceChecked(ctx, t.Symbol)
+		ok, err := tx.IsPriceReferenceChecked(ctx, t.Symbol)
 		if err != nil {
 			return nil, false, err
 		}
@@ -153,11 +181,23 @@ func (r *Runner) providerSplits(ctx context.Context, cik domain.CIK) ([]domain.S
 			continue
 		}
 		checked = true
-		splits, err := r.store.ListPriceSplits(ctx, t.Symbol)
+		splits, err := tx.ListPriceSplits(ctx, t.Symbol)
+		if err != nil {
+			return nil, false, err
+		}
+		// The view prices_adjusted applies a split only once the symbol has
+		// a bar on or after the split's date.
+		basis, err := tx.GetLatestPriceDate(ctx, t.Symbol)
+		if errors.Is(err, store.ErrNotFound) {
+			continue
+		}
 		if err != nil {
 			return nil, false, err
 		}
 		for _, s := range splits {
+			if s.Date.After(basis) {
+				continue
+			}
 			if _, dup := byDate[s.Date]; !dup {
 				byDate[s.Date] = s
 			}

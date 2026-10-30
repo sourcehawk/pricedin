@@ -4,10 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"slices"
 	"time"
 
-	"github.com/sourcehawk/pricedin/server/internal/domain"
 	"github.com/sourcehawk/pricedin/server/internal/store"
 )
 
@@ -36,7 +34,7 @@ func (d DailyResult) Stats() map[string]int64 {
 // Daily runs the jobs that keep the data current, in this order, each as
 // its own job with its own lock and ingest_runs row: sec-tickers, sec-daily,
 // price-reference, prices-daily, and fundamentals-rebuild of the companies
-// whose facts or provider splits changed. A step that fails does not stop
+// whose facts or provider splits changed (fundamentals-rebuild pending). A step that fails does not stop
 // the later ones; Daily then returns the joined errors. A step that another
 // runner is running is skipped.
 func (r *Runner) Daily(ctx context.Context) (DailyResult, error) {
@@ -76,36 +74,13 @@ func (r *Runner) daily(ctx context.Context) (DailyResult, error) {
 		step(JobPricesDaily, err)
 	}
 	if ctx.Err() == nil {
-		changed, err := r.changedCompanies(ctx, res.SECDaily.FactsAdded, res.PriceReference.Changed)
-		if err != nil {
-			errs = append(errs, err)
-		} else if len(changed) > 0 {
-			res.Fundamentals, err = r.rebuildChanged(ctx, changed)
-			step(JobFundamentalsRebuild, err)
-		}
+		res.Fundamentals, err = r.rebuildPending(ctx)
+		step(JobFundamentalsRebuild, err)
 	}
 	if ctx.Err() != nil {
 		errs = append(errs, ctx.Err())
 	}
 	return res, errors.Join(errs...)
-}
-
-// changedCompanies returns the companies of ciks and of the current
-// mappings of symbols, sorted and without repeats.
-func (r *Runner) changedCompanies(ctx context.Context, ciks []domain.CIK, symbols []string) ([]domain.CIK, error) {
-	out := slices.Clone(ciks)
-	for _, s := range symbols {
-		t, err := r.store.GetCurrentTicker(ctx, s)
-		if errors.Is(err, store.ErrNotFound) {
-			continue
-		}
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, t.CIK)
-	}
-	slices.Sort(out)
-	return slices.Compact(out), nil
 }
 
 // LastDailySuccess returns the end of the last successful daily run, for

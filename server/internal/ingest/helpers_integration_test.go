@@ -100,7 +100,7 @@ func newEnv(t *testing.T, opts envOptions) *env {
 	c := &clock{}
 	c.Set(opts.now)
 	e := &env{url: url, pool: pool, store: store.New(pool), blob: bs, clock: c, srv: srv}
-	e.runner = e.newRunner(t, pool, opts.backfillDays)
+	e.runner = e.newRunner(t, pool, opts.backfillDays, nil)
 	return e
 }
 
@@ -120,8 +120,11 @@ func newPool(t *testing.T, url string) *pgxpool.Pool {
 }
 
 // newRunner returns a runner with its own clients over pool, as a second
-// process would have.
-func (e *env) newRunner(t *testing.T, pool *pgxpool.Pool, backfillDays int) *ingest.Runner {
+// process would have. A nil universe means fixtureUniverse.
+func (e *env) newRunner(t *testing.T, pool *pgxpool.Pool, backfillDays int, universe []string) *ingest.Runner {
+	if universe == nil {
+		universe = fixtureUniverse()
+	}
 	t.Helper()
 	rec := ingest.NewRecorder(e.blob, e.clock.Now)
 	sc, err := sec.New(sec.Options{
@@ -141,13 +144,15 @@ func (e *env) newRunner(t *testing.T, pool *pgxpool.Pool, backfillDays int) *ing
 	if err != nil {
 		t.Fatal(err)
 	}
-	r, err := ingest.New(ingest.Options{
+	r, err := ingest.New(context.Background(), ingest.Options{
 		Pool: pool, Blob: e.blob, SEC: sc, Prices: mc,
-		Universe: fixtureUniverse(), PricesBackfillDays: backfillDays, Now: e.clock.Now,
+		Universe: universe, PricesBackfillDays: backfillDays, Now: e.clock.Now,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Registered after the pool's cleanup, so it runs first.
+	t.Cleanup(r.Close)
 	return r
 }
 

@@ -79,8 +79,8 @@ func Jobs() []Job {
 			},
 		},
 		{
-			Name: JobFundamentalsRebuild, Args: "<ticker|cik|all>", MinArgs: 1, MaxArgs: 1,
-			Summary: "Derive the quarters again from the stored facts and provider splits",
+			Name: JobFundamentalsRebuild, Args: "<ticker|cik|all|pending>", MinArgs: 1, MaxArgs: 1,
+			Summary: "Derive the quarters again from the stored facts and provider splits; pending: the companies whose inputs changed",
 			run: func(ctx context.Context, r *Runner, args []string) (Result, error) {
 				return r.FundamentalsRebuild(ctx, args[0])
 			},
@@ -94,7 +94,7 @@ func Jobs() []Job {
 		},
 		{
 			Name: JobDaily, SEC: true, Prices: true,
-			Summary: "Run sec-tickers, sec-daily, price-reference, prices-daily and the rebuild of changed companies",
+			Summary: "Run sec-tickers, sec-daily, price-reference, prices-daily and fundamentals-rebuild pending",
 			run: func(ctx context.Context, r *Runner, _ []string) (Result, error) {
 				return r.Daily(ctx)
 			},

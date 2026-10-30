@@ -29,10 +29,6 @@ type PriceReferenceResult struct {
 	Splits                  int64 // split events added or changed
 	Dividends               int64 // dividends added or changed
 	Failed                  int64
-	// Changed lists the symbols whose splits changed, or that were checked
-	// for the first time, so their companies' quarters must be derived
-	// again.
-	Changed []string `json:",omitempty"`
 }
 
 // Stats implements Result.
@@ -78,7 +74,6 @@ func (r *Runner) priceReference(ctx context.Context) (PriceReferenceResult, erro
 		res.Symbols++
 		res.Splits += one.Splits
 		res.Dividends += one.Dividends
-		res.Changed = append(res.Changed, one.Changed...)
 	}
 	return res, fails.err(len(members))
 }
@@ -112,7 +107,9 @@ func (r *Runner) syncProviderTickers(ctx context.Context) (PriceReferenceResult,
 }
 
 // symbolReference loads the split events and dividends of one SEC symbol,
-// and marks the symbol as checked.
+// and marks the symbol as checked. When its splits changed, or it was
+// checked for the first time, it marks the quarters of its company
+// pending.
 func (r *Runner) symbolReference(ctx context.Context, symbol string) (PriceReferenceResult, error) {
 	provider := ProviderSymbol(symbol)
 	callCtx, cancel := context.WithTimeout(ctx, pricesCallTimeout)
@@ -141,10 +138,10 @@ func (r *Runner) symbolReference(ctx context.Context, symbol string) (PriceRefer
 			return err
 		}
 		marked, err := tx.MarkPriceReferenceChecked(ctx, []string{symbol})
-		if res.Splits > 0 || marked > 0 {
-			res.Changed = []string{symbol}
+		if err != nil || (res.Splits == 0 && marked == 0) {
+			return err
 		}
-		return err
+		return tx.MarkFundamentalsPendingForSymbols(ctx, []string{symbol})
 	})
 	return res, err
 }
@@ -157,6 +154,10 @@ type PricesResult struct {
 	Bars          int64 // universe bars added or changed
 	NotAuthorized int64 // days older than the provider's plan allows
 	Failed        int64
+	// SymbolsFilled counts the universe symbols that lacked bars on loaded
+	// days and got them from a per-symbol request, and SymbolBars those
+	// bars.
+	SymbolsFilled, SymbolBars int64
 }
 
 // Stats implements Result.
@@ -164,6 +165,7 @@ func (p PricesResult) Stats() map[string]int64 {
 	return map[string]int64{
 		"days": p.Days, "loaded": p.Loaded, "empty": p.Empty, "bars": p.Bars,
 		"not_authorized": p.NotAuthorized, "failed": p.Failed,
+		"symbols_filled": p.SymbolsFilled, "symbol_bars": p.SymbolBars,
 	}
 }
 
@@ -171,7 +173,12 @@ func (p PricesResult) Stats() map[string]int64 {
 // PricesBackfillDays trading days up to the last finished session that has
 // no grouped load yet, newest first, and stores the bars of universe
 // symbols. It stops at the first day that the provider's plan does not
-// cover. A day loaded for one company only counts as missing.
+// cover. A day loaded for one company only counts as missing. Then, unless
+// the grouped load failed, each universe symbol that lacks a bar on a
+// loaded day, such as one added to PRICEDIN_UNIVERSE after those days were
+// loaded, gets its bars from a per-symbol request; a symbol that did not
+// trade on such days, such as a recent listing, asks again on every
+// backfill.
 func (r *Runner) PricesBackfill(ctx context.Context) (PricesResult, error) {
 	if err := r.needPrices(JobPricesBackfill); err != nil {
 		return PricesResult{}, err
@@ -181,14 +188,65 @@ func (r *Runner) PricesBackfill(ctx context.Context) (PricesResult, error) {
 		// Two calendar days per trading day is more than enough.
 		days := prices.TradingDays(last.AddDays(-2*r.backfillDays-10), last)
 		days = days[max(0, len(days)-r.backfillDays):]
-		return r.loadGrouped(ctx, days)
+		res, err := r.loadGrouped(ctx, days)
+		if err != nil {
+			return res, err
+		}
+		err = r.fillSymbols(ctx, days, &res)
+		return res, err
 	})
 }
 
+// fillSymbols gives each universe symbol the bars it lacks on the days of
+// days whose grouped bars were loaded.
+func (r *Runner) fillSymbols(ctx context.Context, days []domain.Date, res *PricesResult) error {
+	members, err := r.universe(ctx)
+	if err != nil {
+		return err
+	}
+	missing, err := r.store.ListMissingGroupedPriceDates(ctx, days)
+	if err != nil {
+		return err
+	}
+	loaded := slices.DeleteFunc(slices.Clone(days), func(d domain.Date) bool {
+		_, found := slices.BinarySearchFunc(missing, d, func(a, b domain.Date) int { return a.Time().Compare(b.Time()) })
+		return found
+	})
+	var fails failures
+	var filled []string
+	for _, m := range members {
+		gaps, err := r.store.ListMissingPriceDatesForSymbol(ctx, m.Symbol, loaded)
+		if err != nil {
+			return err
+		}
+		if len(gaps) == 0 {
+			continue
+		}
+		n, err := r.symbolBarsFrom(ctx, m.Symbol, gaps[0])
+		if err != nil {
+			if ctx.Err() != nil {
+				return err
+			}
+			res.Failed++
+			fails.add(m.Symbol, err)
+			continue
+		}
+		res.SymbolsFilled++
+		res.SymbolBars += n
+		filled = append(filled, m.Symbol)
+	}
+	// Bars that reach a split's date change the splits that a rebuild applies.
+	if err := r.store.MarkFundamentalsPendingForSymbols(ctx, filled); err != nil {
+		fails.add("pending marks", err)
+	}
+	return fails.err(len(members))
+}
+
 // PricesDaily loads the grouped daily bars of every trading day without a
-// grouped load from 30 days back, or from the newest loaded day when that
+// grouped load from 30 days back, or from the oldest loaded day when that
 // is older, to the last finished session, newest first. So one run fills
-// the days that earlier runs missed.
+// the days that earlier runs missed, also a day that failed during a
+// catch-up.
 func (r *Runner) PricesDaily(ctx context.Context) (PricesResult, error) {
 	if err := r.needPrices(JobPricesDaily); err != nil {
 		return PricesResult{}, err
@@ -196,13 +254,13 @@ func (r *Runner) PricesDaily(ctx context.Context) (PricesResult, error) {
 	return runJob(ctx, r, JobPricesDaily, JobPricesDaily, false, func(ctx context.Context) (PricesResult, error) {
 		last := prices.LastFinishedSession(r.now())
 		from := last.AddDays(-pricesDailyLookback)
-		newest, err := r.store.GetLatestGroupedPriceDate(ctx)
+		oldest, err := r.store.GetEarliestGroupedPriceDate(ctx)
 		switch {
 		case errors.Is(err, store.ErrNotFound):
 		case err != nil:
 			return PricesResult{}, err
-		case newest.Before(from):
-			from = newest
+		case oldest.Before(from):
+			from = oldest
 		}
 		return r.loadGrouped(ctx, prices.TradingDays(from, last))
 	})
@@ -221,6 +279,21 @@ func (r *Runner) loadGrouped(ctx context.Context, days []domain.Date) (PricesRes
 	if err != nil {
 		return PricesResult{}, err
 	}
+	before, err := r.latestGroupedDate(ctx)
+	if err != nil {
+		return PricesResult{}, err
+	}
+	res, err := r.loadGroupedDays(ctx, missing, keep)
+	// The marks run also after a failure, for the days that loaded.
+	if markErr := r.markSplitBasis(context.WithoutCancel(ctx), before); markErr != nil {
+		err = errors.Join(err, fmt.Errorf("split basis: %w", markErr))
+	}
+	return res, err
+}
+
+// loadGroupedDays loads the days of missing, newest first.
+func (r *Runner) loadGroupedDays(ctx context.Context, missing []domain.Date, keep map[string]bool) (PricesResult, error) {
+	missing = slices.Clone(missing)
 	slices.Reverse(missing)
 	res := PricesResult{Days: int64(len(missing))}
 	var fails failures
@@ -247,6 +320,30 @@ func (r *Runner) loadGrouped(ctx context.Context, days []domain.Date) (PricesRes
 		res.Bars += bars
 	}
 	return res, fails.err(len(missing))
+}
+
+func (r *Runner) latestGroupedDate(ctx context.Context) (domain.Date, error) {
+	d, err := r.store.GetLatestGroupedPriceDate(ctx)
+	if errors.Is(err, store.ErrNotFound) {
+		return domain.Date{}, nil
+	}
+	return d, err
+}
+
+// markSplitBasis marks pending the quarters of the companies with a
+// provider split that the newest loaded day reached since before. Adjusted
+// prices apply a split once a bar on or after its date exists, and the
+// rebuild then applies it to the per-share values too.
+func (r *Runner) markSplitBasis(ctx context.Context, before domain.Date) error {
+	after, err := r.latestGroupedDate(ctx)
+	if err != nil || !after.After(before) {
+		return err
+	}
+	symbols, err := r.store.ListSymbolsWithSplitsBetween(ctx, before, after)
+	if err != nil || len(symbols) == 0 {
+		return err
+	}
+	return r.store.MarkFundamentalsPendingForSymbols(ctx, symbols)
 }
 
 // loadGroupedDay stores the universe bars of day d and marks the day
@@ -292,8 +389,15 @@ func (r *Runner) symbolBars(ctx context.Context, symbol string) (int64, error) {
 	if len(missing) == 0 {
 		return 0, nil
 	}
+	return r.symbolBarsFrom(ctx, symbol, missing[0])
+}
+
+// symbolBarsFrom loads the per-symbol daily bars of symbol from from to the
+// last finished session.
+func (r *Runner) symbolBarsFrom(ctx context.Context, symbol string, from domain.Date) (int64, error) {
+	last := prices.LastFinishedSession(r.now())
 	callCtx, cancel := context.WithTimeout(ctx, pricesCallTimeout)
-	bars, err := r.prices.DailyBars(callCtx, ProviderSymbol(symbol), missing[0], last)
+	bars, err := r.prices.DailyBars(callCtx, ProviderSymbol(symbol), from, last)
 	cancel()
 	if err != nil {
 		return 0, fmt.Errorf("daily bars of %s: %w", symbol, err)

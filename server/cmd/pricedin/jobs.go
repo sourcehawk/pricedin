@@ -203,12 +203,12 @@ func buildRunner(ctx context.Context, getenv func(string) string, logOut io.Writ
 		}
 		opts.Prices = mc
 	}
-	r, err := ingest.New(opts)
+	r, err := ingest.New(ctx, opts)
 	if err != nil {
 		pool.Close()
 		return nil, cfg, nil, nil, err
 	}
-	return r, cfg, logger, pool.Close, nil
+	return r, cfg, logger, func() { r.Close(); pool.Close() }, nil
 }
 
 func listJobs(ctx context.Context, getenv func(string) string, out io.Writer) error {
