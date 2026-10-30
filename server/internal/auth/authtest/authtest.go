@@ -3,6 +3,7 @@
 package authtest
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"slices"
@@ -81,8 +82,8 @@ func (m *Store) DeleteExpiredSessions(_ context.Context, now time.Time) (int64, 
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	var n int64
-	for k, s := range m.Sessions {
-		if !s.ExpiresAt.After(now) {
+	for k := range m.Sessions {
+		if !m.Sessions[k].ExpiresAt.After(now) {
 			delete(m.Sessions, k)
 			n++
 		}
@@ -95,7 +96,7 @@ func (m *Store) InsertAPIToken(_ context.Context, name string, hash []byte, crea
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	for _, t := range m.Tokens {
-		if t.Name == name || string(t.TokenHash) == string(hash) {
+		if t.Name == name || bytes.Equal(t.TokenHash, hash) {
 			return store.APIToken{}, store.ErrConflict
 		}
 	}
@@ -109,7 +110,7 @@ func (m *Store) GetActiveAPIToken(_ context.Context, hash []byte) (store.APIToke
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	for _, t := range m.Tokens {
-		if string(t.TokenHash) == string(hash) && t.RevokedAt == nil {
+		if bytes.Equal(t.TokenHash, hash) && t.RevokedAt == nil {
 			return t, nil
 		}
 	}

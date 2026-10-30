@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -281,9 +282,7 @@ func TestTokensAreRandomAndURLSafe(t *testing.T) {
 	if len(a) != 43 {
 		t.Errorf("token length = %d, want 43 (32 bytes in unpadded base64url)", len(a))
 	}
-	for _, r := range a {
-		if !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '-' || r == '_') {
-			t.Fatalf("token %q has the character %q, want base64url only", a, r)
-		}
+	if strings.Trim(a, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_") != "" {
+		t.Errorf("token %q has characters outside base64url", a)
 	}
 }

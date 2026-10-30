@@ -38,15 +38,17 @@ type Store struct {
 	Coverage  store.Coverage
 }
 
+// GetCurrentTicker returns the open row of symbol, or store.ErrNotFound.
 func (m *Store) GetCurrentTicker(_ context.Context, symbol string) (domain.Ticker, error) {
 	for _, t := range m.Tickers {
-		if t.Symbol == strings.ToUpper(symbol) && t.ValidTo == nil {
+		if strings.EqualFold(t.Symbol, symbol) && t.ValidTo == nil {
 			return t.Ticker, nil
 		}
 	}
 	return domain.Ticker{}, fmt.Errorf("get ticker: %w", store.ErrNotFound)
 }
 
+// GetCompany returns the company, or store.ErrNotFound.
 func (m *Store) GetCompany(_ context.Context, cik domain.CIK) (domain.Company, error) {
 	for _, c := range m.Companies {
 		if c.CIK == cik {
@@ -56,34 +58,38 @@ func (m *Store) GetCompany(_ context.Context, cik domain.CIK) (domain.Company, e
 	return domain.Company{}, store.ErrNotFound
 }
 
+// HasQuarterlyFundamentals reports whether Loaded holds the CIK.
 func (m *Store) HasQuarterlyFundamentals(_ context.Context, cik domain.CIK) (bool, error) {
 	return m.Loaded[cik], nil
 }
 
+// ListSymbolTickers returns every row of symbol.
 func (m *Store) ListSymbolTickers(_ context.Context, symbol string) ([]store.TickerRecord, error) {
 	var out []store.TickerRecord
 	for _, t := range m.Tickers {
-		if t.Symbol == strings.ToUpper(symbol) {
+		if strings.EqualFold(t.Symbol, symbol) {
 			out = append(out, t)
 		}
 	}
 	return out, nil
 }
 
+// ListFacts returns every fact of the CIK; it ignores the query.
 func (m *Store) ListFacts(_ context.Context, cik domain.CIK, _ store.FactQuery) ([]domain.Fact, error) {
 	var out []domain.Fact
-	for _, f := range m.Facts {
-		if f.CIK == cik {
-			out = append(out, f)
+	for i := range m.Facts {
+		if m.Facts[i].CIK == cik {
+			out = append(out, m.Facts[i])
 		}
 	}
 	return out, nil
 }
 
+// GetLatestFiled returns the newest filing date of the CIK's facts, or store.ErrNotFound.
 func (m *Store) GetLatestFiled(_ context.Context, cik domain.CIK) (domain.Date, error) {
 	var latest domain.Date
-	for _, f := range m.Facts {
-		if f.CIK == cik && f.Filed.After(latest) {
+	for i := range m.Facts {
+		if f := &m.Facts[i]; f.CIK == cik && f.Filed.After(latest) {
 			latest = f.Filed
 		}
 	}
@@ -93,6 +99,7 @@ func (m *Store) GetLatestFiled(_ context.Context, cik domain.CIK) (domain.Date, 
 	return latest, nil
 }
 
+// ListFilings returns the filings of the CIK.
 func (m *Store) ListFilings(_ context.Context, cik domain.CIK) ([]domain.Filing, error) {
 	var out []domain.Filing
 	for _, f := range m.Filings {
@@ -103,6 +110,7 @@ func (m *Store) ListFilings(_ context.Context, cik domain.CIK) ([]domain.Filing,
 	return out, nil
 }
 
+// ListPriceBars returns the bars of symbol from from to to, oldest first.
 func (m *Store) ListPriceBars(_ context.Context, symbol string, from, to domain.Date) ([]domain.PriceBar, error) {
 	var out []domain.PriceBar
 	for _, b := range m.Bars {
@@ -114,6 +122,7 @@ func (m *Store) ListPriceBars(_ context.Context, symbol string, from, to domain.
 	return out, nil
 }
 
+// ListPriceSplits returns the splits of symbol.
 func (m *Store) ListPriceSplits(_ context.Context, symbol string) ([]domain.Split, error) {
 	var out []domain.Split
 	for _, s := range m.Splits {
@@ -124,32 +133,36 @@ func (m *Store) ListPriceSplits(_ context.Context, symbol string) ([]domain.Spli
 	return out, nil
 }
 
+// ListDividends returns the dividends of symbol.
 func (m *Store) ListDividends(_ context.Context, symbol string) ([]domain.Dividend, error) {
 	var out []domain.Dividend
-	for _, d := range m.Dividends {
-		if d.Symbol == symbol {
-			out = append(out, d)
+	for i := range m.Dividends {
+		if m.Dividends[i].Symbol == symbol {
+			out = append(out, m.Dividends[i])
 		}
 	}
 	return out, nil
 }
 
-func (m *Store) SearchTickers(_ context.Context, query string, limit int) ([]store.TickerMatch, error) {
+// SearchTickers returns the open tickers that start with query; unlike the store, it does not match company names.
+func (m *Store) SearchTickers(ctx context.Context, query string, limit int) ([]store.TickerMatch, error) {
 	out := []store.TickerMatch{}
 	for _, t := range m.Tickers {
 		if t.ValidTo != nil || !strings.HasPrefix(t.Symbol, strings.ToUpper(query)) || len(out) == limit {
 			continue
 		}
-		c, _ := m.GetCompany(context.Background(), t.CIK)
+		c, _ := m.GetCompany(ctx, t.CIK)
 		out = append(out, store.TickerMatch{Ticker: t.Ticker, Name: c.Name, Loaded: m.Loaded[t.CIK]})
 	}
 	return out, nil
 }
 
+// ListLatestIngestRuns returns Runs.
 func (m *Store) ListLatestIngestRuns(context.Context) ([]store.IngestRun, error) {
 	return m.Runs, nil
 }
 
+// GetLatestPriceDateOverall returns the newest bar date, or store.ErrNotFound.
 func (m *Store) GetLatestPriceDateOverall(context.Context) (domain.Date, error) {
 	var latest domain.Date
 	for _, b := range m.Bars {
@@ -163,6 +176,7 @@ func (m *Store) GetLatestPriceDateOverall(context.Context) (domain.Date, error) 
 	return latest, nil
 }
 
+// GetCoverage returns Coverage.
 func (m *Store) GetCoverage(context.Context) (store.Coverage, error) {
 	return m.Coverage, nil
 }
@@ -182,8 +196,8 @@ const (
 func Testdata(t testing.TB, path string) []byte {
 	t.Helper()
 	_, file, _, _ := runtime.Caller(0)
-	root := filepath.Join(filepath.Dir(file), "../../../../testdata")
-	body, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(path)))
+	root := filepath.Join(filepath.Dir(file), "..", "..", "..", "..", "testdata")
+	body, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(path))) //nolint:gosec // G304: test data below the repository root
 	if err != nil {
 		t.Fatal(err)
 	}

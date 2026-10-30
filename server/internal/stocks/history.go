@@ -12,9 +12,10 @@ import (
 // HistoryRange bounds the daily closes of a History.
 type HistoryRange string
 
-// The history ranges. Each range but RangeMax adds the twelve months
-// before it, which the 12-month changes of the price chart's first days
-// need.
+// The history ranges. Each range but RangeMax adds the twelve months and
+// ten days before it: the 12-month change of the price chart's first day
+// needs the last close at least 365 days earlier, which can fall before a
+// weekend or a holiday.
 const (
 	Range6M  HistoryRange = "6M"
 	Range1Y  HistoryRange = "1Y"
@@ -163,6 +164,9 @@ func (st *stock) history(rng HistoryRange) History {
 	return out
 }
 
+// lookBackSlack is the days a range starts before its 12-month look-back.
+const lookBackSlack = 10
+
 // dailyFrom returns the first day of the range, counted back from the
 // newest close.
 func (st *stock) dailyFrom(rng HistoryRange) domain.Date {
@@ -170,5 +174,5 @@ func (st *stock) dailyFrom(rng HistoryRange) domain.Date {
 	if !ok || rng.months() == 0 {
 		return earliest
 	}
-	return domain.DateOf(last.Bar.Date.Time().AddDate(0, -rng.months(), 0))
+	return domain.DateOf(last.Bar.Date.Time().AddDate(0, -rng.months(), -lookBackSlack))
 }

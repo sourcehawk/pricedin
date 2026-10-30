@@ -285,9 +285,10 @@ paths:
         sources of each quarter's values, in the same order.
 
         `range` bounds the daily closes only: `6M`, `1Y` and `3Y` send the
-        range plus the 12 months before it, which the 12-month changes of the
-        price chart need, so `3Y` serves every chart range. `max` sends every
-        stored close. The quarters are always all of them, so every look-back
+        range plus the 12 months and 10 days before it, which the 12-month
+        changes of the price chart need. So the engine gives the same output
+        on the `3Y` history as on the full one, for every chart range. `max`
+        sends every stored close. The quarters are always all of them, so every look-back
         (up to 120 months) has its data.
       parameters:
         - name: range

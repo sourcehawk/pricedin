@@ -86,7 +86,7 @@ func TestLoginWithWrongCredentialsFails(t *testing.T) {
 			if len(res.Cookies()) != 0 {
 				t.Error("a failed login set a cookie")
 			}
-			if strings.Contains(p["detail"].(string), "email") && !strings.Contains(p["detail"].(string), "password") {
+			if d, _ := p["detail"].(string); strings.Contains(d, "email") && !strings.Contains(d, "password") {
 				t.Errorf("detail %q tells which credential was wrong", p["detail"])
 			}
 		})

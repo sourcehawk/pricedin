@@ -185,23 +185,26 @@ func Recover(logger *slog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			tw := &trackingWriter{ResponseWriter: w}
-			defer func() {
-				v := recover()
-				if v == nil {
-					return
-				}
-				if v == http.ErrAbortHandler { //nolint:errorlint // the sentinel is panicked as is
-					panic(v)
-				}
-				logger.ErrorContext(r.Context(), "panic serving request",
-					slog.String("path", r.URL.Path), slog.String("request_id", httpserver.RequestIDFrom(r.Context())),
-					slog.Any("panic", v), slog.String("stack", string(debug.Stack())))
-				if !tw.started {
-					writeProblem(w, r, internal, "An unexpected error occurred. The request ID identifies it in the server logs.", nil)
-				}
-			}()
+			defer recovered(logger, tw, r)
 			next.ServeHTTP(tw, r)
 		})
+	}
+}
+
+// recovered handles a panic of the request r, if one is under way.
+func recovered(logger *slog.Logger, tw *trackingWriter, r *http.Request) {
+	v := recover()
+	if v == nil {
+		return
+	}
+	if v == http.ErrAbortHandler { //nolint:errorlint // the sentinel is panicked as is
+		panic(v)
+	}
+	logger.ErrorContext(r.Context(), "panic serving request",
+		slog.String("path", r.URL.Path), slog.String("request_id", httpserver.RequestIDFrom(r.Context())),
+		slog.Any("panic", v), slog.String("stack", string(debug.Stack())))
+	if !tw.started {
+		writeProblem(tw.ResponseWriter, r, internal, "An unexpected error occurred. The request ID identifies it in the server logs.", nil)
 	}
 }
 
@@ -286,7 +289,7 @@ func (a *api) unauthenticated(w http.ResponseWriter, r *http.Request) {
 // cookie returns the session cookie with the value and max age in
 // seconds; a negative max age deletes it.
 func (a *api) cookie(value string, maxAge int) *http.Cookie {
-	return &http.Cookie{
+	return &http.Cookie{ //nolint:gosec // G124: Secure is off only when the owner turns it off for local http
 		Name: CookieName, Value: value, Path: "/", MaxAge: maxAge,
 		HttpOnly: true, Secure: a.CookieSecure, SameSite: http.SameSiteLaxMode,
 	}

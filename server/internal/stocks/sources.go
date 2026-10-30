@@ -181,8 +181,8 @@ func valueSource(cik domain.CIK, v fundamentals.Value, filings map[string]domain
 		return secSource(cik, v.Inputs[0], filings)
 	}
 	d := DerivedSource{Method: string(v.Method), Estimate: v.Estimate, Inputs: make([]Source, len(v.Inputs))}
-	for i, in := range v.Inputs {
-		d.Inputs[i] = secSource(cik, in, filings)
+	for i := range v.Inputs {
+		d.Inputs[i] = secSource(cik, v.Inputs[i], filings)
 	}
 	return d
 }

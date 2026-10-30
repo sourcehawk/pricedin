@@ -1,6 +1,7 @@
 package httpapi_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -35,10 +36,7 @@ func TestTheRoutesAreTheDocumentedOperations(t *testing.T) {
 			documented = append(documented, method+" "+path)
 		}
 	}
-	var served []string
-	for _, r := range httpapi.Routes() {
-		served = append(served, r)
-	}
+	served := httpapi.Routes()
 	slices.Sort(documented)
 	slices.Sort(served)
 	if diff := cmp.Diff(documented, served); diff != "" {
@@ -181,7 +179,7 @@ func TestAPanicAnswers500WithoutInternals(t *testing.T) {
 func TestOpenAPIDocumentIsServed(t *testing.T) {
 	h := newHarness(t)
 	res := h.do(t, withBearer(request(t, http.MethodGet, "/api/v1/openapi.yaml", nil), h.token(t)), true)
-	if res.StatusCode != http.StatusOK || res.Header.Get("Content-Type") != "application/yaml" || string(res.body) != string(api.Document()) {
+	if res.StatusCode != http.StatusOK || res.Header.Get("Content-Type") != "application/yaml" || !bytes.Equal(res.body, api.Document()) {
 		t.Errorf("status %d, type %q; want 200 with the document as application/yaml", res.StatusCode, res.Header.Get("Content-Type"))
 	}
 }
@@ -377,7 +375,7 @@ func TestLoad(t *testing.T) {
 	load("ZZZZ").problem(t, http.StatusNotFound, "unknown-ticker")
 	h.loader.Err = errors.New("sec: 503 from data.sec.gov")
 	p := load("MSFT").problem(t, http.StatusBadGateway, "load-failed")
-	if strings.Contains(p["detail"].(string), "data.sec.gov") {
+	if d, _ := p["detail"].(string); strings.Contains(d, "data.sec.gov") {
 		t.Errorf("detail %q leaks the cause", p["detail"])
 	}
 	h.loader.Err = stocks.ErrLoaderUnavailable

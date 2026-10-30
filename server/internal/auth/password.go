@@ -126,7 +126,7 @@ func ParseHash(phc string) (Hash, error) {
 // Verify reports whether password matches the hash. Its run time does not
 // depend on how much of the key matches.
 func (h Hash) Verify(password string) bool {
-	return subtle.ConstantTimeCompare(h.derive(password, uint32(len(h.key))), h.key) == 1
+	return subtle.ConstantTimeCompare(h.derive(password, uint32(len(h.key))), h.key) == 1 //nolint:gosec // G115: ParseHash bounds the key to 64 bytes
 }
 
 // String returns the PHC string of the hash.

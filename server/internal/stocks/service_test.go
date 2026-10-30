@@ -67,20 +67,28 @@ func TestProfileTTMEPSListsTheFilingsOfItsQuarters(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, in := range p.TTMEPS.Source.(stocks.DerivedSource).Inputs {
-		var secs []stocks.SECSource
-		switch s := in.(type) {
+	ttm, _ := p.TTMEPS.Source.(stocks.DerivedSource)
+	var secs []stocks.SECSource
+	var collect func(stocks.Source)
+	collect = func(s stocks.Source) {
+		switch s := s.(type) {
 		case stocks.SECSource:
-			secs = []stocks.SECSource{s}
+			secs = append(secs, s)
 		case stocks.DerivedSource:
-			for _, i := range s.Inputs {
-				secs = append(secs, i.(stocks.SECSource))
+			for _, in := range s.Inputs {
+				collect(in)
 			}
+		default:
+			t.Errorf("input %#v, want filings only", s)
 		}
-		for _, s := range secs {
-			if s.Accession == "" || s.Form == "" || s.Filed.IsZero() || s.URL == "" {
-				t.Errorf("input %+v, want accession, form, filing date and URL", s)
-			}
+	}
+	collect(ttm)
+	if len(secs) < 4 {
+		t.Fatalf("filings = %d, want at least one per quarter", len(secs))
+	}
+	for _, s := range secs {
+		if s.Accession == "" || s.Form == "" || s.Filed.IsZero() || s.URL == "" {
+			t.Errorf("input %+v, want accession, form, filing date and URL", s)
 		}
 	}
 }
@@ -187,9 +195,10 @@ func TestHistoryRangeCutsTheDailyClosesWithAYearBefore(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		first := h.History.Daily[0].Date
-		if first.Before(date(t, from)) || first.After(date(t, from).AddDays(5)) {
-			t.Errorf("range %s starts on %s, want the first trading day from %s", rng, first, from)
+		// The range starts ten days before its 12-month look-back.
+		first, start := h.History.Daily[0].Date, date(t, from).AddDays(-10)
+		if first.Before(start) || first.After(start.AddDays(5)) {
+			t.Errorf("range %s starts on %s, want the first trading day from %s", rng, first, start)
 		}
 	}
 }
@@ -261,8 +270,8 @@ func TestBarsOfTheOldIssuerAreNotInTheHistory(t *testing.T) {
 func nvdaFactsAs(t *testing.T, m *stockstest.Store, cik domain.CIK) []domain.Fact {
 	t.Helper()
 	var out []domain.Fact
-	for _, f := range m.Facts {
-		if f.CIK == stockstest.CIKNVDA {
+	for i := range m.Facts {
+		if f := m.Facts[i]; f.CIK == stockstest.CIKNVDA {
 			f.CIK = cik
 			out = append(out, f)
 		}
@@ -284,7 +293,7 @@ func TestTTMDividendCountsRecurringDividendsOfTheLastTwelveMonths(t *testing.T) 
 	if !ok || src.Method != "recurring_dividends_12m" || len(src.Inputs) != 4 {
 		t.Fatalf("TTMDividend.Source = %#v, want four dividends", d.Source)
 	}
-	if first := src.Inputs[0].(stocks.DividendSource); first.ExDate != date(t, "2025-12-01") || first.Provider != "massive" {
+	if first, _ := src.Inputs[0].(stocks.DividendSource); first.ExDate != date(t, "2025-12-01") || first.Provider != "massive" {
 		t.Errorf("first input = %+v, want the massive dividend of 2025-12-01", first)
 	}
 	if d.AsOf != date(t, "2026-10-30") {
@@ -343,9 +352,10 @@ func TestEvaluateWithDefaultsMatchesTheEngine(t *testing.T) {
 	if diff := cmp.Diff(want, got.Evaluation); diff != "" {
 		t.Errorf("Evaluation differs from engine.Evaluate (-want +got):\n%s", diff)
 	}
-	if got.Sources.Price.Source.(stocks.PriceSource).CloseDate != date(t, "2026-10-29") ||
-		got.Sources.TTMEPS.Source.(stocks.DerivedSource).Method != "ttm" ||
-		got.Sources.Dividend.Source.(stocks.DerivedSource).Method != "recurring_dividends_12m" {
+	price, _ := got.Sources.Price.Source.(stocks.PriceSource)
+	ttm, _ := got.Sources.TTMEPS.Source.(stocks.DerivedSource)
+	div, _ := got.Sources.Dividend.Source.(stocks.DerivedSource)
+	if price.CloseDate != date(t, "2026-10-29") || ttm.Method != "ttm" || div.Method != "recurring_dividends_12m" {
 		t.Errorf("Sources = %+v, want the close, the TTM and the dividends", got.Sources)
 	}
 	for name, s := range map[string]stocks.SourcedNumber{"price": got.Sources.Price, "ttmEps": got.Sources.TTMEPS, "dividend": got.Sources.Dividend} {
@@ -509,9 +519,9 @@ func TestSearchGivesSymbolNameExchangeAndLoaded(t *testing.T) {
 // own facts and the provider's splits.
 func deriveNVDA(m *stockstest.Store) (fundamentals.Series, error) {
 	var facts []domain.Fact
-	for _, f := range m.Facts {
-		if f.CIK == stockstest.CIKNVDA {
-			facts = append(facts, f)
+	for i := range m.Facts {
+		if m.Facts[i].CIK == stockstest.CIKNVDA {
+			facts = append(facts, m.Facts[i])
 		}
 	}
 	var splits []domain.Split
@@ -530,4 +540,37 @@ func date(t *testing.T, s string) domain.Date {
 		t.Fatal(err)
 	}
 	return d
+}
+
+// The browser fetches the 3Y history and runs the engine on it; it must
+// get what the evaluation endpoint computes from the full history.
+func TestTheThreeYearHistoryEvaluatesLikeTheFullOne(t *testing.T) {
+	svc := newService(t, stockstest.Fixture(t), nil)
+	ctx := context.Background()
+	for _, ticker := range []string{"NVDA", "KO"} {
+		full, err := svc.History(ctx, ticker, stocks.RangeMax)
+		if err != nil {
+			t.Fatal(err)
+		}
+		short, err := svc.History(ctx, ticker, stocks.Range3Y)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(short.History.Daily) >= len(full.History.Daily) {
+			t.Fatalf("%s: 3Y has %d days, max %d; want fewer", ticker, len(short.History.Daily), len(full.History.Daily))
+		}
+		for _, rng := range []engine.ChartRange{engine.Range6M, engine.Range1Y, engine.Range3Y} {
+			ev, err := svc.Evaluate(ctx, ticker, stocks.LeversInput{ChartRange: &rng})
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, err := engine.Evaluate(short.History, ev.Levers)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if diff := cmp.Diff(ev.Evaluation, got); diff != "" {
+				t.Errorf("%s %s: the 3Y history evaluates differently (-endpoint +3Y):\n%.2000s", ticker, rng, diff)
+			}
+		}
+	}
 }

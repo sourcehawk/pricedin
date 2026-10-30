@@ -24,7 +24,7 @@ func Seed(tb testing.TB, st *store.Store) {
 		}
 	}
 	must(st.UpsertCompanies(ctx, m.Companies))
-	var tickers []domain.Ticker
+	tickers := make([]domain.Ticker, 0, len(m.Tickers))
 	asOf := m.Tickers[0].ValidFrom
 	for _, t := range m.Tickers {
 		tickers = append(tickers, t.Ticker)
@@ -43,9 +43,9 @@ func Seed(tb testing.TB, st *store.Store) {
 			continue
 		}
 		var facts []domain.Fact
-		for _, f := range m.Facts {
-			if f.CIK == t.CIK {
-				facts = append(facts, f)
+		for i := range m.Facts {
+			if m.Facts[i].CIK == t.CIK {
+				facts = append(facts, m.Facts[i])
 			}
 		}
 		var splits []domain.Split
@@ -73,7 +73,8 @@ func quarterlyValues(s fundamentals.Series) []store.QuarterlyValue {
 				FiscalYear: q.FiscalYear, FiscalQuarter: q.FiscalQuarter, Metric: string(m), Value: v.V,
 				Method: string(v.Method), PeriodStart: q.PeriodStart, PeriodEnd: q.PeriodEnd, Filed: v.Filed,
 			}
-			for _, in := range v.Inputs {
+			for i := range v.Inputs {
+				in := &v.Inputs[i]
 				qv.Inputs = append(qv.Inputs, store.SourceRef{Accession: in.Accession, Form: in.Form, Filed: in.Filed, Concept: in.Concept})
 			}
 			out = append(out, qv)

@@ -75,14 +75,14 @@ func writeInternal(logger *slog.Logger, w http.ResponseWriter, r *http.Request, 
 	writeProblem(w, r, internal, "An unexpected error occurred. The request ID identifies it in the server logs.", nil)
 }
 
-// writeJSON writes v as JSON with status.
-func writeJSON(logger *slog.Logger, w http.ResponseWriter, r *http.Request, status int, v any) {
+// writeJSON writes v as JSON with status 200.
+func writeJSON(logger *slog.Logger, w http.ResponseWriter, r *http.Request, v any) {
 	body, err := json.Marshal(v)
 	if err != nil {
 		writeInternal(logger, w, r, err)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
+	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(append(body, '\n'))
 }

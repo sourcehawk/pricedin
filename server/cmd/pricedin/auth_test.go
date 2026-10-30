@@ -10,10 +10,10 @@ import (
 	"github.com/sourcehawk/pricedin/server/internal/config"
 )
 
-func executeWithInput(t *testing.T, env map[string]string, stdin string, args ...string) (string, error) {
+func executeWithInput(t *testing.T, stdin string, args ...string) (string, error) {
 	t.Helper()
 	var out, errOut bytes.Buffer
-	cmd := newRootCmd(func(k string) string { return env[k] }, &out)
+	cmd := newRootCmd(func(string) string { return "" }, &out)
 	cmd.SetArgs(args)
 	cmd.SetIn(strings.NewReader(stdin))
 	cmd.SetOut(&out)
@@ -23,7 +23,7 @@ func executeWithInput(t *testing.T, env map[string]string, stdin string, args ..
 }
 
 func TestHashPasswordFromStdinPrintsAVerifyingHash(t *testing.T) {
-	out, err := executeWithInput(t, nil, "correct horse battery\n", "auth", "hash-password", "--stdin")
+	out, err := executeWithInput(t, "correct horse battery\n", "auth", "hash-password", "--stdin")
 	if err != nil {
 		t.Fatalf("hash-password error = %v", err)
 	}
@@ -41,7 +41,7 @@ func TestHashPasswordFromStdinPrintsAVerifyingHash(t *testing.T) {
 }
 
 func TestHashPasswordKeepsSpacesButNotTheLineEnd(t *testing.T) {
-	out, err := executeWithInput(t, nil, "  spaced out password  \r\n", "auth", "hash-password", "--stdin")
+	out, err := executeWithInput(t, "  spaced out password  \r\n", "auth", "hash-password", "--stdin")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,14 +52,14 @@ func TestHashPasswordKeepsSpacesButNotTheLineEnd(t *testing.T) {
 }
 
 func TestHashPasswordRejectsAShortPassword(t *testing.T) {
-	_, err := executeWithInput(t, nil, "short\n", "auth", "hash-password", "--stdin")
+	_, err := executeWithInput(t, "short\n", "auth", "hash-password", "--stdin")
 	if !errors.Is(err, auth.ErrWeakPassword) {
 		t.Errorf("error = %v, want ErrWeakPassword", err)
 	}
 }
 
 func TestHashPasswordNeedsATerminalOrStdin(t *testing.T) {
-	_, err := executeWithInput(t, nil, "correct horse battery\n", "auth", "hash-password")
+	_, err := executeWithInput(t, "correct horse battery\n", "auth", "hash-password")
 	if err == nil || !strings.Contains(err.Error(), "--stdin") {
 		t.Errorf("error = %v, want a hint to use --stdin", err)
 	}
@@ -67,7 +67,7 @@ func TestHashPasswordNeedsATerminalOrStdin(t *testing.T) {
 
 func TestTokenCommandsRequireTheDatabase(t *testing.T) {
 	for _, args := range [][]string{{"auth", "token", "create", "x"}, {"auth", "token", "list"}, {"auth", "token", "revoke", "x"}} {
-		_, err := executeWithInput(t, nil, "", args...)
+		_, err := executeWithInput(t, "", args...)
 		if !errors.Is(err, config.ErrMissing) {
 			t.Errorf("%v error = %v, want a missing database URL", args, err)
 		}

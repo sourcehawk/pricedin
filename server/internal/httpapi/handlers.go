@@ -59,7 +59,7 @@ func (a *api) login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.SetCookie(w, a.cookie(token, int(sess.ExpiresAt.Sub(a.Now()).Seconds())))
-	writeJSON(a.Logger, w, r, http.StatusOK, sessionInfo(sess))
+	writeJSON(a.Logger, w, r, sessionInfo(sess))
 }
 
 func (a *api) logout(w http.ResponseWriter, r *http.Request) {
@@ -93,7 +93,7 @@ func (a *api) session(w http.ResponseWriter, r *http.Request) {
 		a.authFailure(w, r, err)
 		return
 	}
-	writeJSON(a.Logger, w, r, http.StatusOK, sessionInfo(sess))
+	writeJSON(a.Logger, w, r, sessionInfo(sess))
 }
 
 func (a *api) openAPI(w http.ResponseWriter, _ *http.Request) {
@@ -124,7 +124,7 @@ func (a *api) search(w http.ResponseWriter, r *http.Request) {
 		writeInternal(a.Logger, w, r, err)
 		return
 	}
-	writeJSON(a.Logger, w, r, http.StatusOK, struct {
+	writeJSON(a.Logger, w, r, struct {
 		Results []stocks.SearchResult `json:"results"`
 	}{results})
 }
@@ -135,7 +135,7 @@ func (a *api) status(w http.ResponseWriter, r *http.Request) {
 		writeInternal(a.Logger, w, r, err)
 		return
 	}
-	writeJSON(a.Logger, w, r, http.StatusOK, st)
+	writeJSON(a.Logger, w, r, st)
 }
 
 func (a *api) profile(w http.ResponseWriter, r *http.Request) {
@@ -202,7 +202,7 @@ func (a *api) respond(w http.ResponseWriter, r *http.Request, v any, err error) 
 	var missing *stocks.MissingInputError
 	switch {
 	case err == nil:
-		writeJSON(a.Logger, w, r, http.StatusOK, v)
+		writeJSON(a.Logger, w, r, v)
 	case errors.Is(err, stocks.ErrInvalidTicker):
 		writeProblem(w, r, invalidTicker, "A ticker is 1 to 10 letters, digits, '.' or '-'.", nil)
 	case errors.Is(err, stocks.ErrUnknownTicker):

@@ -25,27 +25,27 @@ func TestTheServiceOverPostgresMatchesTheFixtures(t *testing.T) {
 	st := pgtest.NewStore(t)
 	stockstest.Seed(t, st)
 	clock := func() time.Time { return stockstest.Now }
-	real := stocks.New(st, stocks.Options{Now: clock})
+	pg := stocks.New(st, stocks.Options{Now: clock})
 	fake := stocks.New(stockstest.Fixture(t), stocks.Options{Now: clock})
 
 	for _, ticker := range []string{"NVDA", "KO", "MSFT"} {
 		t.Run(ticker, func(t *testing.T) {
-			compare(t, "Profile", func(s *stocks.Service) (any, error) { return s.Profile(ctx, ticker) }, real, fake)
+			compare(t, "Profile", func(s *stocks.Service) (any, error) { return s.Profile(ctx, ticker) }, pg, fake)
 			if ticker == "MSFT" {
 				return
 			}
-			compare(t, "History", func(s *stocks.Service) (any, error) { return s.History(ctx, ticker, stocks.Range3Y) }, real, fake)
-			compare(t, "Fundamentals", func(s *stocks.Service) (any, error) { return s.Fundamentals(ctx, ticker) }, real, fake)
-			compare(t, "Evaluate", func(s *stocks.Service) (any, error) { return s.Evaluate(ctx, ticker, stocks.LeversInput{}) }, real, fake)
+			compare(t, "History", func(s *stocks.Service) (any, error) { return s.History(ctx, ticker, stocks.Range3Y) }, pg, fake)
+			compare(t, "Fundamentals", func(s *stocks.Service) (any, error) { return s.Fundamentals(ctx, ticker) }, pg, fake)
+			compare(t, "Evaluate", func(s *stocks.Service) (any, error) { return s.Evaluate(ctx, ticker, stocks.LeversInput{}) }, pg, fake)
 		})
 	}
 	// The fake matches ticker prefixes only, not company names.
-	compare(t, "Search", func(s *stocks.Service) (any, error) { return s.Search(ctx, "NV", 10) }, real, fake)
+	compare(t, "Search", func(s *stocks.Service) (any, error) { return s.Search(ctx, "NV", 10) }, pg, fake)
 }
 
-func compare(t *testing.T, what string, call func(*stocks.Service) (any, error), real, fake *stocks.Service) {
+func compare(t *testing.T, what string, call func(*stocks.Service) (any, error), pg, fake *stocks.Service) {
 	t.Helper()
-	got, err := call(real)
+	got, err := call(pg)
 	if err != nil {
 		t.Fatalf("%s over Postgres: %v", what, err)
 	}

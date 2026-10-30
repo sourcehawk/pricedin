@@ -209,9 +209,9 @@ func (s *Service) readPrices(ctx context.Context, st *stock) error {
 	if err != nil {
 		return err
 	}
-	for _, d := range dividends {
-		if since(d.ExDate) {
-			st.dividends = append(st.dividends, d)
+	for i := range dividends {
+		if since(dividends[i].ExDate) {
+			st.dividends = append(st.dividends, dividends[i])
 		}
 	}
 	return nil
@@ -305,7 +305,8 @@ func (st *stock) ttmDividend() SourcedNumber {
 	start := domain.DateOf(st.today.Time().AddDate(-1, 0, 0))
 	src := DerivedSource{Method: "recurring_dividends_12m"}
 	total := 0.0
-	for _, d := range st.dividends {
+	for i := range st.dividends {
+		d := &st.dividends[i]
 		if d.Type != "recurring" || !d.ExDate.After(start) || d.ExDate.After(st.today) || (d.Currency != "" && d.Currency != "USD") {
 			continue
 		}

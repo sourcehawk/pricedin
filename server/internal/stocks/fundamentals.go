@@ -90,8 +90,8 @@ func (s *Service) Fundamentals(ctx context.Context, ticker string) (Fundamentals
 		}
 		for m, v := range q.Values {
 			fv := FundamentalValue{Value: v.V, Method: string(v.Method), Estimate: v.Estimate, Filed: v.Filed, FirstFiled: v.FirstFiled, Inputs: make([]SECSource, len(v.Inputs))}
-			for j, in := range v.Inputs {
-				fv.Inputs[j] = secSource(cik, in, st.filings)
+			for j := range v.Inputs {
+				fv.Inputs[j] = secSource(cik, v.Inputs[j], st.filings)
 			}
 			fq.Values[string(m)] = fv
 		}
@@ -100,7 +100,8 @@ func (s *Service) Fundamentals(ctx context.Context, ticker string) (Fundamentals
 	for _, sp := range st.series.Splits {
 		out.Splits = append(out.Splits, splitEvent(sp))
 	}
-	for _, c := range st.series.Conflicts {
+	for i := range st.series.Conflicts {
+		c := &st.series.Conflicts[i]
 		v := Conflict{
 			Kind: string(c.Kind), Concept: c.Concept, PeriodStart: c.PeriodStart, PeriodEnd: c.PeriodEnd,
 			Original: optionalSource(cik, c.Original, st.filings), Restated: optionalSource(cik, c.Restated, st.filings),

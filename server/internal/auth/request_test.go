@@ -1,6 +1,7 @@
 package auth_test
 
 import (
+	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
@@ -96,7 +97,7 @@ func TestClientIP(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			r := httptest.NewRequest("GET", "/", nil)
+			r := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
 			r.RemoteAddr = tt.remote
 			if tt.value != "" {
 				h := tt.header

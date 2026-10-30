@@ -66,13 +66,17 @@ func TestTheEvaluationSchemaRejectsDrift(t *testing.T) {
 		t.Fatal(err)
 	}
 	mutations := map[string]func(map[string]any){
-		"an unknown field":                 func(o map[string]any) { o["fairValue"] = 1.0 },
-		"a missing field":                  func(o map[string]any) { delete(o, "verdict") },
-		"a null without a reason":          func(o map[string]any) { o["peNow"] = map[string]any{"value": nil} },
-		"an unknown reason":                func(o map[string]any) { o["gap"] = map[string]any{"value": nil, "reason": "nope"} },
-		"a value next to a reason":         func(o map[string]any) { o["gap"] = map[string]any{"value": 0.1, "reason": "missing_data"} },
-		"an unknown verdict":               func(o map[string]any) { o["verdict"] = map[string]any{"value": "cheap"} },
-		"a nested field of the wrong type": func(o map[string]any) { o["required"].(map[string]any)["dividends"] = "0" },
+		"an unknown field":         func(o map[string]any) { o["fairValue"] = 1.0 },
+		"a missing field":          func(o map[string]any) { delete(o, "verdict") },
+		"a null without a reason":  func(o map[string]any) { o["peNow"] = map[string]any{"value": nil} },
+		"an unknown reason":        func(o map[string]any) { o["gap"] = map[string]any{"value": nil, "reason": "nope"} },
+		"a value next to a reason": func(o map[string]any) { o["gap"] = map[string]any{"value": 0.1, "reason": "missing_data"} },
+		"an unknown verdict":       func(o map[string]any) { o["verdict"] = map[string]any{"value": "cheap"} },
+		"a nested field of the wrong type": func(o map[string]any) {
+			if req, ok := o["required"].(map[string]any); ok {
+				req["dividends"] = "0"
+			}
+		},
 	}
 	for name, mutate := range mutations {
 		t.Run(name, func(t *testing.T) {
