@@ -70,9 +70,9 @@ var (
 )
 
 // waitForBlockedQuery waits until a query of the database waits for a lock,
-// or a short time has passed. A test that runs a second writer calls it
-// before it commits the first, so that the second writer is already
-// running when the first commits.
+// and fails the test when none does within a few seconds. A test that runs
+// a second writer calls it before it commits the first, so that the second
+// writer is blocked when the first commits.
 func waitForBlockedQuery(ctx context.Context, t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
 	deadline := time.Now().Add(3 * time.Second)
@@ -88,4 +88,5 @@ func waitForBlockedQuery(ctx context.Context, t *testing.T, pool *pgxpool.Pool) 
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
+	t.Fatal("no query waited for a lock; the test did not run two writers at once")
 }
