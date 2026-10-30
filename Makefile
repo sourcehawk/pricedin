@@ -53,8 +53,15 @@ help: ## List the targets
 
 # --- Setup --------------------------------------------------------------------
 .PHONY: tools
-tools: ## Install the tool versions in .tool-versions with asdf
+tools: plugins ## Install the tool versions in .tool-versions with asdf
 	asdf install
+
+.PHONY: plugins
+plugins: ## Add the asdf plugin of each tool in .tool-versions that asdf lacks
+	installed="$$(asdf plugin list 2>/dev/null || true)"; \
+	for plugin in $$(awk '!/^#/ && NF { print $$1 }' .tool-versions); do \
+		if ! printf '%s\n' "$$installed" | grep -qx "$$plugin"; then asdf plugin add "$$plugin" || exit 1; fi; \
+	done
 
 .PHONY: deps
 deps: deps-go deps-node browsers ## Install Go modules, npm packages and the Playwright browser

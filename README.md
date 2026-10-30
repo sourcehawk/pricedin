@@ -10,7 +10,7 @@ v1 is in development. The product brief is in `CLAUDE.md`, the design in `docs/s
 
 ### Prerequisites
 
-- [asdf](https://asdf-vm.com/). It installs the tool versions in `.tool-versions`: Go, Node.js, pnpm, golangci-lint, actionlint and shellcheck.
+- [asdf](https://asdf-vm.com/) 0.16 or later. It installs the tool versions in `.tool-versions`: Go, Node.js, pnpm, golangci-lint, actionlint and shellcheck.
 - Docker with Compose v2.
 
 ### First setup
@@ -21,7 +21,7 @@ cp .env.example .env
 make up
 ```
 
-`make tools` installs the pinned tools. `make deps` installs the Go modules, the npm packages and the Playwright browser. `make up` builds the images and starts the stack in the background:
+`make tools` adds the asdf plugins that are missing and installs the pinned tools. `make deps` installs the Go modules, the npm packages and the Playwright browser. `make up` builds the images and starts the stack in the background:
 
 - the web app on http://localhost:3000
 - the API on http://localhost:8080 (`/healthz` and `/readyz`)
