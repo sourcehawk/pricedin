@@ -37,8 +37,19 @@ COMPOSE_FIXTURES = $(COMPOSE) -f docker-compose.yml -f docker-compose.fixtures.y
 # The jobs that load the fixture companies, in order. --wait makes each one
 # wait for the same job of the scheduler instead of skipping it.
 SEED_JOBS := sec-tickers sec-bulk price-reference prices-backfill "fundamentals-rebuild all"
-# Extra flags for `docker buildx build`, such as the cache flags CI passes.
+# Extra flags for `docker buildx build`.
 DOCKER_BUILD_FLAGS ?=
+# The GitHub Actions cache of `make images`, which only CI can reach: read
+# imports it, write imports and exports it, and empty uses no such cache.
+DOCKER_GHA_CACHE ?=
+ifneq ($(filter-out read write,$(DOCKER_GHA_CACHE)),)
+$(error DOCKER_GHA_CACHE must be read, write or empty, not '$(DOCKER_GHA_CACHE)')
+endif
+comma := ,
+# Each image needs a cache scope of its own. In one scope, the export of
+# an image replaces the export of the image before it.
+gha_cache = $(if $(DOCKER_GHA_CACHE),--cache-from type=gha$(comma)scope=$(1)) \
+	$(if $(filter write,$(DOCKER_GHA_CACHE)),--cache-to type=gha$(comma)mode=max$(comma)scope=$(1))
 # Extra flags for `playwright install`; CI adds --with-deps.
 PLAYWRIGHT_INSTALL_FLAGS ?=
 
@@ -186,6 +197,8 @@ test-server: ## Run the Go unit tests with the race detector
 .PHONY: test-scripts
 test-scripts: ## Run the tests of the shell scripts in scripts/
 	scripts/deploy-gate_test.sh
+	scripts/ci-changes_test.sh
+	scripts/ci-ok_test.sh
 
 .PHONY: test-integration
 test-integration: ## Run the Go integration tests (build tag integration)
@@ -229,9 +242,9 @@ build: ## Build the Go binary and the Next.js app
 
 .PHONY: images
 images: ## Build the server, fixture server and web Docker images
-	$(DOCKER) buildx build --load $(DOCKER_BUILD_FLAGS) --tag $(SERVER_IMAGE) $(SERVER_DIR)
-	$(DOCKER) buildx build --load $(DOCKER_BUILD_FLAGS) --tag $(FIXTURES_IMAGE) --target fixtureserver $(SERVER_DIR)
-	$(DOCKER) buildx build --load $(DOCKER_BUILD_FLAGS) --tag $(WEB_IMAGE) --file web/Dockerfile .
+	$(DOCKER) buildx build --load $(DOCKER_BUILD_FLAGS) $(call gha_cache,server) --tag $(SERVER_IMAGE) $(SERVER_DIR)
+	$(DOCKER) buildx build --load $(DOCKER_BUILD_FLAGS) $(call gha_cache,fixtures) --tag $(FIXTURES_IMAGE) --target fixtureserver $(SERVER_DIR)
+	$(DOCKER) buildx build --load $(DOCKER_BUILD_FLAGS) $(call gha_cache,web) --tag $(WEB_IMAGE) --file web/Dockerfile .
 
 # --- Local stack --------------------------------------------------------------
 .PHONY: up

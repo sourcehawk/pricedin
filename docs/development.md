@@ -107,7 +107,7 @@ docker compose -f docker-compose.yml -f docker-compose.fixtures.yml --profile fi
 | `make test-e2e` | Builds the images, starts a separate Compose stack against the fixture server (project `pricedin-e2e`, web on port 3100, API on port 8180), seeds it, runs Playwright, and removes that stack. The stack of `make up` is not touched |
 | `make ci` | Everything that CI runs, in the CI order |
 
-CI calls the same targets, so a green `make ci` predicts a green CI run.
+CI calls the same targets, so a green `make ci` predicts a green CI run. On a pull request, CI runs only the test jobs that the changed paths can affect, and `scripts/ci-changes.sh` sets which paths affect which job. The lint job always runs, a push to main runs every job, and CI builds the images in the end-to-end job only, not in a job of its own.
 
 Integration tests are in files named `*_integration_test.go`. A package that uses the database calls `pgtest.Main` from its `TestMain`, and each test gets a fresh database from `pgtest.NewURL` or `pgtest.NewPool`.
 

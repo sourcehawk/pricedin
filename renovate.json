@@ -11,6 +11,40 @@
   },
   "packageRules": [
     {
+      "description": "Non-major updates of the GitHub Actions share one pull request. The named groups below take their packages out of it.",
+      "groupName": "GitHub Actions",
+      "matchManagers": ["github-actions"],
+      "matchUpdateTypes": ["minor", "patch", "digest", "pinDigest"]
+    },
+    {
+      "description": "Non-major updates of the Go modules share one pull request. The named groups below take their packages out of it.",
+      "groupName": "Go modules",
+      "matchManagers": ["gomod"],
+      "matchUpdateTypes": ["minor", "patch", "digest"]
+    },
+    {
+      "description": "Patch updates of the npm development tools share one pull request, which merges on its own. A grouped pull request merges on its own only when each update in it can, so minor updates get a group of their own. The named groups below take their packages out of both.",
+      "groupName": "npm development tools (patch)",
+      "groupSlug": "npm-development-tools-patch",
+      "matchManagers": ["npm"],
+      "matchDepTypes": ["devDependencies"],
+      "matchUpdateTypes": ["patch"]
+    },
+    {
+      "description": "Minor updates of the npm development tools share one pull request.",
+      "groupName": "npm development tools (minor)",
+      "groupSlug": "npm-development-tools-minor",
+      "matchManagers": ["npm"],
+      "matchDepTypes": ["devDependencies"],
+      "matchUpdateTypes": ["minor"]
+    },
+    {
+      "description": "New digests of the container images share one pull request. The named groups below take their images out of it.",
+      "groupName": "container image digests",
+      "matchManagers": ["dockerfile", "docker-compose"],
+      "matchUpdateTypes": ["digest", "pinDigest"]
+    },
+    {
       "description": "Next.js and React move together.",
       "groupName": "Next.js and React",
       "matchPackageNames": [
