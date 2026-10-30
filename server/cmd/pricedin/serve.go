@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -48,7 +49,14 @@ func serve(ctx context.Context, getenv func(string) string, stdout io.Writer) er
 
 	// The pool connects on first use, so the server starts while the
 	// database is down and /readyz reports it.
-	pool, err := pgxpool.New(ctx, cfg.Database.URL)
+	poolCfg, err := pgxpool.ParseConfig(cfg.Database.URL)
+	if err != nil {
+		// The parse error can repeat the URL, and with it the password.
+		return errors.New("serve: the database URL does not parse")
+	}
+	// Room for the jobs of an on-demand load beside the requests.
+	poolCfg.MaxConns = max(poolCfg.MaxConns, minPoolConns)
+	pool, err := pgxpool.NewWithConfig(ctx, poolCfg)
 	if err != nil {
 		return fmt.Errorf("serve: database pool: %w", err)
 	}
@@ -74,13 +82,18 @@ func serve(ctx context.Context, getenv func(string) string, stdout io.Writer) er
 		logger.WarnContext(ctx, "PRICEDIN_PUBLIC_ORIGIN is empty: no login from the web app is accepted")
 	}
 
+	loader, closeLoader := newCompanyLoader(ctx, cfg, pool, logger)
+	// Deferred after the pool, so it runs first: the runner's lock pool
+	// closes before the query pool.
+	defer closeLoader()
+
 	api := http.NewServeMux()
 	api.Handle("GET /healthz", health.Liveness())
 	api.Handle("GET /readyz", health.Readiness(pool, readinessTimeout, logger))
 	api.Handle("/api/", httpapi.New(httpapi.Options{
 		Logger:             logger,
 		Auth:               authSvc,
-		Stocks:             stocks.New(st, stocks.Options{Loader: stocks.UnavailableLoader{}, Logger: logger}),
+		Stocks:             stocks.New(st, stocks.Options{Loader: loader, Logger: logger}),
 		Origins:            auth.NewOrigins(cfg.Auth.PublicOrigins),
 		CookieSecure:       cfg.Auth.CookieSecure,
 		TrustedProxyHeader: cfg.Auth.TrustedProxyHeader,
