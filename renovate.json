@@ -23,11 +23,18 @@
       "matchUpdateTypes": ["minor", "patch", "digest"]
     },
     {
-      "description": "Non-major updates of the npm development tools share one pull request. The named groups below take their packages out of it.",
-      "groupName": "npm development tools",
+      "description": "Patch updates of the npm development tools share one pull request, which merges on its own. A grouped pull request merges on its own only when each update in it can, so minor updates get a group of their own. The named groups below take their packages out of both.",
+      "groupName": "npm development tools (patch)",
       "matchManagers": ["npm"],
       "matchDepTypes": ["devDependencies"],
-      "matchUpdateTypes": ["minor", "patch"]
+      "matchUpdateTypes": ["patch"]
+    },
+    {
+      "description": "Minor updates of the npm development tools share one pull request.",
+      "groupName": "npm development tools (minor)",
+      "matchManagers": ["npm"],
+      "matchDepTypes": ["devDependencies"],
+      "matchUpdateTypes": ["minor"]
     },
     {
       "description": "New digests of the container images share one pull request. The named groups below take their images out of it.",
