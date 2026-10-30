@@ -1,0 +1,173 @@
+"use client";
+
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+
+/** tipId is the id of the one tooltip of the page, for aria-describedby. */
+export const tipId = "pricedin-tip";
+
+interface TipState {
+  owner: Element;
+  content: ReactNode;
+  /** The pointer position; null places the tip under the owner. */
+  at: { x: number; y: number } | null;
+}
+
+/** Tip shows the page's one tooltip, the prototype's dark tooltip that follows the pointer. */
+export interface Tip {
+  /** Shows content for owner, at the pointer position or, without one, under owner. */
+  show: (owner: Element, content: ReactNode, at?: { x: number; y: number }) => void;
+  /** Moves the tooltip of owner to the pointer. */
+  move: (owner: Element, at: { x: number; y: number }) => void;
+  /** Hides the tooltip when owner shows it, or any tooltip without owner. */
+  hide: (owner?: Element) => void;
+  /** The element whose tooltip shows; null when none shows. */
+  owner: Element | null;
+}
+
+const TipContext = createContext<Tip | null>(null);
+
+/** TipProvider renders the tooltip layer; Escape and a scroll by touch hide the tooltip. */
+export function TipProvider({ children }: { children: ReactNode }) {
+  const [tip, setTip] = useState<TipState | null>(null);
+  const el = useRef<HTMLDivElement>(null);
+
+  const show = useCallback((owner: Element, content: ReactNode, at?: { x: number; y: number }) => {
+    setTip({ owner, content, at: at ?? null });
+  }, []);
+  const move = useCallback((owner: Element, at: { x: number; y: number }) => {
+    setTip((t) => (t !== null && t.owner === owner ? { ...t, at } : t));
+  }, []);
+  const hide = useCallback((owner?: Element) => {
+    setTip((t) => (t === null || owner === undefined || t.owner === owner ? null : t));
+  }, []);
+
+  useEffect(() => {
+    if (tip === null) {
+      return;
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setTip(null);
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [tip]);
+
+  // Place the tooltip next to the pointer, inside the window.
+  useLayoutEffect(() => {
+    const node = el.current;
+    if (tip === null || node === null) {
+      return;
+    }
+    let { x, y } = tip.at ?? { x: 0, y: 0 };
+    if (tip.at === null) {
+      const b = tip.owner.getBoundingClientRect();
+      x = b.left + b.width / 2;
+      y = b.bottom;
+    }
+    const w = node.offsetWidth;
+    const h = node.offsetHeight;
+    let left = x + 14;
+    let top = y + 14;
+    if (left + w > window.innerWidth - 8) {
+      left = x - w - 14;
+    }
+    if (left < 8) {
+      left = 8;
+    }
+    if (top + h > window.innerHeight - 8) {
+      top = y - h - 14;
+    }
+    if (top < 8) {
+      top = 8;
+    }
+    node.style.left = `${String(left)}px`;
+    node.style.top = `${String(top)}px`;
+  }, [tip]);
+
+  const value = useMemo<Tip>(
+    () => ({ show, move, hide, owner: tip?.owner ?? null }),
+    [show, move, hide, tip?.owner],
+  );
+  return (
+    <TipContext value={value}>
+      {children}
+      {tip !== null && (
+        <div ref={el} id={tipId} role="tooltip" className="tip">
+          {tip.content}
+        </div>
+      )}
+    </TipContext>
+  );
+}
+
+/** useTip returns the tooltip of the nearest TipProvider. */
+export function useTip(): Tip {
+  const t = useContext(TipContext);
+  if (t === null) {
+    throw new Error("useTip needs a TipProvider");
+  }
+  return t;
+}
+
+/**
+ * useTipHandlers returns the props that show content as the tooltip of an
+ * element: on hover with a mouse or a pen, on keyboard focus, and on a tap,
+ * which toggles it. Spread them on the element, ref included.
+ */
+export function useTipHandlers(content: () => ReactNode) {
+  const tip = useTip();
+  const pointer = useRef<string>("mouse");
+  const [node, setNode] = useState<Element | null>(null);
+  return {
+    ref: setNode,
+    "aria-describedby": node !== null && tip.owner === node ? tipId : undefined,
+    onPointerDown: (e: React.PointerEvent) => {
+      pointer.current = e.pointerType;
+    },
+    onPointerEnter: (e: React.PointerEvent) => {
+      if (e.pointerType !== "touch") {
+        tip.show(e.currentTarget, content(), { x: e.clientX, y: e.clientY });
+      }
+    },
+    onPointerMove: (e: React.PointerEvent) => {
+      if (e.pointerType !== "touch") {
+        tip.move(e.currentTarget, { x: e.clientX, y: e.clientY });
+      }
+    },
+    onPointerLeave: (e: React.PointerEvent) => {
+      if (e.pointerType !== "touch") {
+        tip.hide(e.currentTarget);
+      }
+    },
+    onFocus: (e: React.FocusEvent) => {
+      tip.show(e.currentTarget, content());
+    },
+    onBlur: (e: React.FocusEvent) => {
+      tip.hide(e.currentTarget);
+    },
+    onClick: (e: React.MouseEvent) => {
+      if (pointer.current !== "touch") {
+        return;
+      }
+      if (tip.owner === e.currentTarget) {
+        tip.hide(e.currentTarget);
+      } else {
+        tip.show(e.currentTarget, content());
+      }
+    },
+  };
+}
