@@ -31,15 +31,20 @@ function secSources(s: Source): SecSource[] {
   }
 }
 
-/** filingLink returns the filing a value links to: its own, or the newest filing among its inputs at any depth. */
-export function filingLink(s: Source): string | null {
+/** newestFiling returns a value's own filing, or the newest filing among its inputs at any depth; null without one. */
+export function newestFiling(s: Source): SecSource | null {
   let newest: SecSource | null = null;
   for (const f of secSources(s)) {
     if (newest === null || f.filed > newest.filed) {
       newest = f;
     }
   }
-  return newest?.url ?? null;
+  return newest;
+}
+
+/** filingLink returns the filing a value links to: its own, or the newest filing among its inputs at any depth. */
+export function filingLink(s: Source): string | null {
+  return newestFiling(s)?.url ?? null;
 }
 
 function SourceLine({ s }: { s: Source }) {
@@ -69,7 +74,8 @@ function SourceLine({ s }: { s: Source }) {
   }
 }
 
-function SourceTip({ value }: { value: SourcedNumber }) {
+/** SourceTip is the tooltip content of a sourced value: its source and its as-of date. */
+export function SourceTip({ value }: { value: SourcedNumber }) {
   const s = value.source;
   return (
     <>
