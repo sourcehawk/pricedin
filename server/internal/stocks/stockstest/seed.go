@@ -15,7 +15,7 @@ import (
 // jobs would: the companies, the SEC tickers, the filings and facts, the
 // quarters that fundamentals.Derive gives with the provider's splits, and
 // the provider's bars, splits and dividends. The dividends and the
-// provider checks have the time Now. It returns the store over pool.
+// provider checks have the time Now.
 func Seed(tb testing.TB, pool *pgxpool.Pool) *store.Store {
 	tb.Helper()
 	ctx := context.Background()
