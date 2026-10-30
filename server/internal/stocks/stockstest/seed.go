@@ -41,7 +41,7 @@ func Seed(tb testing.TB, pool *pgxpool.Pool) *store.Store {
 	must(st.UpsertPriceBars(ctx, m.Bars))
 	must(st.UpsertPriceSplits(ctx, m.Splits))
 	must(st.UpsertDividends(ctx, m.Dividends))
-	var symbols []string
+	symbols := make([]string, 0, len(m.DividendsLoadedAt))
 	for sym := range m.DividendsLoadedAt {
 		symbols = append(symbols, sym)
 	}
