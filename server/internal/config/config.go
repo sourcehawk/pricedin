@@ -19,6 +19,7 @@ type Config struct {
 	Database Database
 	Log      Log
 	SEC      SEC
+	Blob     Blob
 	Massive  Massive
 }
 
@@ -32,12 +33,13 @@ func Load(getenv func(string) string) (Config, error) {
 	db, dbErrs := loadDatabase(getenv)
 	logCfg, logErrs := loadLog(getenv)
 	secCfg, secErrs := loadSEC(getenv)
+	blob, blobErrs := loadBlob(getenv)
 	massive, massiveErrs := loadMassive(getenv)
 
-	if errs := concat(httpErrs, dbErrs, logErrs, secErrs, massiveErrs); len(errs) > 0 {
+	if errs := concat(httpErrs, dbErrs, logErrs, secErrs, blobErrs, massiveErrs); len(errs) > 0 {
 		return Config{}, errors.Join(errs...)
 	}
-	return Config{HTTP: httpCfg, Database: db, Log: logCfg, SEC: secCfg, Massive: massive}, nil
+	return Config{HTTP: httpCfg, Database: db, Log: logCfg, SEC: secCfg, Blob: blob, Massive: massive}, nil
 }
 
 // VarError reports an environment variable that is missing or invalid.

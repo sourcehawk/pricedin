@@ -25,6 +25,7 @@ func TestLoadDefaults(t *testing.T) {
 		Log:     config.Log{Level: slog.LevelInfo, Format: config.LogFormatJSON},
 		SEC:     config.SEC{BaseURL: "https://www.sec.gov", DataBaseURL: "https://data.sec.gov"},
 		Massive: config.Massive{BaseURL: "https://api.massive.com", RateLimit: 20},
+		Blob:    config.Blob{Backend: config.BlobBackendFS},
 	}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("Load() mismatch (-want +got):\n%s", diff)
@@ -58,6 +59,7 @@ func TestLoadReadsEveryVariable(t *testing.T) {
 			DataBaseURL: "http://fixtures:8082",
 		},
 		Massive: config.Massive{BaseURL: "http://fixtures:8090", APIKey: "test-key", RateLimit: 2.5},
+		Blob:    config.Blob{Backend: config.BlobBackendFS},
 	}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("Load() mismatch (-want +got):\n%s", diff)

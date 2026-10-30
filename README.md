@@ -28,6 +28,8 @@ make up
 - the metrics on http://localhost:9090/metrics
 - Postgres on `localhost:5432`
 
+Before the server starts, the `migrate` service applies the database migrations. The server keeps raw downloads in the `blob-data` volume.
+
 If one of these ports is in use, change it in `.env` (`PRICEDIN_WEB_PORT`, `PRICEDIN_API_PORT`, `PRICEDIN_METRICS_PORT`, `PRICEDIN_DB_PORT`). `make down` stops the stack. `make logs` follows its logs.
 
 ### Tests and checks
@@ -39,6 +41,8 @@ If one of these ports is in use, change it in `.env` (`PRICEDIN_WEB_PORT`, `PRIC
 | `make test-integration` | The Go tests with the `integration` build tag |
 | `make test-e2e` | Builds the images, starts a separate Compose stack (project `pricedin-e2e`, web on port 3100, API on port 8180), runs Playwright, and removes that stack. The stack of `make up` is not touched |
 | `make ci` | Everything that CI runs, in the CI order |
+
+`make migrate` applies the migrations to the database of the Compose stack. `make migrate MIGRATE_ARGS=status` lists them, and `MIGRATE_ARGS=down` rolls back the latest one. For another database, set `PRICEDIN_DATABASE_URL` and run `go run ./cmd/pricedin migrate up` in `server/`.
 
 `make` without a target lists every target. CI calls the same targets, so a green `make ci` predicts a green CI run.
 
