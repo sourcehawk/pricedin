@@ -23,6 +23,7 @@ func TestLoadDefaults(t *testing.T) {
 	want := config.Config{
 		HTTP: config.HTTP{Addr: ":8080", MetricsAddr: ":9090"},
 		Log:  config.Log{Level: slog.LevelInfo, Format: config.LogFormatJSON},
+		SEC:  config.SEC{BaseURL: "https://www.sec.gov", DataBaseURL: "https://data.sec.gov"},
 	}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("Load() mismatch (-want +got):\n%s", diff)
@@ -31,11 +32,14 @@ func TestLoadDefaults(t *testing.T) {
 
 func TestLoadReadsEveryVariable(t *testing.T) {
 	got, err := config.Load(env(map[string]string{
-		"PRICEDIN_HTTP_ADDR":    "127.0.0.1:8181",
-		"PRICEDIN_METRICS_ADDR": "127.0.0.1:9191",
-		"PRICEDIN_DATABASE_URL": "postgres://u:p@db:5432/pricedin?sslmode=disable",
-		"PRICEDIN_LOG_LEVEL":    "debug",
-		"PRICEDIN_LOG_FORMAT":   "text",
+		"PRICEDIN_HTTP_ADDR":         "127.0.0.1:8181",
+		"PRICEDIN_METRICS_ADDR":      "127.0.0.1:9191",
+		"PRICEDIN_DATABASE_URL":      "postgres://u:p@db:5432/pricedin?sslmode=disable",
+		"PRICEDIN_LOG_LEVEL":         "debug",
+		"PRICEDIN_LOG_FORMAT":        "text",
+		"PRICEDIN_SEC_USER_AGENT":    "PricedIn owner@example.com",
+		"PRICEDIN_SEC_BASE_URL":      "http://fixtures:8081",
+		"PRICEDIN_SEC_DATA_BASE_URL": "http://fixtures:8082/",
 	}))
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
@@ -44,6 +48,11 @@ func TestLoadReadsEveryVariable(t *testing.T) {
 		HTTP:     config.HTTP{Addr: "127.0.0.1:8181", MetricsAddr: "127.0.0.1:9191"},
 		Database: config.Database{URL: "postgres://u:p@db:5432/pricedin?sslmode=disable"},
 		Log:      config.Log{Level: slog.LevelDebug, Format: config.LogFormatText},
+		SEC: config.SEC{
+			UserAgent:   "PricedIn owner@example.com",
+			BaseURL:     "http://fixtures:8081",
+			DataBaseURL: "http://fixtures:8082",
+		},
 	}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("Load() mismatch (-want +got):\n%s", diff)
@@ -93,6 +102,10 @@ func TestLoadRejectsInvalidValues(t *testing.T) {
 		{"database port out of range", map[string]string{"PRICEDIN_DATABASE_HOST": "db", "PRICEDIN_DATABASE_PORT": "70000"}, "PRICEDIN_DATABASE_PORT"},
 		{"database password without a user", map[string]string{"PRICEDIN_DATABASE_HOST": "db", "PRICEDIN_DATABASE_PASSWORD": "secret"}, "PRICEDIN_DATABASE_USER"},
 		{"unknown database sslmode", map[string]string{"PRICEDIN_DATABASE_HOST": "db", "PRICEDIN_DATABASE_SSLMODE": "always"}, "PRICEDIN_DATABASE_SSLMODE"},
+		{"sec user agent without email", map[string]string{"PRICEDIN_SEC_USER_AGENT": "PricedIn"}, "PRICEDIN_SEC_USER_AGENT"},
+		{"sec user agent without name", map[string]string{"PRICEDIN_SEC_USER_AGENT": "owner@example.com"}, "PRICEDIN_SEC_USER_AGENT"},
+		{"sec base url without scheme", map[string]string{"PRICEDIN_SEC_BASE_URL": "www.sec.gov"}, "PRICEDIN_SEC_BASE_URL"},
+		{"sec data base url with other scheme", map[string]string{"PRICEDIN_SEC_DATA_BASE_URL": "ftp://data.sec.gov"}, "PRICEDIN_SEC_DATA_BASE_URL"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -177,6 +190,17 @@ func TestDatabaseRequire(t *testing.T) {
 	var verr *config.VarError
 	if !errors.As(err, &verr) || verr.Var != "PRICEDIN_DATABASE_URL" {
 		t.Errorf("Require() without a URL error = %v, want a VarError for PRICEDIN_DATABASE_URL", err)
+	}
+}
+
+func TestSECRequire(t *testing.T) {
+	if err := (config.SEC{UserAgent: "PricedIn owner@example.com"}).Require(); err != nil {
+		t.Errorf("Require() with a User-Agent error = %v, want nil", err)
+	}
+	err := config.SEC{}.Require()
+	var verr *config.VarError
+	if !errors.As(err, &verr) || verr.Var != "PRICEDIN_SEC_USER_AGENT" || !errors.Is(err, config.ErrMissing) {
+		t.Errorf("Require() without a User-Agent error = %v, want ErrMissing for PRICEDIN_SEC_USER_AGENT", err)
 	}
 }
 

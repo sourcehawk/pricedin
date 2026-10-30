@@ -17,6 +17,7 @@ type Config struct {
 	HTTP     HTTP
 	Database Database
 	Log      Log
+	SEC      SEC
 }
 
 // Load reads the configuration through getenv, which is os.Getenv outside
@@ -28,11 +29,12 @@ func Load(getenv func(string) string) (Config, error) {
 	httpCfg, httpErrs := loadHTTP(getenv)
 	db, dbErrs := loadDatabase(getenv)
 	logCfg, logErrs := loadLog(getenv)
+	secCfg, secErrs := loadSEC(getenv)
 
-	if errs := concat(httpErrs, dbErrs, logErrs); len(errs) > 0 {
+	if errs := concat(httpErrs, dbErrs, logErrs, secErrs); len(errs) > 0 {
 		return Config{}, errors.Join(errs...)
 	}
-	return Config{HTTP: httpCfg, Database: db, Log: logCfg}, nil
+	return Config{HTTP: httpCfg, Database: db, Log: logCfg, SEC: secCfg}, nil
 }
 
 // VarError reports an environment variable that is missing or invalid.
@@ -235,6 +237,77 @@ func loadLog(getenv func(string) string) (Log, []error) {
 	}
 
 	return cfg, errs
+}
+
+// SEC configures the SEC EDGAR client.
+type SEC struct {
+	// UserAgent is sent with every SEC request. SEC requires a name and a
+	// contact email address, such as "PricedIn you@example.com". Empty
+	// when unset.
+	UserAgent string
+	// BaseURL replaces https://www.sec.gov and DataBaseURL replaces
+	// https://data.sec.gov, so that tests can use a fixture server. Neither
+	// ends with a slash.
+	BaseURL     string
+	DataBaseURL string
+}
+
+const (
+	envSECUserAgent   = "PRICEDIN_SEC_USER_AGENT"
+	envSECBaseURL     = "PRICEDIN_SEC_BASE_URL"
+	envSECDataBaseURL = "PRICEDIN_SEC_DATA_BASE_URL"
+)
+
+func loadSEC(getenv func(string) string) (SEC, []error) {
+	cfg := SEC{
+		UserAgent:   strings.TrimSpace(getenv(envSECUserAgent)),
+		BaseURL:     strings.TrimRight(withDefault(getenv(envSECBaseURL), "https://www.sec.gov"), "/"),
+		DataBaseURL: strings.TrimRight(withDefault(getenv(envSECDataBaseURL), "https://data.sec.gov"), "/"),
+	}
+	var errs []error
+	if cfg.UserAgent != "" {
+		if err := checkUserAgent(cfg.UserAgent); err != nil {
+			errs = append(errs, &VarError{Var: envSECUserAgent, Err: err})
+		}
+	}
+	if err := checkHTTPURL(cfg.BaseURL); err != nil {
+		errs = append(errs, &VarError{Var: envSECBaseURL, Err: err})
+	}
+	if err := checkHTTPURL(cfg.DataBaseURL); err != nil {
+		errs = append(errs, &VarError{Var: envSECDataBaseURL, Err: err})
+	}
+	return cfg, errs
+}
+
+func checkUserAgent(ua string) error {
+	fields := strings.Fields(ua)
+	hasEmail := false
+	for _, f := range fields {
+		if strings.Contains(f, "@") {
+			hasEmail = true
+		}
+	}
+	if !hasEmail || len(fields) < 2 {
+		return errors.New(`want a name and a contact email address, such as "PricedIn you@example.com"`)
+	}
+	return nil
+}
+
+func checkHTTPURL(raw string) error {
+	u, err := url.Parse(raw)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+		return errors.New("want an absolute http or https URL")
+	}
+	return nil
+}
+
+// Require returns a *VarError that wraps ErrMissing when the User-Agent is
+// not set. Every command that calls SEC must call it at startup.
+func (s SEC) Require() error {
+	if s.UserAgent == "" {
+		return &VarError{Var: envSECUserAgent, Err: ErrMissing}
+	}
+	return nil
 }
 
 func concat(lists ...[]error) []error {
