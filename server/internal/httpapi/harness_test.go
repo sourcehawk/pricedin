@@ -60,6 +60,15 @@ func withProxyHeader(h string) option {
 
 func newHarness(t *testing.T, opts ...option) *harness {
 	t.Helper()
+	authStore, data := authtest.NewStore(), stockstest.Fixture(t)
+	h := newHarnessOn(t, authStore, data, opts...)
+	h.authStore, h.data = authStore, data
+	return h
+}
+
+// newHarnessOn builds the API over the given stores.
+func newHarnessOn(t *testing.T, as auth.Store, ss stocks.Store, opts ...option) *harness {
+	t.Helper()
 	doc := apitest.Load(t)
 	// The document's server is relative; requests in the tests go to this
 	// host.
@@ -72,10 +81,7 @@ func newHarness(t *testing.T, opts ...option) *harness {
 	if err != nil {
 		t.Fatal(err)
 	}
-	h := &harness{
-		doc: doc, router: router, authStore: authtest.NewStore(), data: stockstest.Fixture(t),
-		loader: &stockstest.Loader{}, clock: authtest.NewClock(stockstest.Now),
-	}
+	h := &harness{doc: doc, router: router, loader: &stockstest.Loader{}, clock: authtest.NewClock(stockstest.Now)}
 	ao := auth.Options{OwnerEmail: ownerEmail, OwnerPasswordHash: phc, SessionTTL: sessionTTL, Now: h.clock.Now}
 	o := httpapi.Options{
 		Logger:       slog.New(slog.DiscardHandler),
@@ -86,10 +92,10 @@ func newHarness(t *testing.T, opts ...option) *harness {
 	for _, opt := range opts {
 		opt(&o, &ao)
 	}
-	if h.auth, err = auth.New(h.authStore, ao); err != nil {
+	if h.auth, err = auth.New(as, ao); err != nil {
 		t.Fatal(err)
 	}
-	h.stocks = stocks.New(h.data, stocks.Options{Now: h.clock.Now, Loader: h.loader})
+	h.stocks = stocks.New(ss, stocks.Options{Now: h.clock.Now, Loader: h.loader})
 	o.Auth, o.Stocks = h.auth, h.stocks
 	h.handler = httpapi.New(o)
 	return h
