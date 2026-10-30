@@ -54,10 +54,8 @@ If one of these ports is in use, change it in `.env` (`PRICEDIN_WEB_PORT`, `PRIC
 | `server/` | Go module: the `pricedin` command, the API, the calculation engine (`internal/engine`), and later the ingestion jobs |
 | `web/` | Next.js app in TypeScript |
 | `e2e/` | Playwright tests that run against the Compose stack |
-| `testdata/` | Test data that more than one part reads, such as the shared engine cases |
-| `tools/` | Scripts that produce test data, such as the engine oracle |
 | `prototype/` | The prototype, the reference for behavior, calculations, copy and layout |
 | `docs/` | The design, the plan and later the architecture and runbooks |
 | `scripts/` | Shell scripts that the Makefile calls |
-| `testdata/` | Test data that more than one part reads, such as the SEC fixtures in `testdata/sec/` |
-| `tools/` | Programs that make test data, such as `tools/sec-fixtures/` |
+| `testdata/` | Test data that more than one part reads, such as the SEC fixtures in `testdata/sec/` and the shared engine cases in `testdata/engine/` |
+| `tools/` | Programs that make test data, such as `tools/sec-fixtures/` and the engine oracle in `tools/engine-oracle/` |
