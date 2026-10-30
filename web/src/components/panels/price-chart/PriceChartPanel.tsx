@@ -189,11 +189,19 @@ export function PriceChartPanel() {
   const last = chart.points.at(-1);
   const link = chart.link.value;
   const period = spanLabel(chart.start, chart.end, chart.range);
+  const sourcedOn = (date: string, close: number) =>
+    closeSourced(date, close, history.quarters, profile.latestClose);
+  // The high and the low can close on several days; any of them with a source will do.
   const sourced = (v: number) => {
-    const p = chart.points.find((x) => x.close === v);
-    return p === undefined ? null : closeSourced(p.date, v, history.quarters, profile.latestClose);
+    for (const p of chart.points) {
+      const s = p.close === v ? sourcedOn(p.date, v) : null;
+      if (s !== null) {
+        return s;
+      }
+    }
+    return null;
   };
-  const lastClose = last === undefined ? null : sourced(last.close);
+  const lastClose = last === undefined ? null : sourcedOn(last.date, last.close);
 
   const sub = (
     <span data-testid="price-sub">

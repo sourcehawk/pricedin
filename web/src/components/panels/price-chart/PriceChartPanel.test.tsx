@@ -77,6 +77,24 @@ describe("PriceChartPanel", () => {
     );
   });
 
+  it("sources the latest close also when an earlier day closed at the same price", async () => {
+    const daily = historyFixture.history.daily.map((d, i, all) =>
+      i === all.length - 40 ? { ...d, close: all.at(-1)?.close ?? d.close } : d,
+    );
+    serveEngineHistory({ ...historyFixture.history, daily });
+    await renderReady(
+      <WhenReady>
+        <PriceChartPanel />
+      </WhenReady>,
+    );
+    const sub = within(panel()).getByTestId("price-sub");
+    const close = within(sub).getAllByText("$270.00").at(-1) as HTMLElement;
+    close.focus();
+    expect(await screen.findByRole("tooltip")).toHaveTextContent(
+      "Close on 2026-09-30 from Massive",
+    );
+  });
+
   it("starts with the TTM EPS, P/E and share-change overlays on", async () => {
     await renderReady(
       <WhenReady>
