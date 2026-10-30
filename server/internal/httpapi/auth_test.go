@@ -172,6 +172,49 @@ func TestLoginRateLimitUsesTheTrustedProxyHeader(t *testing.T) {
 	}
 }
 
+const proxySecret = "0123456789abcdef0123456789abcdef"
+
+// The six attempts in these tests exceed the limit of five per address, so
+// a 429 shows that they shared one address.
+
+func TestLoginRateLimitUsesTheWebAppsClientAddress(t *testing.T) {
+	h := newHarness(t, withProxyHeader("Fly-Client-IP"), withProxySecret(proxySecret))
+	for i := range 6 {
+		req := loginRequest(t, "wrong horse battery")
+		req.Header.Set("Fly-Client-IP", "198.51.100.1")
+		req.Header.Set("X-PricedIn-Proxy", proxySecret)
+		req.Header.Set("X-PricedIn-Client-IP", "203.0.113."+strconv.Itoa(i))
+		if res := h.do(t, req, true); res.StatusCode != http.StatusUnauthorized {
+			t.Fatalf("client %d status = %d, want 401: each browser has its own limit", i, res.StatusCode)
+		}
+	}
+}
+
+func TestLoginRateLimitIgnoresAClientAddressWithoutTheSecret(t *testing.T) {
+	for _, tt := range []struct{ name, secret string }{
+		{"no secret", ""},
+		{"a wrong secret", "fedcba9876543210fedcba9876543210"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			h := newHarness(t, withProxyHeader("Fly-Client-IP"), withProxySecret(proxySecret))
+			var last int
+			for i := range 6 {
+				req := loginRequest(t, "wrong horse battery")
+				req.Header.Set("Fly-Client-IP", "198.51.100.1")
+				if tt.secret != "" {
+					req.Header.Set("X-PricedIn-Proxy", tt.secret)
+				}
+				req.Header.Set("X-PricedIn-Client-IP", "203.0.113."+strconv.Itoa(i))
+				req.Header.Set("X-Forwarded-For", "203.0.113."+strconv.Itoa(i))
+				last = h.do(t, req, true).StatusCode
+			}
+			if last != http.StatusTooManyRequests {
+				t.Errorf("sixth attempt status = %d, want 429: the forged addresses must count against the real one", last)
+			}
+		})
+	}
+}
+
 func TestLoginWithoutAnOwnerIsDisabled(t *testing.T) {
 	h := newHarness(t, withoutOwner())
 	h.do(t, loginRequest(t, ownerPassword), true).problem(t, http.StatusServiceUnavailable, "login-disabled")
