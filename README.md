@@ -36,10 +36,11 @@ If one of these ports is in use, change it in `.env` (`PRICEDIN_WEB_PORT`, `PRIC
 
 | Target | What it runs |
 | --- | --- |
-| `make lint` | golangci-lint, ESLint, the TypeScript type check, Prettier, actionlint and shellcheck |
+| `make lint` | golangci-lint, ESLint, the TypeScript type check, Prettier, actionlint, shellcheck, and a check that the engine cases are current |
 | `make test` | The Go unit tests (`make test-server`) and the web unit tests (`make test-web`) |
 | `make test-integration` | The Go tests with the `integration` build tag |
 | `make test-e2e` | Builds the images, starts a separate Compose stack (project `pricedin-e2e`, web on port 3100, API on port 8180), runs Playwright, and removes that stack. The stack of `make up` is not touched |
+| `make generate-engine-cases` | Writes the shared engine cases in `testdata/engine/` from the prototype oracle in `tools/engine-oracle/` |
 | `make ci` | Everything that CI runs, in the CI order |
 
 `make migrate` applies the migrations to the database of the Compose stack. `make migrate MIGRATE_ARGS=status` lists them, and `MIGRATE_ARGS=down` rolls back the latest one. For another database, set `PRICEDIN_DATABASE_URL` and run `go run ./cmd/pricedin migrate up` in `server/`.
@@ -50,9 +51,11 @@ If one of these ports is in use, change it in `.env` (`PRICEDIN_WEB_PORT`, `PRIC
 
 | Path | Content |
 | --- | --- |
-| `server/` | Go module: the `pricedin` command, the API, and later the ingestion jobs and the engine |
+| `server/` | Go module: the `pricedin` command, the API, the calculation engine (`internal/engine`), and later the ingestion jobs |
 | `web/` | Next.js app in TypeScript |
 | `e2e/` | Playwright tests that run against the Compose stack |
+| `testdata/` | Test data that more than one part reads, such as the shared engine cases |
+| `tools/` | Scripts that produce test data, such as the engine oracle |
 | `prototype/` | The prototype, the reference for behavior, calculations, copy and layout |
 | `docs/` | The design, the plan and later the architecture and runbooks |
 | `scripts/` | Shell scripts that the Makefile calls |
