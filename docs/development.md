@@ -113,7 +113,7 @@ Integration tests are in files named `*_integration_test.go`. A package that use
 
 ### End-to-end tests
 
-The Playwright tests in `e2e/tests/` drive the web app of a Compose stack against the fixture server. `scripts/e2e.sh` starts that stack with `docker-compose.e2e.yml` on top of the fixture files. It creates the owner account from `PRICEDIN_E2E_OWNER_EMAIL` and `PRICEDIN_E2E_OWNER_PASSWORD`, and loads the fixture companies with the jobs of `make seed`. It leaves ADM out, so that a test can load it on demand. Each test runs on a desktop and a phone viewport, in light and dark color schemes. A request to a host outside the stack fails the test.
+The Playwright tests in `e2e/tests/` drive the web app of a Compose stack against the fixture server. `scripts/e2e.sh` starts that stack with `docker-compose.e2e.yml` on top of the fixture files, without the scheduler and without `.env`. It creates the owner account from `PRICEDIN_E2E_OWNER_EMAIL` and `PRICEDIN_E2E_OWNER_PASSWORD`, and loads the fixture companies with the jobs of `make seed`. It leaves ADM out, so that a test can load it on demand. Each test runs on a desktop and a phone viewport, in light and dark color schemes. A request to a host outside the stack fails the test.
 
 To work on the tests, keep the stack between runs:
 
