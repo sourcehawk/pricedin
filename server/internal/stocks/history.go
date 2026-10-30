@@ -72,10 +72,21 @@ type QuarterSources struct {
 	FreeCashFlow    Source       `json:"freeCashFlow"`
 }
 
-// PriceFeed names where the daily closes of a History come from.
+// PriceFeed names where the daily closes of a History come from, and the
+// splits that adjust them. The raw close of a daily close, as the provider
+// reports it, is the close times the ratio of every split dated after it.
 type PriceFeed struct {
 	Provider string `json:"provider"`
 	Symbol   string `json:"symbol"`
+	// Splits are the splits after the first daily close, oldest first; empty
+	// when no split adjusts a close of the range.
+	Splits []PriceSplit `json:"splits"`
+}
+
+// PriceSplit is a split that adjusts the closes dated before it.
+type PriceSplit struct {
+	Date  domain.Date `json:"date"`
+	Ratio float64     `json:"ratio"` // new shares for each old share
 }
 
 // History is the engine input of a stock with the sources of its values.
@@ -170,8 +181,24 @@ func (st *stock) history(rng HistoryRange) History {
 		out.History.Daily = append(out.History.Daily, p)
 	}
 	if b, ok := st.lastBar(); ok {
-		out.Prices = &PriceFeed{Provider: b.Bar.Source, Symbol: b.Bar.Symbol}
+		out.Prices = &PriceFeed{Provider: b.Bar.Source, Symbol: b.Bar.Symbol, Splits: st.splitsAfter(out.History.Daily)}
 	}
+	return out
+}
+
+// splitsAfter returns the splits in effect that are dated after the first
+// of daily, oldest first.
+func (st *stock) splitsAfter(daily []engine.PricePoint) []PriceSplit {
+	out := []PriceSplit{}
+	if len(daily) == 0 {
+		return out
+	}
+	for _, sp := range st.splits {
+		if daily[0].Date.Before(sp.Date) {
+			out = append(out, PriceSplit{Date: sp.Date, Ratio: sp.Ratio()})
+		}
+	}
+	slices.SortStableFunc(out, func(a, b PriceSplit) int { return a.Date.Time().Compare(b.Date.Time()) })
 	return out
 }
 

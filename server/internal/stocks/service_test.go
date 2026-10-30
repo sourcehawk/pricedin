@@ -168,6 +168,45 @@ func TestHistorySplitAdjustsNVIDIAClosesAndEPS(t *testing.T) {
 	}
 }
 
+func TestHistoryPricesGiveTheRawCloseOfEveryDailyClose(t *testing.T) {
+	st := stockstest.Fixture(t)
+	svc := newService(t, st, nil)
+	raw := map[domain.Date]float64{}
+	for _, b := range st.Bars {
+		if b.Symbol == "NVDA" {
+			raw[b.Date] = b.Close
+		}
+	}
+	for rng, wantSplits := range map[stocks.HistoryRange][]stocks.PriceSplit{
+		// The fixture's NVDA bars start after its 2021 split, so only the
+		// 2024 split adjusts a close.
+		stocks.RangeMax: {{Date: date(t, "2024-06-10"), Ratio: 10}},
+		stocks.Range6M:  {},
+	} {
+		h, err := svc.History(context.Background(), "NVDA", rng)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if h.Prices == nil || h.Prices.Provider != "massive" || h.Prices.Symbol != "NVDA" {
+			t.Fatalf("range %s: Prices = %+v, want the massive NVDA closes", rng, h.Prices)
+		}
+		if diff := cmp.Diff(wantSplits, h.Prices.Splits); diff != "" || h.Prices.Splits == nil {
+			t.Errorf("range %s: Prices.Splits (-want +got):\n%s", rng, diff)
+		}
+		for _, d := range h.History.Daily {
+			factor := 1.0
+			for _, sp := range h.Prices.Splits {
+				if d.Date.Before(sp.Date) {
+					factor *= sp.Ratio
+				}
+			}
+			if want := raw[d.Date]; math.Abs(d.Close*factor-want) > 1e-9*want {
+				t.Fatalf("range %s: close %v × factor %v on %s = %v, want the raw close %v", rng, d.Close, factor, d.Date, d.Close*factor, want)
+			}
+		}
+	}
+}
+
 func TestHistoryDailyTTMEPSIsTheOneKnownOnEachDayWithItsNewestQuarter(t *testing.T) {
 	st := stockstest.Fixture(t)
 	svc := newService(t, st, nil)

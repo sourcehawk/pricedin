@@ -569,9 +569,27 @@ export interface components {
          * @enum {string}
          */
         HistoryRange: "6M" | "1Y" | "3Y" | "max";
+        /**
+         * @description Where the daily closes come from, and the splits that adjust them.
+         *     Each daily close has the source of a `PriceSource` of this provider
+         *     and symbol, with `closeDate` the close's date and `splitFactor` the
+         *     product of the `ratio` of every split dated after that date (1 when
+         *     there is none). The provider's raw close is the close times the
+         *     split factor.
+         */
         PriceFeed: {
+            /** @example massive */
             provider: string;
+            /** @description The provider's symbol. */
             symbol: string;
+            /** @description The splits dated after the first daily close, oldest first; empty when no split adjusts a close of the range. */
+            splits: components["schemas"]["PriceSplit"][];
+        };
+        /** @description A stock split that adjusts the closes dated before it. */
+        PriceSplit: {
+            date: components["schemas"]["Date"];
+            /** @description New shares for each old share; a close before the split is divided by it. */
+            ratio: number;
         };
         NullableSource: components["schemas"]["Source"] | null;
         /** @description The sources of one quarter's values; null where the value is null. */

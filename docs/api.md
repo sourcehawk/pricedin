@@ -137,7 +137,7 @@ Trimmed. Each value has a `source` and an `asOf` date:
 curl -H "Authorization: Bearer $PRICEDIN_TOKEN" 'http://localhost:8080/api/v1/stocks/GRMN/history?range=1Y'
 ```
 
-Trimmed. `history` is the engine input. `quarters` gives the sources of each quarter, in the same order:
+Trimmed. `history` is the engine input. `quarters` gives the sources of each quarter, in the same order. `prices` is the source of every daily close: the provider, its symbol, and the splits after the first close of the range. To get the provider's raw close of a day, multiply the close by the ratio of each split after that day:
 
 ```json
 {
@@ -150,7 +150,7 @@ Trimmed. `history` is the engine input. `quarters` gives the sources of each qua
   },
   "quarters": [{"label": "Q3 FY26", "periodEnd": "2026-09-26", "ttmEpsKnownOn": "2026-10-28",
                 "eps": {"kind": "sec", "form": "10-Q", "accession": "0001193125-26-435070", "filed": "2026-10-28"}}],
-  "prices": {"provider": "massive", "symbol": "GRMN"},
+  "prices": {"provider": "massive", "symbol": "GRMN", "splits": []},
   "freshness": {"latestFiled": "2026-10-28", "latestClose": "2026-10-29"}
 }
 ```

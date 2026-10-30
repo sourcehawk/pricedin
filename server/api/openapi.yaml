@@ -878,11 +878,30 @@ components:
       default: "3Y"
     PriceFeed:
       type: object
+      description: |
+        Where the daily closes come from, and the splits that adjust them.
+        Each daily close has the source of a `PriceSource` of this provider
+        and symbol, with `closeDate` the close's date and `splitFactor` the
+        product of the `ratio` of every split dated after that date (1 when
+        there is none). The provider's raw close is the close times the
+        split factor.
       additionalProperties: false
-      required: [provider, symbol]
+      required: [provider, symbol, splits]
       properties:
-        provider: { type: string }
-        symbol: { type: string }
+        provider: { type: string, example: massive }
+        symbol: { type: string, description: "The provider's symbol." }
+        splits:
+          type: array
+          description: The splits dated after the first daily close, oldest first; empty when no split adjusts a close of the range.
+          items: { $ref: "#/components/schemas/PriceSplit" }
+    PriceSplit:
+      type: object
+      description: A stock split that adjusts the closes dated before it.
+      additionalProperties: false
+      required: [date, ratio]
+      properties:
+        date: { $ref: "#/components/schemas/Date" }
+        ratio: { type: number, exclusiveMinimum: 0, description: "New shares for each old share; a close before the split is divided by it." }
     NullableSource:
       oneOf: [{ $ref: "#/components/schemas/Source" }, { type: "null" }]
     QuarterSources:
