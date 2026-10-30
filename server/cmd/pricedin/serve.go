@@ -84,6 +84,7 @@ func serve(ctx context.Context, getenv func(string) string, stdout io.Writer) er
 		Origins:            auth.NewOrigins(cfg.Auth.PublicOrigins),
 		CookieSecure:       cfg.Auth.CookieSecure,
 		TrustedProxyHeader: cfg.Auth.TrustedProxyHeader,
+		TrustedProxyHops:   cfg.Auth.TrustedProxyHops,
 	}))
 
 	metrics := http.NewServeMux()

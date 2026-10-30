@@ -1,6 +1,7 @@
 package auth_test
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -85,30 +86,72 @@ func TestOriginsAllowOnlyTheListedOrigins(t *testing.T) {
 
 func TestClientIP(t *testing.T) {
 	tests := []struct {
-		name, remote, header, value, want string
+		name, remote, header string
+		hops                 int
+		values               []string
+		want                 string
 	}{
-		{"remote address", "192.0.2.1:5555", "", "", "192.0.2.1"},
-		{"remote IPv6", "[2001:db8::1]:5555", "", "", "2001:db8::1"},
-		{"header ignored when not trusted", "192.0.2.1:5555", "", "203.0.113.9", "192.0.2.1"},
-		{"trusted header", "10.0.0.1:5555", "Fly-Client-IP", "203.0.113.9", "203.0.113.9"},
-		{"trusted list takes the last entry", "10.0.0.1:5555", "X-Forwarded-For", "198.51.100.7, 203.0.113.9", "203.0.113.9"},
-		{"invalid header falls back", "10.0.0.1:5555", "Fly-Client-IP", "not-an-ip", "10.0.0.1"},
-		{"missing header falls back", "10.0.0.1:5555", "Fly-Client-IP", "", "10.0.0.1"},
+		{"remote address", "192.0.2.1:5555", "", 1, nil, "192.0.2.1"},
+		{"remote IPv6", "[2001:db8::1]:5555", "", 1, nil, "2001:db8::1"},
+		{"header ignored when not trusted", "192.0.2.1:5555", "", 1, []string{"203.0.113.9"}, "192.0.2.1"},
+		{"trusted header", "10.0.0.1:5555", "Fly-Client-IP", 1, []string{"203.0.113.9"}, "203.0.113.9"},
+		{"one hop takes the last entry", "10.0.0.1:5555", "X-Forwarded-For", 1, []string{"198.51.100.7, 203.0.113.9"}, "203.0.113.9"},
+		{"two hops skip the nearest proxy", "10.0.0.1:5555", "X-Forwarded-For", 2, []string{"198.51.100.7, 203.0.113.9"}, "198.51.100.7"},
+		{"a repeated header is one list", "10.0.0.1:5555", "X-Forwarded-For", 2, []string{"6.6.6.6, 198.51.100.7", "203.0.113.9"}, "198.51.100.7"},
+		{"too few entries falls back", "10.0.0.1:5555", "X-Forwarded-For", 3, []string{"198.51.100.7, 203.0.113.9"}, "10.0.0.1"},
+		{"invalid entry falls back", "10.0.0.1:5555", "Fly-Client-IP", 1, []string{"not-an-ip"}, "10.0.0.1"},
+		{"missing header falls back", "10.0.0.1:5555", "Fly-Client-IP", 1, nil, "10.0.0.1"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			r := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
 			r.RemoteAddr = tt.remote
-			if tt.value != "" {
-				h := tt.header
-				if h == "" {
-					h = "Fly-Client-IP"
-				}
-				r.Header.Set(h, tt.value)
+			h := tt.header
+			if h == "" {
+				h = "Fly-Client-IP"
 			}
-			if got := auth.ClientIP(r, tt.header); got != tt.want {
+			for _, v := range tt.values {
+				r.Header.Add(h, v)
+			}
+			if got := auth.ClientIP(r, tt.header, tt.hops); got != tt.want {
 				t.Errorf("ClientIP() = %q, want %q", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestLimiterKeysIPv6ByItsSlash64(t *testing.T) {
+	c := authtest.NewClock(time.Date(2026, 10, 30, 12, 0, 0, 0, time.UTC))
+	l := auth.NewLimiter(1, time.Minute, c.Now)
+	if ok, _ := l.Allow("2001:db8:1:2::1"); !ok {
+		t.Fatal("first attempt refused")
+	}
+	if ok, _ := l.Allow("2001:db8:1:2:ffff::9"); ok {
+		t.Error("another address of the same /64 was allowed, want it to share the bucket")
+	}
+	if ok, _ := l.Allow("2001:db8:1:3::1"); !ok {
+		t.Error("an address of another /64 was refused")
+	}
+	if ok, _ := l.Allow("192.0.2.1"); !ok {
+		t.Error("an IPv4 address was refused")
+	}
+}
+
+func TestAFullLimiterForgetsTheOldestAddress(t *testing.T) {
+	c := authtest.NewClock(time.Date(2026, 10, 30, 12, 0, 0, 0, time.UTC))
+	l := auth.NewLimiter(1, time.Minute, c.Now)
+	l.Allow("10.255.255.255") // the oldest
+	c.Advance(time.Second)
+	for i := range auth.MaxClients - 1 {
+		l.Allow(fmt.Sprintf("10.%d.%d.%d", i>>16&255, i>>8&255, i&255))
+	}
+	if ok, _ := l.Allow("192.0.2.1"); !ok {
+		t.Fatal("a new address was refused while the limiter was full, want the oldest forgotten")
+	}
+	if n := auth.LimiterSize(l); n != auth.MaxClients {
+		t.Errorf("tracked addresses = %d, want %d", n, auth.MaxClients)
+	}
+	if ok, _ := l.Allow("10.255.255.255"); !ok {
+		t.Error("the forgotten oldest address was refused, want a new bucket")
 	}
 }

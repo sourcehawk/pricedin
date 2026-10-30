@@ -55,7 +55,7 @@ func withInsecureCookie() option {
 }
 
 func withProxyHeader(h string) option {
-	return func(o *httpapi.Options, _ *auth.Options) { o.TrustedProxyHeader = h }
+	return func(o *httpapi.Options, _ *auth.Options) { o.TrustedProxyHeader, o.TrustedProxyHops = h, 1 }
 }
 
 func newHarness(t *testing.T, opts ...option) *harness {

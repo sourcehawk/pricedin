@@ -28,7 +28,7 @@ func (a *api) login(w http.ResponseWriter, r *http.Request) {
 		writeProblem(w, r, forbiddenOrigin, "A login must come from the web app.", nil)
 		return
 	}
-	if ok, wait := a.limiter.Allow(auth.ClientIP(r, a.TrustedProxyHeader)); !ok {
+	if ok, wait := a.limiter.Allow(auth.ClientIP(r, a.TrustedProxyHeader, a.TrustedProxyHops)); !ok {
 		secs := int(math.Ceil(wait.Seconds()))
 		w.Header().Set("Retry-After", strconv.Itoa(secs))
 		writeProblem(w, r, rateLimited, fmt.Sprintf("Try again in %d seconds.", secs), nil)
@@ -46,7 +46,7 @@ func (a *api) login(w http.ResponseWriter, r *http.Request) {
 		writeProblem(w, r, invalidRequest, "Send email and password.", nil)
 		return
 	}
-	client := auth.Client{IP: auth.ClientIP(r, a.TrustedProxyHeader), UserAgent: r.UserAgent()}
+	client := auth.Client{IP: auth.ClientIP(r, a.TrustedProxyHeader, a.TrustedProxyHops), UserAgent: r.UserAgent()}
 	token, sess, err := a.Auth.Login(r.Context(), *body.Email, *body.Password, client)
 	switch {
 	case errors.Is(err, auth.ErrInvalidCredentials):

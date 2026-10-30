@@ -11,3 +11,6 @@ func LimiterSize(l *Limiter) int {
 	defer l.mu.Unlock()
 	return len(l.clients)
 }
+
+// MaxClients is the most addresses a Limiter tracks.
+const MaxClients = maxClients

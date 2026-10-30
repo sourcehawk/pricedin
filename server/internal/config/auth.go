@@ -34,6 +34,10 @@ type Auth struct {
 	// as a trusted proxy in front of the server sets it, such as
 	// "Fly-Client-IP". Empty means the remote address of the connection.
 	TrustedProxyHeader string
+	// TrustedProxyHops is the number of trusted proxies that append to a
+	// list header such as X-Forwarded-For: the client address is that many
+	// entries from the right. Default 1.
+	TrustedProxyHops int
 }
 
 const (
@@ -43,6 +47,7 @@ const (
 	envCookieSecure       = "PRICEDIN_COOKIE_SECURE"
 	envPublicOrigin       = "PRICEDIN_PUBLIC_ORIGIN"
 	envTrustedProxyHeader = "PRICEDIN_TRUSTED_PROXY_HEADER"
+	envTrustedProxyHops   = "PRICEDIN_TRUSTED_PROXY_HOPS"
 )
 
 func loadAuth(getenv func(string) string) (Auth, []error) {
@@ -52,6 +57,7 @@ func loadAuth(getenv func(string) string) (Auth, []error) {
 		SessionTTL:         30 * 24 * time.Hour,
 		CookieSecure:       true,
 		TrustedProxyHeader: strings.TrimSpace(getenv(envTrustedProxyHeader)),
+		TrustedProxyHops:   1,
 	}
 	var errs []error
 	switch {
@@ -95,15 +101,18 @@ func loadAuth(getenv func(string) string) (Auth, []error) {
 		}
 		cfg.PublicOrigins = append(cfg.PublicOrigins, origin)
 	}
+	if s := getenv(envTrustedProxyHops); s != "" {
+		hops, err := strconv.Atoi(s)
+		if err != nil || hops < 1 {
+			errs = append(errs, &VarError{Var: envTrustedProxyHops, Err: fmt.Errorf("want a whole number of 1 or more, got %q", s)})
+		} else {
+			cfg.TrustedProxyHops = hops
+		}
+	}
 	if h := cfg.TrustedProxyHeader; h != "" && strings.ContainsFunc(h, func(r rune) bool { return !isHeaderNameRune(r) }) {
 		errs = append(errs, &VarError{Var: envTrustedProxyHeader, Err: fmt.Errorf("want a header name, such as Fly-Client-IP, got %q", h)})
 	}
 	return cfg, errs
-}
-
-// OwnerConfigured reports whether an owner can log in.
-func (a Auth) OwnerConfigured() bool {
-	return a.OwnerEmail != "" && a.OwnerPasswordHash != ""
 }
 
 // parseOrigin returns the origin in the form a browser sends in the Origin

@@ -34,9 +34,10 @@ type Options struct {
 	Origins auth.Origins
 	// CookieSecure sets the Secure attribute of the session cookie.
 	CookieSecure bool
-	// TrustedProxyHeader names the header with the client address, as
-	// auth.ClientIP reads it; empty means the connection's address.
+	// TrustedProxyHeader and TrustedProxyHops say where auth.ClientIP finds
+	// the client address; an empty header means the connection's address.
 	TrustedProxyHeader string
+	TrustedProxyHops   int
 	// Now returns the current time for the login rate limit; nil means
 	// time.Now.
 	Now func() time.Time

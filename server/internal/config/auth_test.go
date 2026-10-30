@@ -17,7 +17,7 @@ func TestLoadAuthDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
 	}
-	want := config.Auth{SessionTTL: 30 * 24 * time.Hour, CookieSecure: true}
+	want := config.Auth{SessionTTL: 30 * 24 * time.Hour, CookieSecure: true, TrustedProxyHops: 1}
 	if diff := cmp.Diff(want, got.Auth); diff != "" {
 		t.Errorf("Auth (-want +got):\n%s", diff)
 	}
@@ -30,7 +30,8 @@ func TestLoadAuthReadsEveryVariable(t *testing.T) {
 		"PRICEDIN_SESSION_TTL":          "12h",
 		"PRICEDIN_COOKIE_SECURE":        "false",
 		"PRICEDIN_PUBLIC_ORIGIN":        "https://pricedin.example.com, http://localhost:3000/",
-		"PRICEDIN_TRUSTED_PROXY_HEADER": "Fly-Client-IP",
+		"PRICEDIN_TRUSTED_PROXY_HEADER": "X-Forwarded-For",
+		"PRICEDIN_TRUSTED_PROXY_HOPS":   "2",
 	}))
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
@@ -41,7 +42,8 @@ func TestLoadAuthReadsEveryVariable(t *testing.T) {
 		SessionTTL:         12 * time.Hour,
 		CookieSecure:       false,
 		PublicOrigins:      []string{"https://pricedin.example.com", "http://localhost:3000"},
-		TrustedProxyHeader: "Fly-Client-IP",
+		TrustedProxyHeader: "X-Forwarded-For",
+		TrustedProxyHops:   2,
 	}
 	if diff := cmp.Diff(want, got.Auth); diff != "" {
 		t.Errorf("Auth (-want +got):\n%s", diff)
@@ -64,6 +66,8 @@ func TestLoadAuthRejectsInvalidValues(t *testing.T) {
 		{"origin with a path", map[string]string{"PRICEDIN_PUBLIC_ORIGIN": "https://example.com/app"}, "PRICEDIN_PUBLIC_ORIGIN"},
 		{"origin without a scheme", map[string]string{"PRICEDIN_PUBLIC_ORIGIN": "example.com"}, "PRICEDIN_PUBLIC_ORIGIN"},
 		{"origin with a query", map[string]string{"PRICEDIN_PUBLIC_ORIGIN": "https://example.com?a=1"}, "PRICEDIN_PUBLIC_ORIGIN"},
+		{"zero proxy hops", map[string]string{"PRICEDIN_TRUSTED_PROXY_HOPS": "0"}, "PRICEDIN_TRUSTED_PROXY_HOPS"},
+		{"proxy hops that are not a number", map[string]string{"PRICEDIN_TRUSTED_PROXY_HOPS": "two"}, "PRICEDIN_TRUSTED_PROXY_HOPS"},
 		{"proxy header with a space", map[string]string{"PRICEDIN_TRUSTED_PROXY_HEADER": "Client IP"}, "PRICEDIN_TRUSTED_PROXY_HEADER"},
 	}
 	for _, tt := range tests {
@@ -77,14 +81,5 @@ func TestLoadAuthRejectsInvalidValues(t *testing.T) {
 				t.Errorf("VarError.Var = %q, want %q", verr.Var, tt.wantVar)
 			}
 		})
-	}
-}
-
-func TestAuthOwnerConfigured(t *testing.T) {
-	if (config.Auth{}).OwnerConfigured() {
-		t.Error("OwnerConfigured() = true without an owner, want false")
-	}
-	if !(config.Auth{OwnerEmail: "o@example.com", OwnerPasswordHash: testHash}).OwnerConfigured() {
-		t.Error("OwnerConfigured() = false with an owner, want true")
 	}
 }

@@ -11,9 +11,9 @@ import (
 	"golang.org/x/time/rate"
 )
 
-// maxClients bounds the addresses that a Limiter tracks. When that many
-// addresses are active at once, a new address is refused until some go
-// idle: the login is for one owner, so refusing is safer than forgetting.
+// maxClients bounds the addresses that a Limiter tracks. A new address
+// beyond it makes the Limiter forget the address it saw longest ago, so
+// that many addresses cannot lock the owner out.
 const maxClients = 10000
 
 // Limiter is a token bucket per client address. It is safe for concurrent
@@ -47,7 +47,8 @@ func NewLimiter(attempts int, window time.Duration, now func() time.Time) *Limit
 
 // Allow takes one attempt for the address. When none is left, it returns
 // false and how long to wait for the next one; a refused attempt does not
-// count.
+// count. The addresses of one IPv6 /64 network share one bucket, since
+// one client usually holds the whole network.
 func (l *Limiter) Allow(addr string) (bool, time.Duration) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -55,13 +56,14 @@ func (l *Limiter) Allow(addr string) (bool, time.Duration) {
 	if now.Sub(l.lastSweep) >= l.window {
 		l.sweep(now)
 	}
-	c, ok := l.clients[addr]
+	key := limitKey(addr)
+	c, ok := l.clients[key]
 	if !ok {
 		if len(l.clients) >= maxClients {
-			return false, l.window
+			l.forgetOldest()
 		}
 		c = &client{bucket: rate.NewLimiter(l.limit, l.burst)}
-		l.clients[addr] = c
+		l.clients[key] = c
 	}
 	c.lastSeen = now
 	r := c.bucket.ReserveN(now, 1)
@@ -70,6 +72,28 @@ func (l *Limiter) Allow(addr string) (bool, time.Duration) {
 		return false, d
 	}
 	return true, 0
+}
+
+// limitKey returns the /64 network of an IPv6 address, and any other
+// address as it is.
+func limitKey(addr string) string {
+	ip, err := netip.ParseAddr(addr)
+	if err != nil || !ip.Is6() || ip.Is4In6() {
+		return addr
+	}
+	prefix, _ := ip.Prefix(64) // cannot fail for an IPv6 address and 64 bits
+	return prefix.String()
+}
+
+func (l *Limiter) forgetOldest() {
+	var oldest string
+	var at time.Time
+	for addr, c := range l.clients {
+		if oldest == "" || c.lastSeen.Before(at) {
+			oldest, at = addr, c.lastSeen
+		}
+	}
+	delete(l.clients, oldest)
 }
 
 // sweep drops the addresses that were idle for a whole window: their
@@ -106,19 +130,27 @@ func (o Origins) Allowed(origin string) bool {
 }
 
 // ClientIP returns the address of the client that sent r. With a trusted
-// header name, it takes the address from that header, the last entry of a
-// comma-separated list, which the nearest proxy wrote. It falls back to the
-// remote address of the connection when the header is missing or holds no
-// valid address. Only name a header that the proxy in front of the server
-// always sets, or a client can choose its own address.
-func ClientIP(r *http.Request, trustedHeader string) string {
-	if trustedHeader != "" {
-		v := r.Header.Get(trustedHeader)
-		if i := strings.LastIndexByte(v, ','); i >= 0 {
-			v = v[i+1:]
+// header name, it reads that header, every line of it as one
+// comma-separated list, and takes the entry hops places from the right:
+// each of hops trusted proxies appends one entry, so 1 takes the entry
+// that the nearest proxy wrote. It falls back to the remote address of the
+// connection when the list is shorter than hops or the entry is not a
+// valid address. Only name a header that the proxies always set, and the
+// number of them, or a client can choose its own address.
+func ClientIP(r *http.Request, trustedHeader string, hops int) string {
+	if trustedHeader != "" && hops >= 1 {
+		var entries []string
+		for _, line := range r.Header.Values(trustedHeader) {
+			for e := range strings.SplitSeq(line, ",") {
+				if e = strings.TrimSpace(e); e != "" {
+					entries = append(entries, e)
+				}
+			}
 		}
-		if addr, err := netip.ParseAddr(strings.TrimSpace(v)); err == nil {
-			return addr.Unmap().String()
+		if len(entries) >= hops {
+			if addr, err := netip.ParseAddr(entries[len(entries)-hops]); err == nil {
+				return addr.Unmap().String()
+			}
 		}
 	}
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
