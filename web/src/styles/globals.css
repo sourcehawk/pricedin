@@ -767,6 +767,11 @@ table.corr {
   opacity: 0.16;
   transition: opacity 0.2s;
 }
+/* A faded element fades its whole subtree, so a faded leaf inside it, such
+   as the YOU badge in its cell, would fade twice. */
+[data-tour-on] [data-tl] [data-tl] {
+  opacity: 1;
+}
 .px[data-tour-on] svg > rect.L-band,
 .px[data-tour-on] svg > text.L-band {
   opacity: 0.16;
@@ -1484,8 +1489,7 @@ table.hm {
   outline-offset: -1px;
   font-weight: 700;
 }
-.hm td.sel::before {
-  content: "YOU";
+.hm td.sel .youtag {
   display: inline-block;
   margin-right: 6px;
   vertical-align: 1px;

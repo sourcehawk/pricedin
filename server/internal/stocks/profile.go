@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/sourcehawk/pricedin/server/internal/domain"
@@ -144,8 +143,8 @@ func (s *Service) Search(ctx context.Context, query string, limit int) ([]Search
 // one, and the loader's error, which wraps ErrUnknownTicker when no company
 // has the ticker.
 func (s *Service) Load(ctx context.Context, ticker string) (Profile, error) {
-	ticker = strings.ToUpper(strings.TrimSpace(ticker))
-	if !tickerPattern.MatchString(ticker) {
+	ticker, err := domain.ParseSymbol(ticker)
+	if err != nil {
 		return Profile{}, ErrInvalidTicker
 	}
 	if err := s.loader.LoadCompany(ctx, ticker); err != nil {

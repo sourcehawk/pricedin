@@ -142,6 +142,7 @@ func TestLoadRejectsInvalidValues(t *testing.T) {
 		{"migrate url with other scheme", map[string]string{"PRICEDIN_DATABASE_MIGRATE_URL": "mysql://db/pricedin"}, "PRICEDIN_DATABASE_MIGRATE_URL"},
 		{"universe symbol with a space", map[string]string{"PRICEDIN_UNIVERSE": "NVDA,BRK B"}, "PRICEDIN_UNIVERSE"},
 		{"universe symbol with a slash", map[string]string{"PRICEDIN_UNIVERSE": "../KO"}, "PRICEDIN_UNIVERSE"},
+		{"universe symbol longer than ten characters", map[string]string{"PRICEDIN_UNIVERSE": "NVDA,ABCDEFGHIJK"}, "PRICEDIN_UNIVERSE"},
 		{"backfill days of zero", map[string]string{"PRICEDIN_PRICES_BACKFILL_DAYS": "0"}, "PRICEDIN_PRICES_BACKFILL_DAYS"},
 		{"backfill days that are not a number", map[string]string{"PRICEDIN_PRICES_BACKFILL_DAYS": "5y"}, "PRICEDIN_PRICES_BACKFILL_DAYS"},
 		{"schedule hour out of range", map[string]string{"PRICEDIN_SCHEDULE_DAILY": "24:00"}, "PRICEDIN_SCHEDULE_DAILY"},

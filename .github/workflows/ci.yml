@@ -38,9 +38,9 @@ jobs:
           if [ "$EVENT_NAME" = pull_request ]; then
             git -c core.quotePath=false diff --name-only --no-renames HEAD^1 HEAD >"$RUNNER_TEMP/changed"
             cat "$RUNNER_TEMP/changed"
-            scripts/ci-changes.sh <"$RUNNER_TEMP/changed"
+            make ci-changes <"$RUNNER_TEMP/changed"
           else
-            scripts/ci-changes.sh all
+            make ci-changes CI_ALL=true
           fi
 
   lint:
@@ -186,6 +186,6 @@ jobs:
           NEEDS_WEB: ${{ needs.changes.outputs.web }}
           NEEDS_E2E: ${{ needs.changes.outputs.e2e }}
         run: |
-          scripts/ci-ok.sh "changes=$CHANGES" "lint=$LINT" \
-            "test-server=$TEST_SERVER:$NEEDS_GO" "test-integration=$TEST_INTEGRATION:$NEEDS_GO" \
-            "test-web=$TEST_WEB:$NEEDS_WEB" "e2e=$E2E:$NEEDS_E2E"
+          make ci-ok CI_RESULTS="changes=$CHANGES lint=$LINT \
+            test-server=$TEST_SERVER:$NEEDS_GO test-integration=$TEST_INTEGRATION:$NEEDS_GO \
+            test-web=$TEST_WEB:$NEEDS_WEB e2e=$E2E:$NEEDS_E2E"

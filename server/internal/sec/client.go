@@ -323,12 +323,6 @@ func (c *Client) DownloadCompanyFactsArchive(ctx context.Context, w io.Writer) (
 	return c.download(ctx, c.baseURL+"/Archives/edgar/daily-index/xbrl/companyfacts.zip", w)
 }
 
-// DownloadSubmissionsArchive streams the bulk submissions archive
-// (submissions.zip) to w, as DownloadCompanyFactsArchive does.
-func (c *Client) DownloadSubmissionsArchive(ctx context.Context, w io.Writer) (int64, error) {
-	return c.download(ctx, c.baseURL+"/Archives/edgar/daily-index/bulkdata/submissions.zip", w)
-}
-
 // get returns the decoded body of u after the recorder stored it under key.
 func (c *Client) get(ctx context.Context, u, key string) ([]byte, error) {
 	var body []byte

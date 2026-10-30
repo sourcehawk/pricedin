@@ -171,6 +171,22 @@ func TestLatestPriceDate(t *testing.T) {
 	}
 }
 
+func TestEarliestPriceDate(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	s, _ := newStore(t)
+
+	// The bars arrive newest first, and another symbol has an older bar.
+	mustUpsertBars(t, s, bar(t, "ACME", "2026-01-07", 12), bar(t, "ACME", "2026-01-05", 11), bar(t, "GBX", "2025-12-31", 50))
+
+	got, err := s.GetEarliestPriceDate(ctx, "ACME")
+	if err != nil || got != date(t, "2026-01-05") {
+		t.Errorf("GetEarliestPriceDate(ACME) = %s, %v; want 2026-01-05, nil", got, err)
+	}
+	_, err = s.GetEarliestPriceDate(ctx, "NOPE")
+	wantNotFound(t, "GetEarliestPriceDate(NOPE)", err)
+}
+
 func TestListMissingPriceDates(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()

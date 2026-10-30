@@ -3,10 +3,11 @@ package config
 import (
 	"errors"
 	"fmt"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/sourcehawk/pricedin/server/internal/domain"
 )
 
 // Ingest configures the ingestion jobs and the scheduler.
@@ -33,9 +34,6 @@ const (
 	defaultDailyAt            = time.Hour + 30*time.Minute
 )
 
-// symbolPattern accepts SEC ticker symbols, such as "BRK-B".
-var symbolPattern = regexp.MustCompile(`^[A-Z0-9][A-Z0-9.\-]*$`)
-
 func loadIngest(getenv func(string) string) (Ingest, []error) {
 	cfg := Ingest{PricesBackfillDays: defaultPricesBackfillDays, DailyAt: defaultDailyAt}
 	var errs []error
@@ -43,12 +41,15 @@ func loadIngest(getenv func(string) string) (Ingest, []error) {
 	if raw := getenv(envUniverse); strings.TrimSpace(raw) != "" {
 		seen := map[string]bool{}
 		for part := range strings.SplitSeq(raw, ",") {
-			symbol := strings.ToUpper(strings.TrimSpace(part))
-			if symbol == "" || seen[symbol] {
+			if strings.TrimSpace(part) == "" {
 				continue
 			}
-			if !symbolPattern.MatchString(symbol) {
-				errs = append(errs, &VarError{Var: envUniverse, Err: fmt.Errorf("%q is not a ticker symbol", symbol)})
+			symbol, err := domain.ParseSymbol(part)
+			if err != nil {
+				errs = append(errs, &VarError{Var: envUniverse, Err: err})
+				continue
+			}
+			if seen[symbol] {
 				continue
 			}
 			seen[symbol] = true

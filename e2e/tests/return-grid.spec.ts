@@ -21,13 +21,40 @@ test("the YOU cell sits in the baseline's row and shows the summary's yearly ret
   const row = you.locator("xpath=ancestor::tr[1]");
   await expect(row.locator("th")).toContainText(pct(ev.baselines.weighted.value));
   await expect(row.locator("th .tags")).toContainText("Wtd");
-  await expect(you).toHaveText(signedPct(at.yearlyReturn, 0));
+  // The badge is text, hidden from a screen reader, which hears "Your case" instead.
+  await expect(you.locator(".youtag")).toBeVisible();
+  await expect(you.locator(".youtag")).toHaveText("YOU");
+  await expect(you).toHaveAccessibleName(`Your case: ${signedPct(at.yearlyReturn, 0)}`);
 
   const summary = pricedInPanel(page)
     .locator("dl.kv dt", { hasText: "Annual return at baseline" })
     .locator("xpath=following-sibling::dd[1]");
   // The summary shows the same return as the YOU cell, at one decimal.
   await expect(summary).toHaveText(signedPct(at.yearlyReturn, 1));
+});
+
+test("in the walkthrough the YOU badge fades with its cell, not below it", async ({ page }) => {
+  // Without motion the faded opacity applies at once.
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/");
+  await pickStock(page, "GR", "GRMN");
+  const grid = page.locator('[data-panel="return-grid"]');
+  await grid.getByRole("button", { name: "Walk me through this grid with my numbers" }).click();
+  await expect(page.getByRole("region", { name: "Walkthrough of the return grid" })).toBeVisible();
+  // The first step highlights an example row, which is never the row of the YOU cell.
+  const you = grid.locator("td.sel");
+  await expect(you).toHaveAttribute("data-tl", "");
+  const shown = (l: typeof you) =>
+    l.evaluate((e) => {
+      let o = 1;
+      for (let n: Element | null = e; n !== null; n = n.parentElement) {
+        o *= Number(getComputedStyle(n).opacity);
+      }
+      return o;
+    });
+  const cell = await shown(you);
+  expect(cell).toBeLessThan(0.5);
+  expect(await shown(you.locator(".youtag"))).toBeCloseTo(cell, 3);
 });
 
 test("hovering a row tag outlines its row", async ({ page }) => {

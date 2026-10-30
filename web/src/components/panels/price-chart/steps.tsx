@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { coefficient, multiple, pct, signedPct, times, usd } from "@/components/format";
 import { LineSample, Swatch } from "@/components/Swatch";
+import type { StepContext } from "@/components/walkthrough/steps";
 import type { WalkthroughStep } from "@/components/walkthrough/Walkthrough";
 import type { Chart, Evaluation } from "@/engine";
 import { spanLabel } from "./geometry";
@@ -66,7 +67,7 @@ function why(c: Chart): string {
 export const bandsStep = 6;
 
 /** priceSteps are the steps of the price chart's walkthrough, in the prototype's order. */
-export function priceSteps(ticker: string): WalkthroughStep[] {
+export function priceSteps({ ticker }: StepContext): WalkthroughStep[] {
   return [
     {
       title: (

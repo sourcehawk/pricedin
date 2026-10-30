@@ -1,5 +1,6 @@
 import { pct, signedPct } from "@/components/format";
 import type { Evaluation, Tiles } from "@/engine";
+import type { StepContext } from "@/components/walkthrough/steps";
 import type { WalkthroughStep } from "@/components/walkthrough/Walkthrough";
 
 // The financials walkthrough, from the prototype's financials guide.
@@ -50,7 +51,7 @@ export const watchOut =
   "Single quarters move with timing, such as large orders or tax payments. Look at several quarters before you draw a conclusion.";
 
 /** financialsSteps are the steps of the financials walkthrough for the stock ticker. */
-export function financialsSteps(ticker: string): WalkthroughStep[] {
+export function financialsSteps({ ticker }: StepContext): WalkthroughStep[] {
   return [
     {
       title: "Start with revenue",

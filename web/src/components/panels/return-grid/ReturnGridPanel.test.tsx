@@ -81,6 +81,16 @@ describe("the return grid", () => {
     expect(grid(panel).querySelectorAll("td.sel")).toHaveLength(1);
   });
 
+  it("badges the YOU cell, and names it as your case for a screen reader", async () => {
+    const panel = await renderPanel();
+    const you = cell(panel, "16.0%", youColumn);
+    const badge = you.querySelector(".youtag");
+    expect(badge).toHaveTextContent(/^YOU$/);
+    expect(badge).toHaveAttribute("aria-hidden", "true");
+    expect(within(grid(panel)).getByRole("cell", { name: "Your case: +8%" })).toBe(you);
+    expect(grid(panel).querySelectorAll(".youtag")).toHaveLength(1);
+  });
+
   it("tags the rows of the requirement and the baselines", async () => {
     const panel = await renderPanel();
     expect(row(panel, "25.0%").querySelector("th")).toHaveTextContent(/^Req25\.0%$/);
