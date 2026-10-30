@@ -157,7 +157,7 @@ export const searchFixture: TickerMatch[] = [
 /** statusFixture is a data page status with one failed run. */
 export const statusFixture: Status = {
   latestPriceDate: closeDate,
-  latestFiled: lastQuarter?.periodEnd ?? null,
+  latestFiled: "2026-10-28",
   coverage: { companies: 3, withFacts: 2, withFundamentals: 2 },
   runs: [
     {
