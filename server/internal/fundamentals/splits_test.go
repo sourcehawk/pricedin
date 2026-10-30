@@ -516,3 +516,19 @@ func TestDeriveRejectsAQ4ShareEstimateFromInputsOfAnotherScale(t *testing.T) {
 		t.Errorf("Conflicts = %+v, want a share_scale conflict", s.Conflicts)
 	}
 }
+
+func TestDeriveKeepsACorrectionThatCameWithTheSplitRestatement(t *testing.T) {
+	// FY 2024 EPS was 4.00 before a 2-for-1 split. The 10-K after the split
+	// gives 2.50, which is more than the split: a correction. It stays,
+	// so Q4 is 2.50 − 3.00 / 2 = 1.00.
+	var facts []domain.Fact
+	y24 := newCalYear(t, &facts, 2024)
+	y24.q3.add(sec.EarningsPerShareDiluted, "2024-01-01", "2024-09-30", 3.00)
+	y24.k.add(sec.EarningsPerShareDiluted, "2024-01-01", "2024-12-31", 4.00)
+	newCalYear(t, &facts, 2025).k.add(sec.EarningsPerShareDiluted, "2024-01-01", "2024-12-31", 2.50)
+
+	v := value(t, derive(t, facts, fundamentals.Options{Splits: []domain.Split{providerSplit(t, "2025-06-10", 2)}}), "Q4 FY24", fundamentals.EPSDiluted)
+	if v.V != 1.00 || !cmp.Equal(accessions(v), []string{"k-2025", "q3-2024"}) {
+		t.Errorf("Q4 FY24 EPS = %v from %v, want 1.00 from k-2025 and q3-2024", v.V, accessions(v))
+	}
+}

@@ -383,23 +383,31 @@ func (d *deriver) rescale(k periodKey, ref float64) {
 	}
 }
 
-// sameBasis returns the inputs a and b of a difference on one split basis.
-// A restatement after a split is rounded on the new basis, so subtracting
-// an unrestated value of the old basis, divided by the ratio, loses
-// precision: NVIDIA's FY23 EPS of 1.74 became 0.17 after its 10-for-1
-// split, while the 9M value of 1.17 was never restated.
+// sameBasis returns the inputs a and b of a difference on one split basis
+// when a filing on the older basis exists for the newer one and differs
+// from it only by the split. A restatement after a split is rounded on the
+// new basis, so subtracting an unrestated value of the old basis, divided
+// by the ratio, loses precision: NVIDIA's FY23 EPS of 1.74 became 0.17
+// after its 10-for-1 split, while the 9M value of 1.17 was never restated.
 func (d *deriver) sameBasis(c sec.Concept, pa span, a winner, pb span, b winner) (winner, winner) {
 	switch {
 	case a.obs.ratio < b.obs.ratio:
-		if o, ok := d.onBasis(c, pa, b.obs.ratio); ok {
+		if o, ok := d.onBasis(c, pa, b.obs.ratio); ok && onlySplit(o, a.obs) {
 			a.obs = o
 		}
 	case b.obs.ratio < a.obs.ratio:
-		if o, ok := d.onBasis(c, pb, a.obs.ratio); ok {
+		if o, ok := d.onBasis(c, pb, a.obs.ratio); ok && onlySplit(o, b.obs) {
 			b.obs = o
 		}
 	}
 	return a, b
+}
+
+// onlySplit reports whether the restated observation differs from the
+// older one only by the splits between them, within rounding. Otherwise
+// the restatement also corrected the value, and the correction wins.
+func onlySplit(older, restated observation) bool {
+	return restatedAt(kindOf(older.fact.Concept), older.fact.Value, restated.fact.Value, older.ratio/restated.ratio, splitSlack)
 }
 
 // onBasis returns the latest filing for the period p of concept c that was
