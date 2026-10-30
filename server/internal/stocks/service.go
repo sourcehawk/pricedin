@@ -138,8 +138,6 @@ type stock struct {
 	log     *slog.Logger // with the ticker
 	loaded  bool
 	today   domain.Date
-	// symbol is the price provider's symbol of the ticker.
-	symbol string
 	// rawBars and dividends are the provider's, from the day the ticker
 	// came to this company.
 	rawBars   []domain.PriceBar
@@ -169,7 +167,7 @@ func (s *Service) open(ctx context.Context, ticker string) (*stock, error) {
 		return nil, fmt.Errorf("stocks: %s: %w", ticker, err)
 	}
 	st := &stock{
-		ticker: t, today: domain.DateOf(s.now().In(s.newYork)), symbol: priceSymbol(t.Symbol),
+		ticker: t, today: domain.DateOf(s.now().In(s.newYork)),
 		log: s.logger.With(slog.String("ticker", t.Symbol)),
 	}
 	if st.company, err = s.store.GetCompany(ctx, t.CIK); err != nil {
@@ -194,20 +192,18 @@ func (s *Service) open(ctx context.Context, ticker string) (*stock, error) {
 // another company before carries that company's history too.
 func (s *Service) readPrices(ctx context.Context, st *stock) error {
 	from := earliest
-	for _, symbol := range slices.Compact([]string{st.ticker.Symbol, st.symbol}) {
-		rows, err := s.store.ListSymbolTickers(ctx, symbol)
-		if err != nil {
-			return err
-		}
-		for _, r := range rows {
-			if r.CIK != st.ticker.CIK && r.ValidTo != nil && r.ValidTo.After(from) {
-				from = *r.ValidTo
-			}
+	rows, err := s.store.ListSymbolTickers(ctx, st.ticker.Symbol)
+	if err != nil {
+		return err
+	}
+	for _, r := range rows {
+		if r.CIK != st.ticker.CIK && r.ValidTo != nil && r.ValidTo.After(from) {
+			from = *r.ValidTo
 		}
 	}
 	since := func(d domain.Date) bool { return !d.Before(from) && !d.After(st.today) }
 
-	splits, err := s.store.ListPriceSplits(ctx, st.symbol)
+	splits, err := s.store.ListPriceSplits(ctx, st.ticker.Symbol)
 	if err != nil {
 		return err
 	}
@@ -218,7 +214,7 @@ func (s *Service) readPrices(ctx context.Context, st *stock) error {
 			provider = append(provider, sp)
 		}
 	}
-	bars, err := s.store.ListPriceBars(ctx, st.symbol, from, st.today)
+	bars, err := s.store.ListPriceBars(ctx, st.ticker.Symbol, from, st.today)
 	if err != nil {
 		return err
 	}
@@ -226,7 +222,7 @@ func (s *Service) readPrices(ctx context.Context, st *stock) error {
 	if err := st.applySplits(provider); err != nil {
 		return err
 	}
-	dividends, err := s.store.ListDividends(ctx, st.symbol)
+	dividends, err := s.store.ListDividends(ctx, st.ticker.Symbol)
 	if err != nil {
 		return err
 	}
@@ -268,13 +264,13 @@ func (s *Service) withFundamentals(ctx context.Context, st *stock) error {
 }
 
 // applySplits makes splits the splits in effect and adjusts the bars for
-// them. Splits from the filings carry no symbol; they get the provider's.
+// them. Splits from the filings carry no symbol; they get the ticker's.
 // It leaves out a bar whose adjusted close is outside the engine's bounds.
 func (st *stock) applySplits(splits []domain.Split) error {
 	st.splits = make([]domain.Split, 0, len(splits))
 	for _, sp := range splits {
 		if sp.From > 0 && sp.To > 0 && !sp.Date.After(st.today) {
-			sp.Symbol = st.symbol
+			sp.Symbol = st.ticker.Symbol
 			st.splits = append(st.splits, sp)
 		}
 	}
@@ -290,12 +286,6 @@ func (st *stock) applySplits(splits []domain.Split) error {
 		return true
 	})
 	return nil
-}
-
-// priceSymbol maps an SEC ticker to the provider's symbol: SEC writes a
-// share class with a dash (BRK-B), the provider with a dot (BRK.B).
-func priceSymbol(secSymbol string) string {
-	return strings.ReplaceAll(secSymbol, "-", ".")
 }
 
 // lastBar returns the newest bar, or false without bars.

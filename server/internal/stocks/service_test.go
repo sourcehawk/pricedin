@@ -623,22 +623,21 @@ func TestEvaluateRejectsCasesWithMissingFields(t *testing.T) {
 	}
 }
 
-// A share class is BRK-B for SEC and BRK.B for the price provider. When
-// the provider's mapping shows an earlier issuer of the symbol, its bars
-// are not the current company's either.
+// When only the provider's mapping shows an earlier issuer of the symbol,
+// the earlier bars are not the current company's either.
 func TestTheProvidersMappingAlsoBoundsTheBars(t *testing.T) {
 	m := stockstest.Fixture(t)
 	until := date(t, "2026-03-02")
 	m.Companies = append(m.Companies, domain.Company{CIK: 1, Name: "Old Foo"}, domain.Company{CIK: 2, Name: "Foo Class A"})
 	m.Tickers = append(m.Tickers,
 		store.TickerRecord{Ticker: domain.Ticker{Symbol: "FOO-A", CIK: 2, ValidFrom: date(t, "2026-01-01")}, Source: store.TickerSourceSEC},
-		store.TickerRecord{Ticker: domain.Ticker{Symbol: "FOO.A", CIK: 1, ValidFrom: date(t, "2020-01-01"), ValidTo: &until}, Source: "massive"},
+		store.TickerRecord{Ticker: domain.Ticker{Symbol: "FOO-A", CIK: 1, ValidFrom: date(t, "2020-01-01"), ValidTo: &until}, Source: "massive"},
 	)
 	for _, b := range []struct {
 		day   string
 		close float64
 	}{{"2026-02-27", 500}, {"2026-03-02", 20}} {
-		m.Bars = append(m.Bars, domain.PriceBar{Symbol: "FOO.A", Date: date(t, b.day), Close: b.close, Source: "massive"})
+		m.Bars = append(m.Bars, domain.PriceBar{Symbol: "FOO-A", Date: date(t, b.day), Close: b.close, Source: "massive"})
 	}
 	p, err := newService(t, m, nil).Profile(context.Background(), "FOO-A")
 	if err != nil {
