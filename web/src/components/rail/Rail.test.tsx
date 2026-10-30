@@ -92,6 +92,29 @@ describe("exit P/E", () => {
     );
   });
 
+  it("moves the exit P/E field and slider to the typical P/E of the months typed", async () => {
+    await renderReady(<Rail />);
+    await userEvent.click(
+      within(screen.getByRole("group", { name: "Exit P/E" })).getByRole("button", {
+        name: "Trailing",
+      }),
+    );
+    const exit = field("Exit P/E multiple, type a number");
+    const before = (exit as HTMLInputElement).value;
+    const months = document.querySelector('[data-lever="typicalPeMonths"]');
+    if (!(months instanceof HTMLElement)) {
+      throw new Error("no typical P/E months");
+    }
+    await replace(within(months).getByRole("spinbutton"), "12");
+    await waitFor(() => {
+      expect((exit as HTMLInputElement).value).not.toBe(before);
+    });
+    expect(slider("Exit P/E multiple")).toHaveValue(
+      String(Number((exit as HTMLInputElement).value)),
+    );
+    expect(pressed("Exit P/E")).toEqual(["Trailing"]);
+  });
+
   it("explains the estimate under the lever", async () => {
     await renderReady(<Rail />);
     expect(screen.getByText(/^Today the market pays 25\.0× earnings\./)).toBeInTheDocument();
@@ -105,6 +128,18 @@ describe("growth baseline", () => {
     expect(pressed("Growth baseline")).toEqual(["Custom"]);
     expect(pressed("Custom growth")).toEqual(["Same each year"]);
     expect(slider("Custom EPS growth")).toHaveValue("9");
+  });
+
+  it("updates the growth field when the custom growth slider moves", async () => {
+    await renderReady(<Rail />);
+    await replace(field(/^Growth baseline, percent a year/), "9");
+    // A field keeps what the user typed while it has the focus.
+    await userEvent.tab();
+    fireEvent.change(slider("Custom EPS growth"), { target: { value: "12.5" } });
+    await waitFor(() => {
+      expect(field(/^Growth baseline, percent a year/)).toHaveValue(12.5);
+    });
+    expect(pressed("Custom growth")).toEqual(["Same each year"]);
   });
 
   it("follows the trend year by year from the trajectory", async () => {
