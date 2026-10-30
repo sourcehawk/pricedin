@@ -53,10 +53,12 @@ jobs:
         if: steps.gate.outputs.ready == 'true'
         # The release command of server.toml runs the migrations before the
         # new machines start. --ha=false keeps one machine per process group.
+        # The config path is absolute, because flyctl changes into server
+        # before it reads it.
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
         run: |
-          set -- --config deploy/fly/server.toml --remote-only --ha=false
+          set -- --config "$GITHUB_WORKSPACE/deploy/fly/server.toml" --remote-only --ha=false
           if [ -n "$FLY_APP" ]; then set -- "$@" --app "$FLY_APP"; fi
           flyctl deploy server "$@"
 

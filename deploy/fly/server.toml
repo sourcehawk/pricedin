@@ -2,7 +2,10 @@
 # daily ingestion job (process group scheduler), from one image. Deploy it
 # from the root of the repository:
 #
-#   flyctl deploy server --config deploy/fly/server.toml --ha=false
+#   flyctl deploy server --config "$PWD/deploy/fly/server.toml" --ha=false
+#
+# flyctl changes into the folder server before it reads --config, so a
+# relative config path would point into server.
 #
 # docs/runbook.md lists the secrets to set first. Nothing in this file is a
 # secret.
