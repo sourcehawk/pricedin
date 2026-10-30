@@ -371,3 +371,19 @@ func TestDeriveCitesTheFirstFilingOfTheSplitRatio(t *testing.T) {
 		t.Errorf("Splits = %+v, want one with evidence q2-2025", s.Splits)
 	}
 }
+
+func TestDeriveTakesBothInputsOfADifferenceOnOneSplitBasis(t *testing.T) {
+	// FY 2024 EPS was 4.11 before a 2-for-1 split. The 10-K after the split
+	// restates it as 2.06, rounded from 2.055. The 9M value of 3.00 was
+	// never restated. Q4 is (4.11 − 3.00) / 2 = 0.555, not 2.06 − 1.50.
+	var facts []domain.Fact
+	y24 := newCalYear(t, &facts, 2024)
+	y24.q3.add(sec.EarningsPerShareDiluted, "2024-01-01", "2024-09-30", 3.00)
+	y24.k.add(sec.EarningsPerShareDiluted, "2024-01-01", "2024-12-31", 4.11)
+	newCalYear(t, &facts, 2025).k.add(sec.EarningsPerShareDiluted, "2024-01-01", "2024-12-31", 2.06)
+
+	v := value(t, derive(t, facts, fundamentals.Options{Splits: []domain.Split{providerSplit(t, "2025-06-10", 2)}}), "Q4 FY24", fundamentals.EPSDiluted)
+	if v.V != 0.555 || !cmp.Equal(accessions(v), []string{"k-2024", "q3-2024"}) {
+		t.Errorf("Q4 FY24 EPS = %v from %v, want 0.555 from k-2024 and q3-2024", v.V, accessions(v))
+	}
+}

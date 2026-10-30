@@ -560,3 +560,12 @@ func TestDeriveCitesTheFirstFilingOfEachSECSplit(t *testing.T) {
 		})
 	}
 }
+
+func TestDeriveTakesNVIDIAQ4FY23OnThePreSplitBasis(t *testing.T) {
+	// The 10-K of 2025 restates FY23 EPS as 0.17, rounded after the split.
+	// The 9M value of 1.17 was never restated. NVIDIA reported $0.57 for
+	// Q4 FY23 before the split: (1.74 − 1.17) / 10.
+	s := deriveFixture(t, cikNVDA, fundamentals.Options{Splits: nvdaSplits(t)})
+	checkFiled(t, quarter(t, s, "Q4 FY23"), fundamentals.EPSDiluted, 0.057,
+		"10-K 0001045810-24-000029 − 10-Q 0001045810-23-000227", sec.EarningsPerShareDiluted)
+}

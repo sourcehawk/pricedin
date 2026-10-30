@@ -263,6 +263,7 @@ func (d *deriver) flow(concepts []sec.Concept, q quarterSpan) (Value, bool) {
 		if !ok {
 			continue
 		}
+		ytd, prev = d.sameBasis(c, span{q.fyStart, q.end}, ytd, span{q.fyStart, q.prevEnd}, prev)
 		method := MethodYTDDifference
 		if q.n == 4 {
 			method = MethodFYDifference
@@ -271,6 +272,39 @@ func (d *deriver) flow(concepts []sec.Concept, q quarterSpan) (Value, bool) {
 	}
 	out.FirstFiled = known
 	return out, found
+}
+
+// sameBasis returns the inputs a and b of a difference on one split basis.
+// A restatement after a split is rounded on the new basis, so subtracting
+// an unrestated value of the old basis, divided by the ratio, loses
+// precision: NVIDIA's FY23 EPS of 1.74 became 0.17 after its 10-for-1
+// split, while the 9M value of 1.17 was never restated. When the two were
+// adjusted by different ratios, the one on the newer basis is replaced by
+// its latest filing on the older basis, if there is one.
+func (d *deriver) sameBasis(c sec.Concept, pa span, a winner, pb span, b winner) (winner, winner) {
+	switch {
+	case a.obs.ratio < b.obs.ratio:
+		if o, ok := d.onBasis(c, pa, b.obs.ratio); ok {
+			a.obs = o
+		}
+	case b.obs.ratio < a.obs.ratio:
+		if o, ok := d.onBasis(c, pb, a.obs.ratio); ok {
+			b.obs = o
+		}
+	}
+	return a, b
+}
+
+// onBasis returns the latest filing for the period p of concept c that was
+// adjusted by ratio.
+func (d *deriver) onBasis(c sec.Concept, p span, ratio float64) (observation, bool) {
+	obs := d.periods[periodKey{string(c), p.start, p.end}]
+	for i := len(obs) - 1; i >= 0; i-- {
+		if obs[i].ratio == ratio {
+			return obs[i], true
+		}
+	}
+	return observation{}, false
 }
 
 // shares derives the diluted share count. A weighted average does not add
