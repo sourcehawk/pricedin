@@ -108,7 +108,7 @@ func (s *FS) Get(_ context.Context, key string) (io.ReadCloser, error) {
 	}
 	defer func() { _ = root.Close() }()
 	f, err := root.Open(key)
-	if errors.Is(err, fs.ErrNotExist) {
+	if isAbsent(err) {
 		return nil, fmt.Errorf("blob fs: get %s: %w", key, ErrNotFound)
 	}
 	if err != nil {
@@ -137,7 +137,7 @@ func (s *FS) Exists(_ context.Context, key string) (bool, error) {
 	}
 	defer func() { _ = root.Close() }()
 	info, err := root.Stat(key)
-	if errors.Is(err, fs.ErrNotExist) {
+	if isAbsent(err) {
 		return false, nil
 	}
 	if err != nil {
@@ -164,9 +164,7 @@ func (s *FS) List(ctx context.Context, prefix string) ([]string, error) {
 	var keys []string
 	err = fs.WalkDir(root.FS(), start, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
-			// A prefix whose folder is missing, or runs through a file,
-			// names no key.
-			if p == start && (errors.Is(err, fs.ErrNotExist) || errors.Is(err, syscall.ENOTDIR)) {
+			if p == start && isAbsent(err) {
 				return fs.SkipAll
 			}
 			return err
@@ -190,4 +188,10 @@ func (s *FS) List(ctx context.Context, prefix string) ([]string, error) {
 	}
 	slices.Sort(keys)
 	return keys, nil
+}
+
+// isAbsent reports whether err means that no file is at the path: the path
+// is missing, or it runs through a file, which a key or a prefix can do.
+func isAbsent(err error) bool {
+	return errors.Is(err, fs.ErrNotExist) || errors.Is(err, syscall.ENOTDIR)
 }

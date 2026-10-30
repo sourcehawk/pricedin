@@ -79,7 +79,7 @@ func putReplaces(t *testing.T, s blob.Store) {
 
 func getMissing(t *testing.T, s blob.Store) {
 	put(t, s, "sec/dir/file.json", "x")
-	for _, key := range []string{"sec/none.json", "sec/dir"} {
+	for _, key := range []string{"sec/none.json", "sec/dir", "sec/dir/file.json/child.json"} {
 		_, err := s.Get(context.Background(), key)
 		if !errors.Is(err, blob.ErrNotFound) {
 			t.Errorf("Get(%q) error = %v, want ErrNotFound", key, err)
@@ -90,7 +90,9 @@ func getMissing(t *testing.T, s blob.Store) {
 func exists(t *testing.T, s blob.Store) {
 	ctx := context.Background()
 	put(t, s, "sec/dir/file.json", "x")
-	for key, want := range map[string]bool{"sec/dir/file.json": true, "sec/dir": false, "sec/dir/other.json": false} {
+	for key, want := range map[string]bool{
+		"sec/dir/file.json": true, "sec/dir": false, "sec/dir/other.json": false, "sec/dir/file.json/child.json": false,
+	} {
 		got, err := s.Exists(ctx, key)
 		if err != nil || got != want {
 			t.Errorf("Exists(%q) = %v, %v; want %v, nil", key, got, err, want)
