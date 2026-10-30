@@ -263,7 +263,7 @@ func (c *Client) Ticker(ctx context.Context, symbol string) (prices.ProviderTick
 	}
 	t, err := ParseTickerOverview(body)
 	if err != nil {
-		return prices.ProviderTicker{}, withPath(err, rel)
+		return prices.ProviderTicker{}, c.withPath(err, rel)
 	}
 	return t, nil
 }
@@ -285,7 +285,7 @@ func fetchAll[T any](ctx context.Context, c *Client, rel, keyBase string, parse 
 		}
 		p, err := parse(body)
 		if err != nil {
-			return nil, withPath(err, rel)
+			return nil, c.withPath(err, rel)
 		}
 		all = append(all, p.Items...)
 		if p.NextURL == "" {
@@ -300,15 +300,19 @@ func fetchAll[T any](ctx context.Context, c *Client, rel, keyBase string, parse 
 	}
 }
 
-// withPath names the request in an error from a parse function.
-func withPath(err error, rel string) error {
+// withPath names the request in an error from a parse function, and removes
+// the key from the message and the request ID that came from the response.
+func (c *Client) withPath(err error, rel string) error {
 	var apiErr *APIError
 	if errors.As(err, &apiErr) && apiErr.Path == "" {
 		apiErr.Path = rel
 		apiErr.HTTPStatus = http.StatusOK
+		apiErr.Status = c.scrub(apiErr.Status)
+		apiErr.Message = c.scrub(apiErr.Message)
+		apiErr.RequestID = c.scrub(apiErr.RequestID)
 		return apiErr
 	}
-	return fmt.Errorf("massive: GET %s: %w", rel, err)
+	return fmt.Errorf("massive: GET %s: %w", rel, c.scrubErr(err))
 }
 
 // nextRel turns a next_url into a path and query for the client's own base
@@ -399,7 +403,7 @@ func (c *Client) try(ctx context.Context, rel string) (body []byte, retryAfter t
 	apiErr := &APIError{HTTPStatus: resp.StatusCode, Path: rel}
 	var env envelope
 	if decodeEnvelope(body, &env) == nil {
-		apiErr.Status, apiErr.Message, apiErr.RequestID = env.Status, c.scrub(env.message()), env.RequestID
+		apiErr.Status, apiErr.Message, apiErr.RequestID = c.scrub(env.Status), c.scrub(env.message()), c.scrub(env.RequestID)
 	}
 	if resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode >= http.StatusInternalServerError {
 		return nil, parseRetryAfter(resp.Header.Get("Retry-After"), c.now()), apiErr

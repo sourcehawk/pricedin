@@ -458,6 +458,25 @@ func TestTheRateLimitSpacesRequests(t *testing.T) {
 	}
 }
 
+func TestTheKeyNeverAppearsInAnErrorFromAnHTTP200Body(t *testing.T) {
+	body := `{"status":"ERROR-` + testKey + `","request_id":"id-` + testKey + `","error":"bad key ` + testKey + `"}`
+	srv := httptest.NewServer(serveJSON(body))
+	defer srv.Close()
+	c := newClient(t, srv, nil)
+
+	_, err := c.Splits(t.Context(), "NVDA")
+	var apiErr *massive.APIError
+	if !errors.As(err, &apiErr) {
+		t.Fatalf("Splits() error = %v, want an *APIError", err)
+	}
+	if strings.Contains(err.Error(), testKey) || strings.Contains(apiErr.Status, testKey) || strings.Contains(apiErr.Message, testKey) || strings.Contains(apiErr.RequestID, testKey) {
+		t.Errorf("Splits() error %q carries the key", err)
+	}
+	if _, err := c.Ticker(t.Context(), "GRMN"); err == nil || strings.Contains(err.Error(), testKey) {
+		t.Errorf("Ticker() error = %v, want an error without the key", err)
+	}
+}
+
 func TestTheKeyNeverAppearsInErrorsOrLogs(t *testing.T) {
 	var mux http.ServeMux
 	mux.HandleFunc("/stocks/v1/dividends", func(w http.ResponseWriter, r *http.Request) {
