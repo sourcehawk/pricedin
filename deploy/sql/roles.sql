@@ -8,10 +8,12 @@
 -- the second time.
 --
 --   psql "$OWNER_URL" -f deploy/sql/roles.sql
---   psql "$OWNER_URL" -c '\password pricedin_app'
+--   psql "$OWNER_URL" -f deploy/sql/app-password.sql
 --
--- The second command sets the password of the role. psql asks for it, and
--- sends only its hash. -v app_role=<name> gives the role another name.
+-- The second script sets the password of the role. -v app_role=<name>
+-- gives the role another name. Make the role only with this script: a role
+-- from the Neon console is a member of neon_superuser, which this script
+-- refuses.
 --
 -- The default privileges below make each table that a later migration
 -- creates readable and writable for the app role. A migration that adds an
@@ -48,6 +50,16 @@ BEGIN
     END IF;
     IF EXISTS (SELECT FROM pg_roles WHERE rolname = app AND (rolsuper OR rolbypassrls)) THEN
         RAISE EXCEPTION 'role % is a superuser or bypasses row security; the app role must be a plain role', app;
+    END IF;
+    -- pg_write_all_data has UPDATE and DELETE on every table, facts too.
+    -- neon_superuser is the Neon role that can make roles and grant them.
+    IF pg_has_role(app, 'pg_write_all_data', 'MEMBER') THEN
+        RAISE EXCEPTION 'role % is a member of pg_write_all_data; the app role must be a plain role', app;
+    END IF;
+    IF EXISTS (SELECT FROM pg_roles WHERE rolname = 'neon_superuser') THEN
+        IF pg_has_role(app, 'neon_superuser', 'MEMBER') THEN
+            RAISE EXCEPTION 'role % is a member of neon_superuser; make the app role with this script, not in the Neon console', app;
+        END IF;
     END IF;
 
     -- TEMPORARY: the batch writes copy their rows into temporary tables.

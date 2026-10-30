@@ -16,9 +16,12 @@ import (
 	"github.com/sourcehawk/pricedin/server/internal/store/pgtest"
 )
 
-// rolesScript is the script that production runs as the owner to create
-// the app role.
-const rolesScript = "../../../deploy/sql/roles.sql"
+// rolesScript and passwordScript are the scripts that production runs as
+// the owner to create the app role and to set its password.
+const (
+	rolesScript    = "../../../deploy/sql/roles.sql"
+	passwordScript = "../../../deploy/sql/app-password.sql"
+)
 
 // roleSeq keeps the role names of the tests apart: roles belong to the
 // whole Postgres server, not to one test database.
@@ -58,7 +61,9 @@ func TestTheAppRoleRunsTheJobsButCannotChangeFacts(t *testing.T) {
 	if out, err := pgtest.Psql(t, ownerURL, rolesScript, map[string]string{"app_role": role}); err != nil {
 		t.Fatalf("roles.sql: %v\n%s", err, out)
 	}
-	ownerExec(t, ownerURL, fmt.Sprintf("ALTER ROLE %s PASSWORD 'app-password'", role))
+	if out, err := pgtest.Psql(t, ownerURL, passwordScript, map[string]string{"app_role": role, "pw": "app-password"}); err != nil {
+		t.Fatalf("app-password.sql: %v\n%s", err, out)
+	}
 	appURL := asUser(t, ownerURL, role, "app-password")
 
 	env := fixtureEnv(t)
@@ -128,5 +133,16 @@ func TestTheRolesScriptRefusesTheOwnerAsTheAppRole(t *testing.T) {
 	out, err := pgtest.Psql(t, dbURL, rolesScript, map[string]string{"app_role": u.User.Username()})
 	if err == nil || !strings.Contains(out, "must be another role") {
 		t.Errorf("roles.sql with the owner as the app role: error = %v, output:\n%s\nwant a refusal", err, out)
+	}
+}
+
+func TestTheRolesScriptRefusesAMemberOfPgWriteAllData(t *testing.T) {
+	dbURL := pgtest.NewURL(t)
+	role := newRoleName()
+	ownerExec(t, dbURL, fmt.Sprintf("CREATE ROLE %s LOGIN", role))
+	ownerExec(t, dbURL, fmt.Sprintf("GRANT pg_write_all_data TO %s", role))
+	out, err := pgtest.Psql(t, dbURL, rolesScript, map[string]string{"app_role": role})
+	if err == nil || !strings.Contains(out, "pg_write_all_data") {
+		t.Errorf("roles.sql with a member of pg_write_all_data: error = %v, output:\n%s\nwant a refusal", err, out)
 	}
 }
