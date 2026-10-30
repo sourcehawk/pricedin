@@ -1,6 +1,6 @@
-// Number formats of the page, the same as the prototype's. Rates and returns
-// are fractions; every format shows "n/a" for a missing or infinite value.
-// The panels format numbers only with these functions.
+// Number formats of the page. usd below one cent and shareCount differ from
+// the prototype's formats. Rates and returns are fractions; every format
+// except years shows "n/a" for a missing or infinite value.
 
 type Value = number | null | undefined;
 
@@ -36,8 +36,9 @@ export function points(x: Value, decimals = 1): string {
 }
 
 /**
- * usd shows US dollars: "$1,234.50", "-$3.20". An amount under one cent
- * shows two significant digits, "$0.0042", so that it never reads as $0.00.
+ * usd shows US dollars: "$1,234.50", "-$3.20". A nonzero amount under one
+ * cent shows up to two significant digits, "$0.0042", so that it never reads
+ * as $0.00.
  */
 export function usd(x: Value, decimals = 2): string {
   if (!usable(x)) {
@@ -76,10 +77,10 @@ export function money(x: Value, decimals = 1): string {
 }
 
 /**
- * shareCount shows a share count with four significant digits in millions
- * or billions ("191.7M", "1.030M", "2.150B"), and a count under a million
- * in whole shares. Four digits never hide a change of 2% or more, the size
- * of a share-count event.
+ * shareCount shows a share count under a trillion with four significant
+ * digits in millions or billions ("191.7M", "1.030M", "2.150B"), and a count
+ * under a million in whole shares. Four digits never hide a change of 2% or
+ * more, the size of a share-count event.
  */
 export function shareCount(x: Value): string {
   if (!usable(x)) {
