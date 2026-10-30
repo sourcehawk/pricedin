@@ -129,6 +129,20 @@ describe("the return grid", () => {
     expect(cell(panel, "27.5%", youColumn)).toHaveClass("good");
   });
 
+  it("shades a cell on the 1.5 pp edge with the engine's tone", async () => {
+    // 16.5% growth at a 25× exit returns 16.5% a year: 1.5 pp above the
+    // 15% target, up to rounding, which the engine counts as near.
+    const panel = await renderPanel(
+      { type: "setBaselineMode", mode: "custom" },
+      { type: "setCustomRate", value: 0.165 },
+      { type: "setExitPe", value: 25 },
+    );
+    const you = grid(panel).querySelector("td.sel");
+    expect(you).toHaveClass("warn");
+    expect((you as HTMLElement).style.background).toBe("");
+    expect((you as HTMLElement).style.getPropertyValue("--shade")).not.toBe("");
+  });
+
   it("switches the cells between yearly return, total return and future price", async () => {
     const panel = await renderPanel();
     const you = () => cell(panel, "16.0%", youColumn);
@@ -273,7 +287,7 @@ describe("the walkthrough of the return grid", () => {
     await go(card, 3);
     expect(cell(panel, "17.5%", 0)).toHaveAttribute("data-thl");
     expect(card.querySelector(".t-takeaway")).toHaveTextContent(
-      "GRMN in one line: the price requires 23.9% EPS growth a year for 15.0% at a 20× exit. The weighted trend is 16.0% and the latest quarter 12.2%, so the price assumes growth speeds up.",
+      "GRMN in one line: the price requires 23.9% EPS growth a year for 15.0% at a 20× exit. The weighted trend is 16.0% and the latest quarter 12.2%. Your weighted trend of 16.0% falls short, so the price assumes growth speeds up.",
     );
   });
 
@@ -285,5 +299,39 @@ describe("the walkthrough of the return grid", () => {
         await next(card);
       }
     }
+  });
+  it("says no growth is needed when the dividends alone reach the target", async () => {
+    const panel = await renderPanel(
+      { type: "setStartingPoint", field: "dividend", value: 130 },
+      { type: "setTargetReturn", value: 0.1 },
+    );
+    await userEvent.click(
+      within(panel).getByRole("button", { name: "Walk me through this grid with my numbers" }),
+    );
+    const card = screen.getByRole("region", { name: "Walkthrough of the return grid" });
+    for (let i = 0; i < 14; i++) {
+      expect(card).not.toHaveTextContent("n/a");
+      if (i < 13) {
+        await next(card);
+      }
+    }
+    expect(card.querySelector(".t-takeaway")).toHaveTextContent(
+      "GRMN in one line: your dividends alone reach 10.0% a year, so the price requires no EPS growth.",
+    );
+  });
+
+  it("draws its conclusion from the baseline in use, and names it", async () => {
+    const panel = await renderPanel(
+      { type: "setBaselineMode", mode: "custom" },
+      { type: "setCustomRate", value: 0.3 },
+    );
+    await userEvent.click(
+      within(panel).getByRole("button", { name: "Walk me through this grid with my numbers" }),
+    );
+    const card = screen.getByRole("region", { name: "Walkthrough of the return grid" });
+    await go(card, 13);
+    expect(card.querySelector(".t-takeaway")).toHaveTextContent(
+      "The weighted trend is 16.0% and the latest quarter 12.2%. Your custom growth of 30.0% clears the bar.",
+    );
   });
 });

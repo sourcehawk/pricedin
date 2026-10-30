@@ -16,3 +16,16 @@
 .mark:not(:global(.on)) {
   visibility: hidden;
 }
+
+/* Each cell takes its color from the engine's tone and its depth from --shade. */
+.grid td:global(.good) {
+  background: color-mix(in srgb, var(--good) var(--shade), var(--surface));
+}
+
+.grid td:global(.warn) {
+  background: color-mix(in srgb, var(--warn) var(--shade), var(--surface));
+}
+
+.grid td:global(.bad) {
+  background: color-mix(in srgb, var(--bad) var(--shade), var(--surface));
+}

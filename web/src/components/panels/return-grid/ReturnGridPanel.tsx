@@ -42,17 +42,17 @@ const views: readonly { value: GridView; label: string }[] = [
   { value: "px", label: "Future price" },
 ];
 
-/** cellBackground shades a cell by how far its yearly return is from the target. */
-function cellBackground(diff: number): string {
-  if (diff > 0.015) {
-    const k = Math.min((diff - 0.015) / 0.12, 1);
-    return `color-mix(in srgb, var(--good) ${String(Math.round(22 + k * 48))}%, var(--surface))`;
+/** cellShade is the value of a cell's --shade: the strength of its tone's color, as a CSS percentage. */
+function cellShade(tone: "good" | "warn" | "bad", diff: number): string {
+  const k = (x: number, span: number) => Math.min(Math.max(x / span, 0), 1);
+  switch (tone) {
+    case "good":
+      return `${String(Math.round(22 + k(diff - 0.015, 0.12) * 48))}%`;
+    case "bad":
+      return `${String(Math.round(20 + k(-diff - 0.015, 0.15) * 48))}%`;
+    default:
+      return "38%";
   }
-  if (diff < -0.015) {
-    const k = Math.min((-diff - 0.015) / 0.15, 1);
-    return `color-mix(in srgb, var(--bad) ${String(Math.round(20 + k * 48))}%, var(--surface))`;
-  }
-  return "color-mix(in srgb, var(--warn) 38%, var(--surface))";
 }
 
 function cellText(c: GridOutcome, view: GridView): string {
@@ -187,7 +187,7 @@ interface Box {
   height: number;
 }
 
-/** useRowBoxes measures the outline of each tagged row of the table, again whenever the table changes size. */
+/** useRowBoxes measures the outline of each tagged row of the table, again whenever the table or its wrapper changes size. */
 function useRowBoxes(grid: Grid, view: GridView) {
   const wrap = useRef<HTMLDivElement>(null);
   const table = useRef<HTMLTableElement>(null);
@@ -230,7 +230,9 @@ function useRowBoxes(grid: Grid, view: GridView) {
       return;
     }
     const ro = new ResizeObserver(measure);
+    // The table keeps its own width and is centered, so a wider wrapper moves it without resizing it.
     ro.observe(t);
+    ro.observe(w);
     return () => {
       ro.disconnect();
     };
@@ -486,7 +488,7 @@ function GridTable({
   return (
     <div className="hm-wrap" ref={wrap}>
       <table
-        className="hm"
+        className={`hm ${styles.grid ?? ""}`}
         ref={table}
         onKeyDown={onArrows}
         aria-label="Returns for each EPS growth rate (rows) and exit P/E (columns)"
@@ -565,7 +567,7 @@ function GridTable({
                       c={ci}
                       className={cls}
                       walk={keys.join(" ")}
-                      style={{ background: cellBackground(c.vsTarget) }}
+                      style={{ "--shade": cellShade(tone, c.vsTarget) } as CSSProperties}
                       text={cellText(c, view)}
                       tip={() => cellTip(ri, ci)}
                       focusable={you === null ? ri === 0 && ci === 0 : isYou}
