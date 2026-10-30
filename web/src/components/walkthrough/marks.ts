@@ -27,10 +27,10 @@ function isLeaf(e: Element): boolean {
 
 /**
  * markScope highlights the elements of scope whose data-walk lists one of
- * keys, and fades the rest of scope, except what keep holds (the step card)
- * and the elements that hold a highlighted element. It returns the
- * highlighted elements; with none, nothing fades. Keys that are not
- * letters, digits and _.:- are ignored.
+ * keys, and fades the content of the rest of scope, except what keep holds
+ * (the step card) and the text directly in an element that holds a
+ * highlighted element. It returns the highlighted elements; with none,
+ * nothing fades. Keys that are not letters, digits and _.:- are ignored.
  */
 export function markScope(
   scope: Element,

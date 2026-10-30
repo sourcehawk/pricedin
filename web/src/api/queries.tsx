@@ -82,10 +82,10 @@ export function useProfile(ticker: string | null) {
 }
 
 /**
- * useHistory reads the history the engine runs on. freshness is the
- * profile's: the history is read again when it changes, so the profile and
- * the history describe the same data. It is idle while freshness is null,
- * such as before the profile says that the stock is loaded.
+ * useHistory reads the history the engine runs on. When ticker is set and
+ * freshness changes to a value that is not cached, the history is read
+ * again. It is idle while freshness is null, such as before the profile says
+ * that the stock is loaded.
  */
 export function useHistory(ticker: string | null, freshness: Profile["freshness"] | null) {
   const api = useApi();
