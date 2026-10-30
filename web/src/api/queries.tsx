@@ -14,7 +14,7 @@ import type { Profile } from "./types";
 
 const ApiContext = createContext<Api | null>(null);
 
-/** newQueryClient returns the query client of the app: no retry of a 4xx answer, no refetch on focus. */
+/** newQueryClient returns the query client of the app: no retry of a 4xx answer, and no refetch on focus unless a query asks for it. */
 export function newQueryClient(): QueryClient {
   return new QueryClient({
     defaultOptions: {
@@ -70,7 +70,11 @@ export function useApi(): Api {
 /** stockKey is the query key prefix of everything cached for one stock. */
 export const stockKey = (ticker: string) => ["stock", ticker] as const;
 
-/** useProfile reads the profile of ticker; it is idle while ticker is null. */
+/**
+ * useProfile reads the profile of ticker; it is idle while ticker is null.
+ * A window that gets the focus back reads a profile older than its stale
+ * time again, so a tab left open overnight shows the new close.
+ */
 export function useProfile(ticker: string | null) {
   const api = useApi();
   return useQuery({
@@ -78,6 +82,7 @@ export function useProfile(ticker: string | null) {
     queryFn: () => api.profile(ticker ?? ""),
     enabled: ticker !== null,
     staleTime: 5 * 60_000,
+    refetchOnWindowFocus: true,
   });
 }
 
