@@ -79,7 +79,10 @@ func (s *Store) ListPriceBars(ctx context.Context, symbol string, from, to domai
 
 // ListAdjustedPriceBars returns the split-adjusted bars of symbol from from
 // to to, both included, oldest first. It reads the view prices_adjusted, so
-// a split stored later changes the result without rewriting any bar.
+// a split stored later changes the result without rewriting any bar. It
+// applies the provider's splits only, not the SEC-confirmed splits of
+// stock_splits, so its closes can disagree with per-share values that a
+// split from SEC evidence alone adjusted.
 func (s *Store) ListAdjustedPriceBars(ctx context.Context, symbol string, from, to domain.Date) ([]AdjustedBar, error) {
 	rows, err := s.db.Query(ctx, `
 		SELECT symbol, date, open, high, low, close, volume, source, raw_close, split_factor
@@ -107,6 +110,13 @@ func (s *Store) ListAdjustedPriceBars(ctx context.Context, symbol string, from, 
 func (s *Store) GetLatestPriceDate(ctx context.Context, symbol string) (domain.Date, error) {
 	return s.latestDate(ctx, fmt.Sprintf("latest price date of %s", symbol),
 		`SELECT max(date) FROM prices_daily WHERE symbol = $1`, symbol)
+}
+
+// GetEarliestPriceDate returns the date of the oldest bar of symbol, or
+// ErrNotFound when it has none.
+func (s *Store) GetEarliestPriceDate(ctx context.Context, symbol string) (domain.Date, error) {
+	return s.latestDate(ctx, fmt.Sprintf("earliest price date of %s", symbol),
+		`SELECT min(date) FROM prices_daily WHERE symbol = $1`, symbol)
 }
 
 // GetLatestPriceDateOverall returns the date of the newest bar of any

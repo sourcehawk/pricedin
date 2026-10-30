@@ -23,7 +23,7 @@ import (
 const fixtureDir = "../../../../testdata/prices/massive"
 
 func fixtureSymbols() []string {
-	return []string{"AAPL", "GRMN", "KO", "NVDA"}
+	return []string{"AAPL", "ADM", "GRMN", "KO", "NVDA"}
 }
 
 func readFixture(t *testing.T, path string) []byte {
@@ -114,7 +114,12 @@ func TestNVDAFixtureIsRawAndAdjustsSmoothly(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []domain.Split{{Symbol: "NVDA", Date: date("2024-06-10"), From: 1, To: 10, Source: "massive"}}
+	// The 2021 split is before the first bar, as with Massive's five-year
+	// window.
+	want := []domain.Split{
+		{Symbol: "NVDA", Date: date("2021-07-20"), From: 1, To: 4, Source: "massive"},
+		{Symbol: "NVDA", Date: date("2024-06-10"), From: 1, To: 10, Source: "massive"},
+	}
 	if diff := cmp.Diff(want, splits.Items, cmp.FilterPath(func(p cmp.Path) bool { return p.Last().String() == ".Evidence" }, cmp.Ignore())); diff != "" {
 		t.Errorf("NVDA splits mismatch (-want +got):\n%s", diff)
 	}
@@ -151,8 +156,8 @@ func TestDividendFixturesDecode(t *testing.T) {
 			}
 		}
 	}
-	if counts["KO"] < 20 || counts["GRMN"] < 20 || counts["AAPL"] != 0 || counts["NVDA"] != 0 {
-		t.Errorf("dividend counts = %v, want about 20 for KO and GRMN and none for the others", counts)
+	if counts["KO"] < 20 || counts["GRMN"] < 20 || counts["ADM"] < 20 || counts["AAPL"] != 0 || counts["NVDA"] != 0 {
+		t.Errorf("dividend counts = %v, want about 20 for KO, GRMN and ADM and none for the others", counts)
 	}
 }
 
@@ -191,7 +196,7 @@ func TestTickerFixturesServeEveryPage(t *testing.T) {
 	for _, tk := range tickers {
 		ciks[tk.Symbol] = tk.CIK
 	}
-	want := map[string]domain.CIK{"AAPL": 320193, "GRMN": 1121788, "KO": 21344, "NVDA": 1045810}
+	want := map[string]domain.CIK{"AAPL": 320193, "ADM": 7084, "GRMN": 1121788, "KO": 21344, "NVDA": 1045810}
 	if diff := cmp.Diff(want, ciks); diff != "" {
 		t.Errorf("ticker CIKs mismatch (-want +got):\n%s", diff)
 	}

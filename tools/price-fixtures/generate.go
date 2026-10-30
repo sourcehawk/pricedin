@@ -57,6 +57,9 @@ type tickerConfig struct {
 	// ttm_eps × pe. An anchor date that is not a trading day moves to the
 	// trading day before it.
 	Anchors string `json:"anchors"`
+	// AnchorPE is the P/E with which server/cmd/price-anchors writes the
+	// anchors file from the SEC fixtures. The generator does not use it.
+	AnchorPE float64 `json:"anchor_pe"`
 }
 
 type splitConfig struct {
