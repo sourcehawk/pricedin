@@ -77,6 +77,7 @@ The prototype has a few defects. v1 corrects them, and the shared test cases car
 - Chart scales cover every plotted point, also the intermediate points of a year-by-year path that is not monotonic.
 - A chart scale with a zero-width domain (for example a constant share count) widens to a visible range instead of dividing by zero.
 - In the price chart, the hit areas of the P/E bands sit above the pointer-capture layer, so hovering a band line lifts it. In the prototype only the band labels react.
+- The bear, base and bull walkthrough names the cases that actually meet the target. The prototype infers them from how many cases pass, which is wrong once the owner edits the cases (for example, only Bear passes). Tests cover reordered outcomes.
 
 "Not applicable" results are explicit. A function that cannot produce a number returns no value and a reason code (for example `needs_positive_eps`), never NaN or a magic number. JSON carries this as `null` plus a `reason` field.
 
@@ -101,7 +102,7 @@ Postgres 18. The schema has these tables:
 - `ingest_runs`: one row per job run with start, end, status, counts and error text.
 - `sessions` and `api_tokens`: owner authentication. Both store hashes, never the secrets.
 
-Raw downloads go to a blob store before any parsing: SEC JSON and archives, and the provider's price, split and dividend responses, page by page. The SEC client and the price adapter take an injected recorder that receives every response body before it is decoded. A recorder failure fails the request, so no value is stored without its raw source. The blob store has two implementations: a local directory (Compose and tests) and S3-compatible storage (production, for example Tigris on Fly.io or Cloudflare R2). A full reprocess reads only the blob store.
+Raw downloads go to a blob store before any parsing: SEC JSON and archives, and the provider's price, split and dividend responses, page by page. The SEC client and the price adapter take an injected recorder that receives every response body before it is decoded. A recorder failure fails the request, so no value is stored without its raw source. Each key holds the retrieval date and a hash of the body, so a refreshed response never overwrites an earlier one. The blob store has two implementations: a local directory (Compose and tests) and S3-compatible storage (production, for example Tigris on Fly.io or Cloudflare R2). A full reprocess reads only the blob store.
 
 ### SEC ingestion
 
@@ -188,7 +189,7 @@ Errors use RFC 9457 problem details.
 - One owner. The owner's email and an Argon2id password hash come from the environment. `pricedin auth hash-password` makes the hash.
 - A login creates a server-side session row and sets an `HttpOnly`, `Secure`, `SameSite=Lax` cookie that holds a random token. The table stores only the token's hash. Logout deletes the row.
 - Login attempts are rate-limited per client address.
-- State-changing requests must be JSON. Login and cookie-authenticated requests must also come from the application's own origin. Requests with a valid bearer token need no `Origin` header, because scripts do not send one.
+- State-changing requests (POST, PUT, PATCH, DELETE) must be JSON. When they use the session cookie, and for login, they must also carry an `Origin` header of the application's own origin. Read requests (GET) need no `Origin` header, because browsers omit it on same-origin GET requests. Requests with a valid bearer token need no `Origin` header, because scripts do not send one.
 - API tokens let scripts and, later, agents call the API with `Authorization: Bearer`. The CLI creates and revokes them. The table stores only hashes.
 
 ## Web application
