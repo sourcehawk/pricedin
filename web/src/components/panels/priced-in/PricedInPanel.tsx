@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import type { QuarterSources, SourcedNumber } from "@/api/types";
+import type { QuarterSources, SecSource, Source, SourcedNumber } from "@/api/types";
 import type { Evaluation, Verdict } from "@/engine";
 import { pct, pp, signedPct, times, usd, years } from "@/components/format";
 import { baselineName } from "@/components/rail/notes";
@@ -39,13 +39,31 @@ function verdictText(ev: Evaluation): string | null {
   }
 }
 
-/** yoySource is the YoY growth of quarter i with the two filings it compares; null without both. */
+/** secInputs returns the filings behind a source, at any depth. */
+function secInputs(s: Source): SecSource[] {
+  switch (s.kind) {
+    case "sec":
+      return [s];
+    case "derived":
+      return s.inputs.flatMap(secInputs);
+    default:
+      return [];
+  }
+}
+
+/** yoySource is the YoY growth of quarter i with the sources of the two quarters it compares; null without a filing behind both. */
 function yoySource(q: readonly QuarterSources[], i: number, value: number): SourcedNumber | null {
   const now = q[i]?.eps;
   const before = q[i - 4]?.eps;
-  if (now?.kind !== "sec" || before?.kind !== "sec") {
+  if (!now || !before) {
     return null;
   }
+  const nowFilings = secInputs(now);
+  const beforeFilings = secInputs(before);
+  if (nowFilings.length === 0 || beforeFilings.length === 0) {
+    return null;
+  }
+  const asOf = [...nowFilings, ...beforeFilings].reduce((a, f) => (f.filed > a ? f.filed : a), "");
   return {
     value,
     source: {
@@ -55,7 +73,7 @@ function yoySource(q: readonly QuarterSources[], i: number, value: number): Sour
       estimate: false,
       inputs: [now, before],
     },
-    asOf: now.filed,
+    asOf,
   };
 }
 
@@ -110,8 +128,10 @@ export function PricedInPanel() {
   );
 
   let sub: string;
-  if (pe === null) {
+  if (!(levers.ttmEps > 0)) {
     sub = "A P/E model needs positive EPS. Loss-making companies need a different method.";
+  } else if (pe === null) {
+    sub = "The exit P/E needs more price and earnings history.";
   } else {
     sub = `For ${pct(r)} a year over ${years(n)}, exiting at ${pe.toFixed(1)}× earnings${ev.exitPe.mode === "estimated" ? " (estimated)" : ""}${req.dividends > 0 ? ", with dividends" : ""}.`;
   }
