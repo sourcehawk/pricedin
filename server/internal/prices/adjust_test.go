@@ -33,10 +33,12 @@ func summarize(bars []prices.AdjustedBar) []adjusted {
 }
 
 func TestAdjustForSplits(t *testing.T) {
+	// asOf is after every split of the table unless a case sets its own.
 	tests := []struct {
 		name   string
 		bars   []domain.PriceBar
 		splits []domain.Split
+		asOf   string
 		want   []adjusted
 	}{
 		{
@@ -91,6 +93,20 @@ func TestAdjustForSplits(t *testing.T) {
 			want:   []adjusted{{"2024-06-07", 10, 115}},
 		},
 		{
+			name:   "a split after the as-of date does not apply yet",
+			bars:   []domain.PriceBar{bar("NVDA", "2024-06-07", 1150)},
+			splits: []domain.Split{split("NVDA", "2024-06-10", 1, 10)},
+			asOf:   "2024-06-09",
+			want:   []adjusted{{"2024-06-07", 1, 1150}},
+		},
+		{
+			name:   "a split on the as-of date applies",
+			bars:   []domain.PriceBar{bar("NVDA", "2024-06-07", 1150)},
+			splits: []domain.Split{split("NVDA", "2024-06-10", 1, 10)},
+			asOf:   "2024-06-10",
+			want:   []adjusted{{"2024-06-07", 10, 115}},
+		},
+		{
 			name: "without splits the closes stay raw",
 			bars: []domain.PriceBar{bar("KO", "2024-06-07", 62.5)},
 			want: []adjusted{{"2024-06-07", 1, 62.5}},
@@ -102,7 +118,11 @@ func TestAdjustForSplits(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := prices.AdjustForSplits(tt.bars, tt.splits)
+			asOf := "2030-01-01"
+			if tt.asOf != "" {
+				asOf = tt.asOf
+			}
+			got, err := prices.AdjustForSplits(tt.bars, tt.splits, date(asOf))
 			if err != nil {
 				t.Fatalf("AdjustForSplits() error = %v", err)
 			}
@@ -115,7 +135,7 @@ func TestAdjustForSplits(t *testing.T) {
 
 func TestAdjustForSplitsKeepsTheRawBar(t *testing.T) {
 	raw := domain.PriceBar{Symbol: "NVDA", Date: date("2024-06-07"), Open: 1140, High: 1160, Low: 1130, Close: 1150, Volume: 40000000, Source: "massive"}
-	got, err := prices.AdjustForSplits([]domain.PriceBar{raw}, []domain.Split{split("NVDA", "2024-06-10", 1, 10)})
+	got, err := prices.AdjustForSplits([]domain.PriceBar{raw}, []domain.Split{split("NVDA", "2024-06-10", 1, 10)}, date("2030-01-01"))
 	if err != nil {
 		t.Fatalf("AdjustForSplits() error = %v", err)
 	}
@@ -131,7 +151,7 @@ func TestAdjustForSplitsRejectsARatioThatIsNotPositive(t *testing.T) {
 		split("NVDA", "2024-06-10", 1, 0),
 		split("NVDA", "2024-06-10", -1, 10),
 	} {
-		if _, err := prices.AdjustForSplits(bars, []domain.Split{s}); err == nil {
+		if _, err := prices.AdjustForSplits(bars, []domain.Split{s}, date("2030-01-01")); err == nil {
 			t.Errorf("AdjustForSplits(split %v-for-%v) error = nil, want an error", s.To, s.From)
 		}
 	}

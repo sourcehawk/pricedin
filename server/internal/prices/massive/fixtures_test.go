@@ -119,7 +119,7 @@ func TestNVDAFixtureIsRawAndAdjustsSmoothly(t *testing.T) {
 		t.Errorf("NVDA splits mismatch (-want +got):\n%s", diff)
 	}
 
-	adjusted, err := prices.AdjustForSplits(bars.Items, splits.Items)
+	adjusted, err := prices.AdjustForSplits(bars.Items, splits.Items, date("2026-10-29"))
 	if err != nil {
 		t.Fatal(err)
 	}

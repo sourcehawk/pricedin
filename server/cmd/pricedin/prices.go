@@ -78,7 +78,7 @@ func verifyPrices(ctx context.Context, w io.Writer, c *massive.Client, now time.
 
 	_, _ = fmt.Fprintf(tw, "Massive price checks on %s\n\n", today)
 
-	if err := verifySplit(ctx, tw, c, fail); err != nil {
+	if err := verifySplit(ctx, tw, c, today, fail); err != nil {
 		return err
 	}
 	if err := verifyDividends(ctx, tw, c, today, fail); err != nil {
@@ -100,7 +100,7 @@ func verifyPrices(ctx context.Context, w io.Writer, c *massive.Client, now time.
 	return nil
 }
 
-func verifySplit(ctx context.Context, w io.Writer, c *massive.Client, fail func(string, ...any)) error {
+func verifySplit(ctx context.Context, w io.Writer, c *massive.Client, today domain.Date, fail func(string, ...any)) error {
 	_, _ = fmt.Fprintln(w, "NVDA split")
 	nvdaSplitDate := domain.NewDate(2024, time.June, 10)
 	nvdaFrom, nvdaTo := nvdaSplitDate.AddDays(-5), nvdaSplitDate.AddDays(2)
@@ -130,7 +130,7 @@ func verifySplit(ctx context.Context, w io.Writer, c *massive.Client, fail func(
 	if err != nil {
 		return fmt.Errorf("prices verify: %w", err)
 	}
-	ours, err := prices.AdjustForSplits(raw, splits)
+	ours, err := prices.AdjustForSplits(raw, splits, today)
 	if err != nil {
 		return fmt.Errorf("prices verify: %w", err)
 	}
