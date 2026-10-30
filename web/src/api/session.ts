@@ -23,7 +23,7 @@ export function safeNext(next: string | null | undefined): string {
   if (url.origin !== base || url.pathname === "/login" || url.pathname.startsWith("/login/")) {
     return "/";
   }
-  return next;
+  return url.pathname + url.search + url.hash;
 }
 
 /** loginPath is the login page that returns to the page at where; expired adds the note that the session ended. */

@@ -6,6 +6,11 @@ describe("safeNext", () => {
     expect(safeNext("/data?x=1")).toBe("/data?x=1");
   });
 
+  it("gives back the parsed path, query and fragment, not the raw text", () => {
+    expect(safeNext("/data/../data?x=1#runs")).toBe("/data?x=1#runs");
+    expect(safeNext("/a b")).toBe("/a%20b");
+  });
+
   it("goes home for a missing or empty value", () => {
     expect(safeNext(null)).toBe("/");
     expect(safeNext("")).toBe("/");
