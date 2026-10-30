@@ -168,13 +168,12 @@ logs: ## Follow the logs of the Compose stack
 # `make migrate MIGRATE_ARGS=status` lists the migrations; `down` rolls one back.
 MIGRATE_ARGS ?= up
 
-# Make reads .env but does not export it, so the recipe passes each
-# PRICEDIN_DATABASE_ setting that is set, quoted for the shell.
-migrate_env = $(foreach v,$(filter PRICEDIN_DATABASE_%,$(.VARIABLES)),$(if $($(v)),$(v)='$(subst ','\'',$($(v)))'))
-
+# The migrate service of the Compose stack runs the command, so the
+# database settings come from .env as Compose reads it, and the command
+# line that make prints holds no password.
 .PHONY: migrate
-migrate: ## Apply the database migrations to the configured database (MIGRATE_ARGS=status|down)
-	cd $(SERVER_DIR) && $(migrate_env) $(GO) run ./cmd/pricedin migrate $(MIGRATE_ARGS)
+migrate: ## Run the migrations on the Compose database (MIGRATE_ARGS=status|down)
+	$(COMPOSE) run --rm --build migrate migrate $(MIGRATE_ARGS)
 
 # --- CI -----------------------------------------------------------------------
 .PHONY: ci
