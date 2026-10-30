@@ -1,0 +1,18 @@
+# Generated or owned by other tools
+pnpm-lock.yaml
+**/.next/
+**/node_modules/
+e2e/playwright-report/
+e2e/test-results/
+
+# Prose and reference material are edited by hand
+*.md
+docs/
+prototype/
+
+# Go code has its own formatter
+server/
+testdata/
+
+# Claude Code settings and worktrees
+.claude/

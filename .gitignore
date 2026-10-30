@@ -23,6 +23,7 @@ node_modules/
 /e2e/test-results/
 /e2e/playwright-report/
 /e2e/blob-report/
+/e2e/compose.log
 /e2e/.cache/
 
 # Editors and OS

@@ -1,0 +1,13 @@
+.hero {
+  max-width: 720px;
+  margin: 12vh auto 0;
+}
+
+.hero p {
+  margin: 10px 0 0;
+}
+
+.principle {
+  font-size: 18px;
+  line-height: 1.45;
+}
