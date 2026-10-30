@@ -189,8 +189,9 @@ export function ExitPeLever() {
             lot. Selling at 20× instead of 25× gives a 20% lower price for the same earnings.
             Estimated (default): lowers today&apos;s P/E as growth slows, because investors pay less
             for slower growth. When growth is already slow or negative and today&apos;s P/E is above
-            the stock&apos;s typical level, it uses that level instead. Today: keeps today&apos;s
-            P/E. Trailing: the median P/E over the months you choose (36 by default), the
+            the stock&apos;s typical level, it uses that level instead. The typical P/E line under
+            the slider shows that level, and you can change its months there without picking
+            Trailing. Today: keeps today&apos;s P/E. Trailing: the median P/E over the months you choose (36 by default), the
             stock&apos;s typical level. Custom: type or drag your own number.
           </InfoTip>
         </span>

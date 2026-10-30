@@ -84,6 +84,14 @@ describe("exit P/E", () => {
     expect(screen.getByText(/^Your own number\./)).toBeInTheDocument();
   });
 
+  it("says in its tooltip that the typical P/E months change without picking Trailing", async () => {
+    await renderReady(<Rail />);
+    await userEvent.hover(screen.getByRole("button", { name: "About the exit P/E" }));
+    expect(screen.getByRole("tooltip")).toHaveTextContent(
+      "The typical P/E line under the slider shows that level, and you can change its months there without picking Trailing.",
+    );
+  });
+
   it("explains the estimate under the lever", async () => {
     await renderReady(<Rail />);
     expect(screen.getByText(/^Today the market pays 25\.0× earnings\./)).toBeInTheDocument();
