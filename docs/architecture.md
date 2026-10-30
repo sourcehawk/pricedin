@@ -88,10 +88,10 @@ v1 has one user, the owner. Nobody else gets an account.
 
 Production uses two Postgres roles:
 
-- The owner role owns the tables. Only `pricedin migrate` connects as this role, through `PRICEDIN_DATABASE_MIGRATE_URL`.
+- The owner role owns the tables. Only `pricedin migrate` connects as this role, through `PRICEDIN_DATABASE_MIGRATE_URL`. It runs from the deploy workflow, with the URL in a GitHub secret, or from the owner's machine. The Fly app has no release command and no copy of this URL, so the app never holds the owner credentials.
 - The app role owns nothing. `pricedin serve`, the scheduler and the jobs connect as this role. `deploy/sql/roles.sql` creates it.
 
-The app role can read and write every table, but it can only add rows to `facts`. It cannot change the schema or disable a trigger, because only the owner of a table can do that. Thus no fault in the server can remove the append-only rule. The default privileges in `roles.sql` give the app role access to the tables of later migrations.
+The app role can read and write every table, but it can only add rows to `facts`. `roles.sql` refuses a role with wider rights: the owner or a member of it, a superuser, or a member of `pg_write_all_data` or `neon_superuser`. It cannot change the schema or disable a trigger, because only the owner of a table can do that. Thus no fault in the server can remove the append-only rule. The default privileges in `roles.sql` give the app role access to the tables of later migrations.
 
 ## Jobs and locks
 

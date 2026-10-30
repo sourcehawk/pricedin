@@ -216,10 +216,12 @@ Each error is an RFC 9457 problem document with the content type `application/pr
 | 401 | `unauthenticated`, `invalid-credentials` | No valid token or session, or a wrong email or password at login |
 | 403 | `forbidden-origin` | A login, or a `POST` with the cookie, without an allowed `Origin` |
 | 404 | `unknown-ticker`, `not-found` | No company has that ticker, or no such path |
+| 405 | `method-not-allowed` | The path exists, but not with that method. The `Allow` header lists the methods |
 | 409 | `not-loaded` | The company is known, but not loaded. Send `POST …/load`, then the first request again |
 | 413, 415 | `body-too-large`, `unsupported-media-type` | The body is too large, or it is not `application/json` |
 | 422 | `missing-input` | The engine needs a lever that the stock cannot give, such as a price. `input` names it |
 | 429 | `rate-limited` | Too many login attempts. The `Retry-After` header gives the wait |
+| 500 | `internal` | An unexpected error on the server. The detail holds no internals: give the `requestId` when you report it |
 | 501 | `load-unavailable` | The server cannot load companies, because it has no SEC user agent or no Massive key |
 | 502 | `load-failed` | A load failed at SEC or Massive |
 | 503 | `login-disabled` | No owner is configured |

@@ -12,7 +12,6 @@ The server reads its settings from environment variables. `deploy/fly/server.tom
 | --- | --- |
 | `PRICEDIN_DATABASE_URL` | The app role's URL. A pooler host is permitted here |
 | `PRICEDIN_DATABASE_LOCK_URL` | The app role's URL on the direct host, never a pooler |
-| `PRICEDIN_DATABASE_MIGRATE_URL` | The owner role's URL on the direct host |
 | `PRICEDIN_OWNER_EMAIL` | Your login email |
 | `PRICEDIN_OWNER_PASSWORD_HASH` | The output of `pricedin auth hash-password` |
 | `PRICEDIN_PUBLIC_ORIGIN` | The origin of the web app, such as `https://pricedin.vercel.app` |
@@ -21,11 +20,14 @@ The server reads its settings from environment variables. `deploy/fly/server.tom
 | `PRICEDIN_BLOB_S3_BUCKET` | The name of the Tigris bucket |
 | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` | The keys of the bucket. `flyctl storage create` sets them |
 
+The owner role's URL is never a Fly secret. The Fly app holds only the app role's credentials, so a fault in the server, or a person with access to a machine, cannot change the schema or disable the trigger of `facts`. Only `pricedin migrate` uses the owner's URL, from your machine or from the deploy workflow.
+
 The deploy workflow (`.github/workflows/deploy.yml`) needs these GitHub repository secrets. A job whose secrets are missing deploys nothing and passes:
 
 | Secret | Value |
 | --- | --- |
 | `FLY_API_TOKEN` | A deploy token of the Fly app |
+| `PRICEDIN_DATABASE_MIGRATE_URL` | The owner role's URL on the direct host. The server job runs `pricedin migrate up` with it before each deploy |
 | `VERCEL_TOKEN` | A Vercel access token |
 | `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID` | The IDs of the Vercel team and project |
 
@@ -33,9 +35,11 @@ If the Fly app has another name than the one in `server.toml`, set it as the rep
 
 ## First deploy
 
-Do these steps in this sequence. Run the commands from the root of the repository. You need `flyctl`, the Vercel CLI (`npx vercel`), `psql` and Docker on your machine. Log in to Fly.io with `flyctl auth login`, and to Vercel with `npx vercel login`.
+Do these steps in this sequence. Run the commands from the root of the repository. You need `flyctl`, `psql`, `openssl`, Docker, and Node.js with pnpm on your machine. The Vercel CLI is a devDependency of the repository: `pnpm install` installs the version of the lockfile, and `pnpm exec vercel` runs it. Log in to Fly.io with `flyctl auth login`, and to Vercel with `pnpm exec vercel login`.
 
 Steps 1 to 8 give a working login with data. Steps 9 and 10 are for scripts and for deploys from GitHub.
+
+Several steps read the owner's URL from the shell variable `OWNER_URL`. A shell variable lives only in its own shell. In each new terminal, set it again with `read -rs OWNER_URL && export OWNER_URL`, then paste the URL.
 
 ### 1. Make the accounts
 
@@ -44,8 +48,10 @@ Steps 1 to 8 give a working login with data. Steps 9 and 10 are for scripts and 
 3. Build the server image on your machine. Some steps below run it:
 
    ```sh
-   make images
+   docker build --tag pricedin-server:dev server
    ```
+
+   Build it again after each `git pull`, so that the migrations of the image match the code that you deploy.
 
 ### 2. Make the database
 
@@ -61,18 +67,28 @@ Steps 1 to 8 give a working login with data. Steps 9 and 10 are for scripts and 
    docker run --rm -e PRICEDIN_DATABASE_MIGRATE_URL="$OWNER_URL" pricedin-server:dev migrate up
    ```
 
-4. Make the app role and set its password. psql asks for the password, and sends only its hash:
+4. Make the app role:
 
    ```sh
    psql "$OWNER_URL" -f deploy/sql/roles.sql
-   psql "$OWNER_URL" -c '\password pricedin_app'
    ```
 
-5. Write the app role's URL: the owner URL with `pricedin_app` and its password in place of the owner's. Make two copies:
+   Make the app role only with this script. A role that you make in the Neon console is a member of `neon_superuser`, and the script refuses it.
+
+5. Make a password for the app role, and set it. The first command prints 32 hexadecimal characters (128 random bits), which need no encoding in a URL. The script asks for the password: paste it.
+
+   ```sh
+   openssl rand -hex 16
+   psql "$OWNER_URL" -f deploy/sql/app-password.sql
+   ```
+
+   Neon accepts only passwords in plain text, and hashes them itself. Thus do not use psql's `\password` command on Neon: it sends a hash. On a Postgres that you run yourself, `\password pricedin_app` works too.
+
+6. Write the app role's URL: the owner URL with `pricedin_app` and its password in place of the owner's. Make two copies:
    - `PRICEDIN_DATABASE_LOCK_URL` on the direct host.
    - `PRICEDIN_DATABASE_URL` on the direct host, or on the `-pooler` host. One server needs no pooler.
 
-The app role can read and write the tables, but it cannot change the schema or the rows of `facts`. Never give `serve` or the jobs the owner URL. `roles.sql` refuses an app role that is the owner, a member of the owner, or a superuser.
+The app role can read and write the tables, but it cannot change the schema or the rows of `facts`. Never give `serve` or the jobs the owner URL. `roles.sql` refuses an app role that is the owner, a member of the owner, a superuser, or a member of `pg_write_all_data` or `neon_superuser`.
 
 ### 3. Make the Fly app and the bucket
 
@@ -97,7 +113,6 @@ flyctl storage create --app pricedin-api
    flyctl secrets set --app pricedin-api --stage \
      PRICEDIN_DATABASE_URL='postgres://pricedin_app:...' \
      PRICEDIN_DATABASE_LOCK_URL='postgres://pricedin_app:...' \
-     PRICEDIN_DATABASE_MIGRATE_URL='postgres://neondb_owner:...' \
      PRICEDIN_OWNER_EMAIL='you@example.com' \
      PRICEDIN_OWNER_PASSWORD_HASH='$argon2id$...' \
      PRICEDIN_PUBLIC_ORIGIN='https://pricedin.vercel.app' \
@@ -110,11 +125,14 @@ flyctl storage create --app pricedin-api
 
 ### 5. Deploy the server
 
+Before each deploy, apply the migrations of the version that you deploy, as the owner. Then deploy:
+
 ```sh
+docker run --rm -e PRICEDIN_DATABASE_MIGRATE_URL="$OWNER_URL" pricedin-server:dev migrate up
 flyctl deploy server --config "$PWD/deploy/fly/server.toml" --ha=false --app pricedin-api
 ```
 
-`server` is the build context of the image. flyctl changes into that folder before it reads `--config`, so the config path must be absolute. The release command applies any new migration as the owner. Then Fly starts one machine for `serve` (512 MB) and one for `scheduler` (1 GB). Make sure that the API answers:
+The deploy workflow (step 10) runs the same two commands. `server` is the build context of the image. flyctl changes into that folder before it reads `--config`, so the config path must be absolute. Fly starts one machine for `serve` (512 MB) and one for `scheduler` (1 GB). Make sure that the API answers:
 
 ```sh
 curl https://pricedin-api.fly.dev/healthz
@@ -138,7 +156,7 @@ It checks a known split, a list of dividends and a CIK, and prints only dates, r
 1. Make a Vercel project and link this repository to it:
 
    ```sh
-   npx vercel link
+   pnpm exec vercel link
    ```
 
 2. In the project settings on vercel.com, set these values:
@@ -150,7 +168,7 @@ It checks a known split, a list of dividends and a CIK, and prints only dates, r
 3. Deploy:
 
    ```sh
-   npx vercel deploy --prod
+   pnpm exec vercel deploy --prod
    ```
 
 `web/vercel.json` turns off the deployments from Git pushes, so that only you or the workflow deploy. The browser calls `/api/*` on the Vercel domain, and the web app sends those requests on to Fly. The session cookie thus belongs to the Vercel domain, and it is `Secure`.
@@ -237,10 +255,11 @@ The command shows the token one time. Keep it in a password manager. `docs/api.m
    ```
 
 2. Make an access token on vercel.com (Account Settings, Tokens).
-3. Read the team and project IDs in `.vercel/project.json` (`orgId` and `projectId`), which `npx vercel link` wrote.
+3. Read the team and project IDs in `.vercel/project.json` (`orgId` and `projectId`), which `pnpm exec vercel link` wrote.
 4. Add the four values as repository secrets on GitHub: `FLY_API_TOKEN`, `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`.
+5. Add the owner role's URL (`$OWNER_URL`) as the repository secret `PRICEDIN_DATABASE_MIGRATE_URL`.
 
-Then start a deploy from the Actions tab (workflow "Deploy"), or with `gh workflow run deploy.yml -f target=all`. The `target` input is `all`, `server` or `web`. The server job needs `FLY_API_TOKEN`, and the web job needs the three Vercel secrets. A job that skips its deploy shows the notice "No server deploy" or "No web deploy" with the names of the missing secrets.
+Then start a deploy from the Actions tab (workflow "Deploy"), or with `gh workflow run deploy.yml -f target=all`. The `target` input is `all`, `server` or `web`. The server job builds the server image, runs `migrate up` with it as the owner, and then deploys to Fly. It needs `FLY_API_TOKEN` and `PRICEDIN_DATABASE_MIGRATE_URL`. The web job needs the three Vercel secrets. A job that skips its deploy shows the notice "No server deploy" or "No web deploy" with the names of the missing secrets.
 
 ## Daily operation
 
@@ -338,8 +357,8 @@ This also ends your own session, so log in again after it. API tokens stay valid
 
 ### Database passwords
 
-- App role: run `psql "$OWNER_URL" -c '\password pricedin_app'`. The server cannot connect until the next step is done, so do it at once. Then set `PRICEDIN_DATABASE_URL` and `PRICEDIN_DATABASE_LOCK_URL` again, in one `flyctl secrets set` command.
-- Owner role: reset its password in the Neon console. Then set `PRICEDIN_DATABASE_MIGRATE_URL` again.
+- App role: make a new password with `openssl rand -hex 16`, and set it with `psql "$OWNER_URL" -f deploy/sql/app-password.sql`. The server cannot connect until the next step is done, so do it at once. Then set `PRICEDIN_DATABASE_URL` and `PRICEDIN_DATABASE_LOCK_URL` again, in one `flyctl secrets set` command.
+- Owner role: reset its password in the Neon console. Then update the GitHub secret `PRICEDIN_DATABASE_MIGRATE_URL`, and your own copy of the URL.
 
 ### Bucket keys, deploy tokens
 
@@ -349,7 +368,7 @@ This also ends your own session, so log in again after it. API tokens stay valid
 
 ## Restore the database
 
-A restore brings back the database as it was at an earlier point, with its schema, its sessions and its API tokens. Thus the steps below also bring the schema up to date, and end the sessions and the tokens that the restore can bring back.
+A restore brings back the database as it was at an earlier point, with its schema, its role passwords, its sessions and its API tokens. Thus the steps below also bring the schema up to date, set the app role's password again, and end the sessions and the tokens that the restore can bring back.
 
 Neon keeps the history of each branch for a time that depends on the plan. To go back to an earlier point:
 
@@ -359,24 +378,30 @@ Neon keeps the history of each branch for a time that depends on the plan. To go
    flyctl scale count app=0 scheduler=0 --app pricedin-api
    ```
 
-2. In the Neon console, restore the branch to a time before the fault. Or make a new branch from that time, if you want to keep the current state. A new branch has a new host: set the three database URLs again, with `--stage`, and set `OWNER_URL` to the owner URL of the new branch, so that the next steps change the new branch. A restore in place keeps the host.
+2. In the Neon console, restore the branch to a time before the fault. Or make a new branch from that time, if you want to keep the current state. A restore in place keeps the host. A new branch has a new host: set `OWNER_URL` to the owner URL of the new branch, so that the next steps change the new branch.
 3. Apply the migrations that came after the restored point, with the image of the version that runs now:
 
    ```sh
    docker run --rm -e PRICEDIN_DATABASE_MIGRATE_URL="$OWNER_URL" pricedin-server:dev migrate up
    ```
 
-   A change of secrets does not run the release command, so this step is necessary.
 4. Run `psql "$OWNER_URL" -f deploy/sql/roles.sql`. It changes nothing when the grants are already there.
-5. Start the machines again with `flyctl scale count app=1 scheduler=1 --app pricedin-api`.
+5. Set the app role's password again, because the restore can bring back an older one. Use the password of the current `PRICEDIN_DATABASE_URL`, or make a new one with `openssl rand -hex 16`:
+
+   ```sh
+   psql "$OWNER_URL" -f deploy/sql/app-password.sql
+   ```
+
 6. End every session, because the restore can bring back sessions that ended after the restored point:
 
    ```sh
-   flyctl ssh console --app pricedin-api -C '/pricedin auth sessions revoke-all'
+   psql "$OWNER_URL" -c 'DELETE FROM sessions'
    ```
 
-7. Revoke again each API token that you revoked after the restored point. `/pricedin auth token list` shows each token as active or revoked. If you do not know which tokens to revoke, revoke all of them and make new ones.
-8. Run `flyctl ssh console --app pricedin-api -C '/pricedin jobs run --wait daily'`. The jobs reload what the restore removed: the daily cursors are from the restored point, and each job adds only missing rows.
+7. If the host or the app role's password changed, set `PRICEDIN_DATABASE_URL` and `PRICEDIN_DATABASE_LOCK_URL` again with `--stage`, and update the GitHub secret `PRICEDIN_DATABASE_MIGRATE_URL`.
+8. Start the machines again with `flyctl scale count app=1 scheduler=1 --app pricedin-api`.
+9. Revoke again each API token that you revoked after the restored point. `/pricedin auth token list` shows each token as active or revoked. If you do not know which tokens to revoke, revoke all of them and make new ones.
+10. Run `flyctl ssh console --app pricedin-api -C '/pricedin jobs run --wait daily'`. The jobs reload what the restore removed: the daily cursors are from the restored point, and each job adds only missing rows.
 
 From another Postgres, use a dump. Make it as the owner, and restore it as the owner into an empty database. Stop both machines first (step 1 above):
 
@@ -385,12 +410,18 @@ pg_dump "$OWNER_URL" --format=custom --file=pricedin.dump
 pg_restore --dbname="$NEW_OWNER_URL" --no-owner --no-acl pricedin.dump
 docker run --rm -e PRICEDIN_DATABASE_MIGRATE_URL="$NEW_OWNER_URL" pricedin-server:dev migrate up
 psql "$NEW_OWNER_URL" -f deploy/sql/roles.sql
-psql "$NEW_OWNER_URL" -c '\password pricedin_app'
+psql "$NEW_OWNER_URL" -f deploy/sql/app-password.sql
+psql "$NEW_OWNER_URL" -c 'DELETE FROM sessions'
 ```
 
-`pg_restore` makes the tables and adds the rows. `--no-owner` makes the role of `$NEW_OWNER_URL` the owner of each table, so use the owner role there, never the app role. `--no-acl` leaves out the grants of the dump, because they name `pricedin_app`, which a new server does not have yet. `roles.sql` then makes the role and its grants, and `\password` gives the role a password: a dump holds no passwords. The trigger of `facts` rejects `UPDATE`, `DELETE` and `TRUNCATE`, but not the rows that the restore adds.
+`pg_restore` makes the tables and adds the rows. `--no-owner` makes the role of `$NEW_OWNER_URL` the owner of each table, so use the owner role there, never the app role. `--no-acl` leaves out the grants of the dump, because they name `pricedin_app`, which a new server does not have yet. `roles.sql` then makes the role and its grants, and `app-password.sql` gives the role a password: a dump holds no passwords. The trigger of `facts` rejects `UPDATE`, `DELETE` and `TRUNCATE`, but not the rows that the restore adds.
 
-Then set the three database URLs to the new server, start the machines, and do steps 6 to 8 above.
+Then do steps 7 to 10 above with the URLs of the new server.
+
+## Update the deploy tools
+
+- The Vercel CLI is a devDependency in `package.json`. Renovate proposes each new version, and the lockfile pins it.
+- Renovate does not update flyctl, because the workflow pins it with a checksum. To update it, pick a release on https://github.com/superfly/flyctl/releases that is at least two weeks old. Copy the line for `flyctl_<version>_Linux_x86_64.tar.gz` from its file `flyctl_<version>_checksums.txt`. Then set `FLYCTL_VERSION` and `FLYCTL_SHA256` in `.github/workflows/deploy.yml` in one commit.
 
 ## Troubleshooting
 

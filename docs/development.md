@@ -100,7 +100,7 @@ docker compose -f docker-compose.yml -f docker-compose.fixtures.yml --profile fi
 | Target | What it runs |
 | --- | --- |
 | `make lint` | golangci-lint, ESLint, the TypeScript type check, Prettier, actionlint, shellcheck, and a check that the engine cases are current |
-| `make test` | The Go unit tests (`make test-server`) and the web unit tests (`make test-web`) |
+| `make test` | The Go unit tests (`make test-server`), the web unit tests (`make test-web`), and the tests of the shell scripts in `scripts/` (`make test-scripts`) |
 | `make test-integration` | The Go tests with the `integration` build tag. They start Postgres in a container (Testcontainers), so Docker must run |
 | `make test-e2e` | Builds the images, starts a separate Compose stack against the fixture server (project `pricedin-e2e`, web on port 3100, API on port 8180), runs Playwright, and removes that stack. The stack of `make up` is not touched |
 | `make ci` | Everything that CI runs, in the CI order |
@@ -118,7 +118,7 @@ Migrations are SQL files in `server/internal/store/migrations`, applied by goose
 3. Start the stack with `make up`. Then run `make migrate`, then `make migrate MIGRATE_ARGS=down`, then `make migrate` again, to make sure that both directions work.
 4. Run `make test-integration`. The template database of the tests applies every migration.
 
-In production, the release command of each deploy applies the new migrations as the owner of the tables. The server connects as the app role, which owns no table. The default privileges of `deploy/sql/roles.sql` give the app role read and write access to each new table. If rows of a new table must never change, give it triggers that reject `UPDATE`, `DELETE` and `TRUNCATE`, as `00002_facts.sql` does for `facts`. The app role cannot disable a trigger.
+In production, the deploy workflow applies the new migrations as the owner of the tables before it deploys the server (`docs/runbook.md`). The server connects as the app role, which owns no table. The default privileges of `deploy/sql/roles.sql` give the app role read and write access to each new table. If rows of a new table must never change, give it triggers that reject `UPDATE`, `DELETE` and `TRUNCATE`, as `00002_facts.sql` does for `facts`. The app role cannot disable a trigger.
 
 Never change a migration that is on `main`. Production has applied it.
 
