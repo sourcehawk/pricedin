@@ -5,7 +5,7 @@ import (
 	"bytes"
 	"errors"
 	"io"
-	"sync/atomic"
+	"sync"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -18,18 +18,6 @@ const (
 	companyFactsZip = "www.sec.gov/Archives/edgar/daily-index/xbrl/companyfacts.zip"
 	submissionsZip  = "www.sec.gov/Archives/edgar/daily-index/bulkdata/submissions.zip"
 )
-
-// countingReaderAt counts the bytes read through it.
-type countingReaderAt struct {
-	r    io.ReaderAt
-	read atomic.Int64
-}
-
-func (c *countingReaderAt) ReadAt(p []byte, off int64) (int, error) {
-	n, err := c.r.ReadAt(p, off)
-	c.read.Add(int64(n))
-	return n, err
-}
 
 func buildZip(t *testing.T, files map[string]string) *bytes.Reader {
 	t.Helper()
@@ -79,19 +67,95 @@ func TestReadCompanyFactsArchiveCallsOnceForEachCompany(t *testing.T) {
 	}
 }
 
-func TestReadCompanyFactsArchiveStreamsTheArchive(t *testing.T) {
-	body := readFixture(t, companyFactsZip)
-	r := &countingReaderAt{r: bytes.NewReader(body)}
-	first := true
-	err := sec.ReadCompanyFactsArchive(r, int64(len(body)), func(domain.CIK, []domain.Fact) error {
-		if first && r.read.Load() >= int64(len(body)) {
-			t.Errorf("read %d of %d bytes before the first company, want less", r.read.Load(), len(body))
+// readLog records each read through it, with the number of callbacks that
+// had returned when the read happened.
+type readLog struct {
+	r       io.ReaderAt
+	mu      sync.Mutex
+	reads   []loggedRead
+	returns int
+}
+
+type loggedRead struct {
+	from, to int64
+	returns  int
+}
+
+func (l *readLog) ReadAt(p []byte, off int64) (int, error) {
+	n, err := l.r.ReadAt(p, off)
+	l.mu.Lock()
+	l.reads = append(l.reads, loggedRead{from: off, to: off + int64(n), returns: l.returns})
+	l.mu.Unlock()
+	return n, err
+}
+
+func (l *readLog) callbackReturned() {
+	l.mu.Lock()
+	l.returns++
+	l.mu.Unlock()
+}
+
+func TestReadCompanyFactsArchiveReadsEachCompanyAfterTheCallbackBefore(t *testing.T) {
+	// The fixture entries, then 70 KiB of padding in a file that the reader
+	// skips. The search for the end of the archive reads up to its last
+	// 65 KiB, so it then reads no data of a company.
+	fixture := readFixture(t, companyFactsZip)
+	src, err := zip.NewReader(bytes.NewReader(fixture), int64(len(fixture)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+	for _, f := range src.File {
+		if err := zw.Copy(f); err != nil {
+			t.Fatal(err)
 		}
-		first = false
+	}
+	pad, err := zw.CreateHeader(&zip.FileHeader{Name: "padding.bin", Method: zip.Store})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pad.Write(make([]byte, 70*1024)); err != nil {
+		t.Fatal(err)
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	body := buf.Bytes()
+	zr, err := zip.NewReader(bytes.NewReader(body), int64(len(body)))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	log := &readLog{r: bytes.NewReader(body)}
+	err = sec.ReadCompanyFactsArchive(log, int64(len(body)), func(domain.CIK, []domain.Fact) error {
+		log.callbackReturned()
 		return nil
 	})
 	if err != nil {
 		t.Fatalf("ReadCompanyFactsArchive() error = %v", err)
+	}
+	// The data of company k is read after k callbacks returned and before
+	// the next one returns.
+	for k, f := range zr.File[:len(zr.File)-1] {
+		from, err := f.DataOffset()
+		if err != nil {
+			t.Fatal(err)
+		}
+		to := from + int64(f.CompressedSize64)
+		found := false
+		for _, r := range log.reads {
+			if r.from >= to || r.to <= from {
+				continue
+			}
+			found = true
+			if r.returns != k {
+				t.Errorf("data of entry %d (%s) read after %d callbacks returned, want %d", k, f.Name, r.returns, k)
+			}
+		}
+		if !found {
+			t.Errorf("data of entry %d (%s) was never read", k, f.Name)
+		}
 	}
 }
 
