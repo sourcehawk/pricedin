@@ -3,17 +3,15 @@
 
 -- +goose Up
 CREATE TABLE prices_daily (
-    symbol       text NOT NULL,
-    date         date NOT NULL,
-    open         numeric NOT NULL,
-    high         numeric NOT NULL,
-    low          numeric NOT NULL,
-    close        numeric NOT NULL,
-    volume       numeric NOT NULL,
-    -- The provider's split factor of the bar when it loaded; 1 for a raw bar.
-    split_factor numeric NOT NULL DEFAULT 1,
-    source       text NOT NULL,
-    loaded_at    timestamptz NOT NULL DEFAULT now(),
+    symbol    text NOT NULL,
+    date      date NOT NULL,
+    open      numeric NOT NULL,
+    high      numeric NOT NULL,
+    low       numeric NOT NULL,
+    close     numeric NOT NULL,
+    volume    numeric NOT NULL,
+    source    text NOT NULL,
+    loaded_at timestamptz NOT NULL DEFAULT now(),
     PRIMARY KEY (symbol, date)
 );
 

@@ -97,7 +97,7 @@ Postgres 18. The schema has these tables:
 - `facts`: one row per reported XBRL value: CIK, taxonomy, concept, unit, period start, period end, value, form type, fiscal year and period of the filing, frame, filing date, accession number, load time. A trigger rejects `UPDATE` and `DELETE` on this table. An amended filing adds new rows. A unique key on the value's identity makes a repeated load a no-op.
 - `stock_splits`: the splits found in SEC data: CIK, effective date, ratio, source, and the evidence (an accession number or a note).
 - `quarterly_fundamentals`: the derived quarters, rebuilt from `facts` after each load. Each value keeps the method that produced it (reported, year-to-date difference, fourth-quarter difference) and the filing date and accession of every input.
-- `prices_daily`: symbol, date, open, high, low, raw close, volume, split factor as of load, source, load time.
+- `prices_daily`: symbol, date, open, high, low, raw close, volume, source, load time. The closes are raw. The view `prices_adjusted` computes the split factor of each bar from `price_splits`.
 - `price_splits` and `dividends`: the provider's split events and cash dividends per symbol, with their dates and the provider's identifier.
 - `ingest_runs`: one row per job run with start, end, status, counts and error text.
 - `sessions` and `api_tokens`: owner authentication. Both store hashes, never the secrets.
@@ -150,7 +150,7 @@ Facts checked against the live API on 2026-10-30:
 The design:
 
 - A `prices.Provider` interface hides the provider. The rest of the code never imports a provider package. The Massive adapter is the only implementation in v1, and a fixture adapter serves tests.
-- PricedIn stores raw closes and the provider's split events. Split-adjusted closes come from those two at read time, so a new split never rewrites stored rows. `prices_daily` keeps the split factor of each row as of its load.
+- PricedIn stores raw closes and the provider's split events. Split-adjusted closes come from those two at read time, so a new split never rewrites stored rows. The view `prices_adjusted` gives each bar its cumulative split factor.
 - Backfill: grouped daily requests for every trading day of the last five years (about 1,260 requests, rate-limited). PricedIn needs at least three years.
 - Daily job: after the US close, request the grouped daily bars for each missing trading day, newest gap first. A missed day is filled on the next run. Running it twice adds nothing.
 - Loading one company on demand uses the per-ticker daily bars endpoint.
@@ -216,7 +216,7 @@ Errors use RFC 9457 problem details.
 - Screener: `quarterly_fundamentals` and `prices_daily` hold everything a screen needs. `Evaluate` runs on any company without the UI.
 - Sector context: `companies` keeps the SIC code.
 - MCP server: the API already returns structured data with sources. An MCP server becomes another adapter over the same service layer.
-- Backtesting: append-only facts and the as-of variant of the quarter derivation give point-in-time data. Delisted companies need another price source.
+- Backtesting: append-only facts and the as-of variant of the quarter derivation give point-in-time data. Delisted companies need another price source. Prices, provider splits, dividends and the SIC data of companies are overwritten in place, so a backtest sees today's corrections, not the values as they were known then.
 
 ## Risks
 
@@ -224,6 +224,7 @@ Errors use RFC 9457 problem details.
 - Five years of price history limits the long look-backs. The levers need at most three years.
 - XBRL tagging varies between companies. The derivation records how it got each number, and the fixture tests cover several filers with different fiscal calendars and a split.
 - The Q4 EPS by subtraction differs slightly from a true fourth-quarter EPS when the share count changes during the year. This follows the brief.
+- The role that owns the tables can disable the trigger that keeps `facts` append-only. Production therefore runs the server and the jobs as a role that does not own the tables.
 
 ## Alternatives considered
 
