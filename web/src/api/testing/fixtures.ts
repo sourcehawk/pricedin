@@ -151,7 +151,7 @@ export const historyFixture: StockHistory = {
     operatingCosts: null,
     freeCashFlow: null,
   })),
-  prices: { provider: "massive", symbol: "GRMN" },
+  prices: { provider: "massive", symbol: "GRMN", splits: [] },
   freshness: profileFixture.freshness,
 };
 

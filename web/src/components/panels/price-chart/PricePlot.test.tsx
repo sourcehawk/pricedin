@@ -29,6 +29,7 @@ function plot(m: Marker) {
         hover={createHoverStore()}
         markers={[m]}
         feed={null}
+        latest={null}
         quarters={[]}
       />
     </TipProvider>
@@ -63,6 +64,7 @@ describe("PricePlot share-count marker", () => {
           hover={createHoverStore()}
           markers={[]}
           feed={null}
+          latest={null}
           quarters={[]}
         />
       </TipProvider>,

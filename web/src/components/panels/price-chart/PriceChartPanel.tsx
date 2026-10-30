@@ -185,6 +185,12 @@ export function PriceChartPanel() {
   };
   const [hover] = useState(createHoverStore);
   const { active } = useWalkthrough();
+  const feed = history.prices;
+  const latest = profile.latestClose;
+  const sourceOf = useCallback(
+    (date: string, close: number) => closeSourced(date, close, feed, latest),
+    [feed, latest],
+  );
   const steps = priceSteps(useStepContext());
   const chart = ev.priceChart.value;
 
@@ -268,19 +274,12 @@ export function PriceChartPanel() {
   const last = chart.points.at(-1);
   const link = chart.link.value;
   const period = spanLabel(chart.start, chart.end, chart.range);
-  const sourcedOn = (date: string, close: number) =>
-    closeSourced(date, close, history.quarters, profile.latestClose);
-  // The high and the low can close on several days; any of them with a source will do.
+  // The high and the low can close on several days; the first of them is their source.
   const sourced = (v: number) => {
-    for (const p of chart.points) {
-      const s = p.close === v ? sourcedOn(p.date, v) : null;
-      if (s !== null) {
-        return s;
-      }
-    }
-    return null;
+    const p = chart.points.find((x) => x.close === v);
+    return p === undefined ? null : sourceOf(p.date, v);
   };
-  const lastClose = last === undefined ? null : sourcedOn(last.date, last.close);
+  const lastClose = last === undefined ? null : sourceOf(last.date, last.close);
 
   const sub = (
     <span data-testid="price-sub">
@@ -326,6 +325,7 @@ export function PriceChartPanel() {
         shown={shown}
         locked={touring}
         onToggle={onToggle}
+        sourceOf={sourceOf}
       />
       {shown.has("bands") && (
         <BandCaption
@@ -346,7 +346,8 @@ export function PriceChartPanel() {
           onBand={onBand}
           hover={hover}
           markers={markers}
-          feed={history.prices?.provider ?? null}
+          feed={history.prices}
+          latest={profile.latestClose}
           quarters={history.quarters}
         />
       </div>

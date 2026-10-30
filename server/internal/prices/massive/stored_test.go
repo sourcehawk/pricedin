@@ -137,7 +137,7 @@ func TestDecodeStoredMarksTheLastPage(t *testing.T) {
 		body string
 	}{
 		{prices.StoredTickers, `{"status":"OK","results":[{"ticker":"KO","cik":"0000021344"}]}`},
-		{prices.StoredDividends, `{"status":"OK","results":[{"id":"d1","ticker":"KO","ex_dividend_date":"2026-09-15","cash_amount":0.51}]}`},
+		{prices.StoredDividends, `{"status":"OK","results":[{"id":"d1","ticker":"KO","ex_dividend_date":"2026-09-15","cash_amount":0.437}]}`},
 		{prices.StoredGroupedDaily, `{"status":"OK","results":[{"T":"KO","t":1761710400000,"c":70}]}`},
 	}
 	for _, tt := range tests {

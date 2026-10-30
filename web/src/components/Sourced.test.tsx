@@ -37,6 +37,24 @@ describe("Sourced", () => {
     expect(tip).toHaveTextContent(`As of close ${priceSourced.asOf}`);
   });
 
+  it("keeps an open tooltip on the value that it shows when a newer value arrives", async () => {
+    const newer: SourcedNumber = {
+      ...priceSourced,
+      value: 271,
+      asOf: "2026-10-01",
+      source: { ...priceSourced.source, closeDate: "2026-10-01" } as SourcedNumber["source"],
+    };
+    const { rerender } = renderSourced(<Sourced value={priceSourced}>close</Sourced>);
+    await userEvent.hover(screen.getByText("close"));
+    expect(screen.getByRole("tooltip")).toHaveTextContent(`As of close ${priceSourced.asOf}`);
+    rerender(
+      <TipProvider>
+        <Sourced value={newer}>close</Sourced>
+      </TipProvider>,
+    );
+    expect(screen.getByRole("tooltip")).toHaveTextContent("As of close 2026-10-01");
+  });
+
   it("shows the form, the filing date and the period of a filed value on focus", async () => {
     renderSourced(<Sourced value={tenQ}>$2.75</Sourced>);
     await userEvent.tab();

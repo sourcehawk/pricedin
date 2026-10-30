@@ -1,10 +1,12 @@
 import type { ReactNode } from "react";
 import { coefficient, multiple, pct, signedPct, times, usd } from "@/components/format";
+import { Sourced } from "@/components/Sourced";
 import { LineSample, Swatch } from "@/components/Swatch";
 import type { StepContext } from "@/components/walkthrough/steps";
 import type { WalkthroughStep } from "@/components/walkthrough/Walkthrough";
 import type { Chart, Evaluation } from "@/engine";
 import { spanLabel } from "./geometry";
+import { closeSourced } from "./sources";
 
 /** span names the period of the chart, such as "over 3Y". */
 function span(c: Chart): string {
@@ -67,7 +69,8 @@ function why(c: Chart): string {
 export const bandsStep = 6;
 
 /** priceSteps are the steps of the price chart's walkthrough, in the prototype's order. */
-export function priceSteps({ ticker }: StepContext): WalkthroughStep[] {
+export function priceSteps({ ticker, prices, latestClose }: StepContext): WalkthroughStep[] {
+  const sourceOf = (date: string, close: number) => closeSourced(date, close, prices, latestClose);
   return [
     {
       title: (
@@ -86,9 +89,16 @@ export function priceSteps({ ticker }: StepContext): WalkthroughStep[] {
         const { f, l } = ends(c);
         return (
           <>
-            <Span c={c} /> the price went from <b>{usd(f.close)}</b> to <b>{usd(l.close)}</b>,{" "}
-            <b>{signedPct(c.priceChange)}</b>. Every line is switched on for this walkthrough; your
-            own choice comes back at the end.
+            <Span c={c} /> the price went from{" "}
+            <Sourced value={sourceOf(f.date, f.close)}>
+              <b>{usd(f.close)}</b>
+            </Sourced>{" "}
+            to{" "}
+            <Sourced value={sourceOf(l.date, l.close)}>
+              <b>{usd(l.close)}</b>
+            </Sourced>
+            , <b>{signedPct(c.priceChange)}</b>. Every line is switched on for this walkthrough;
+            your own choice comes back at the end.
           </>
         );
       }),

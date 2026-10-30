@@ -16,6 +16,7 @@ export type DerivedSource = Schemas["DerivedSource"];
 export type SourcedNumber = Schemas["SourcedNumber"];
 export type Profile = Schemas["StockProfile"];
 export type QuarterSources = Schemas["QuarterSources"];
+export type PriceFeed = Schemas["PriceFeed"];
 export type StockHistory = Schemas["StockHistory"];
 export type Fundamentals = Schemas["StockFundamentals"];
 export type EvaluationResult = Schemas["EvaluationResponse"];
