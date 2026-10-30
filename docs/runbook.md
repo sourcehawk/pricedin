@@ -111,10 +111,10 @@ flyctl storage create --app pricedin-api
 ### 5. Deploy the server
 
 ```sh
-flyctl deploy server --config deploy/fly/server.toml --ha=false --app pricedin-api
+flyctl deploy server --config "$PWD/deploy/fly/server.toml" --ha=false --app pricedin-api
 ```
 
-`server` is the build context of the image. The release command applies any new migration as the owner. Then Fly starts one machine for `serve` (512 MB) and one for `scheduler` (1 GB). Make sure that the API answers:
+`server` is the build context of the image. flyctl changes into that folder before it reads `--config`, so the config path must be absolute. The release command applies any new migration as the owner. Then Fly starts one machine for `serve` (512 MB) and one for `scheduler` (1 GB). Make sure that the API answers:
 
 ```sh
 curl https://pricedin-api.fly.dev/healthz
@@ -361,11 +361,11 @@ From another Postgres, use a dump. Make it as the owner, and restore it as the o
 
 ```sh
 pg_dump "$OWNER_URL" --format=custom --file=pricedin.dump
-pg_restore --dbname="$NEW_OWNER_URL" --no-owner pricedin.dump
+pg_restore --dbname="$NEW_OWNER_URL" --no-owner --no-acl pricedin.dump
 psql "$NEW_OWNER_URL" -f deploy/sql/roles.sql
 ```
 
-`pg_restore` makes the tables and adds the rows. `--no-owner` makes the role of `$NEW_OWNER_URL` the owner of each table, so use the owner role there, never the app role. The trigger of `facts` rejects `UPDATE`, `DELETE` and `TRUNCATE`, but not the rows that the restore adds.
+`pg_restore` makes the tables and adds the rows. `--no-owner` makes the role of `$NEW_OWNER_URL` the owner of each table, so use the owner role there, never the app role. `--no-acl` leaves out the grants of the dump, because they name `pricedin_app`, which a new server does not have yet. `roles.sql` then makes the role and its grants. The trigger of `facts` rejects `UPDATE`, `DELETE` and `TRUNCATE`, but not the rows that the restore adds.
 
 ## Troubleshooting
 
