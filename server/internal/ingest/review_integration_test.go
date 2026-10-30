@@ -16,6 +16,8 @@ import (
 
 	"github.com/sourcehawk/pricedin/server/internal/domain"
 	"github.com/sourcehawk/pricedin/server/internal/fixtureserver"
+	"github.com/sourcehawk/pricedin/server/internal/ingest"
+	"github.com/sourcehawk/pricedin/server/internal/store"
 )
 
 // A company whose facts changed keeps its pending mark until a rebuild
@@ -243,5 +245,127 @@ func TestADeferredSECOnlySplitMarksTheCompanyWhenItsFirstBarArrives(t *testing.T
 	must(e.runner.PricesDaily(ctx))(t)
 	if diff := cmp.Diff([]domain.CIK{1045810}, must(e.store.ListPendingFundamentals(ctx))(t)); diff != "" {
 		t.Errorf("pending after the split's first bar (-want +got):\n%s", diff)
+	}
+}
+
+// A run of a process that died stays "running" until the next run of its
+// job takes the lock and marks it abandoned.
+func TestAJobMarksTheRunOfADeadProcessAbandoned(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	e := newEnv(t, envOptions{})
+	must(e.runner.SECTickers(ctx))(t)
+	dead, _, err := e.store.StartIngestRunForLock(ctx, ingest.JobPricesDaily, ingest.JobPricesDaily)
+	if err != nil {
+		t.Fatal(err)
+	}
+	must(e.runner.PricesDaily(ctx))(t)
+	run := must(e.store.GetIngestRun(ctx, dead))(t)
+	if run.Status != store.RunFailed || run.Error != "abandoned" {
+		t.Errorf("the dead run = %s %q, want failed and abandoned", run.Status, run.Error)
+	}
+}
+
+// A company that fails does not hold the cursor back: sec-daily moves on,
+// and a later run tries the company again once its wait is over.
+func TestSECDailyMovesOnAndRetriesAFailedCompany(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	var fail atomic.Bool
+	fail.Store(true)
+	e := newEnv(t, envOptions{now: "2026-08-27T12:00:00Z", wrap: func(h http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if fail.Load() && strings.HasSuffix(r.URL.Path, "/companyfacts/CIK0001045810.json") {
+				http.Error(w, "bad request", http.StatusBadRequest)
+				return
+			}
+			h.ServeHTTP(w, r)
+		})
+	}})
+	must(e.runner.SECTickers(ctx))(t)
+	res := must(e.runner.SECDaily(ctx))(t)
+	if res.Failed != 1 || res.RetriesWaiting != 1 {
+		t.Errorf("SECDaily() = %+v, want NVDA failed and waiting", res)
+	}
+	if cursor := must(e.store.GetIngestCursor(ctx, ingest.JobSECDaily))(t); cursor != domain.NewDate(2026, 8, 26) {
+		t.Errorf("cursor = %s, want 2026-08-26 although NVDA failed", cursor)
+	}
+
+	fail.Store(false)
+	// Later indexes without a filing of NVDA: only the retry loads it.
+	if err := e.store.SetIngestCursor(ctx, ingest.JobSECDaily, domain.NewDate(2026, 8, 28)); err != nil {
+		t.Fatal(err)
+	}
+	// Before the wait of 6 hours is over, NVDA is not tried again.
+	e.clock.Set("2026-08-27T13:00:00Z")
+	if res := must(e.runner.SECDaily(ctx))(t); res.RetriesDue != 0 || res.Companies != 0 {
+		t.Errorf("SECDaily() an hour later = %+v, want no retry yet", res)
+	}
+	e.clock.Set("2026-08-31T12:00:00Z")
+	res = must(e.runner.SECDaily(ctx))(t)
+	if res.RetriesDue != 1 || res.Failed != 0 || res.RetriesWaiting != 0 {
+		t.Errorf("SECDaily() after the wait = %+v, want NVDA tried again and loaded", res)
+	}
+	if n := e.count(t, `SELECT count(*) FROM facts WHERE cik = 1045810`); n == 0 {
+		t.Error("NVDA has no facts after its retry")
+	}
+}
+
+// A company loaded on demand outside the universe stays current: the daily
+// price job keeps its bars.
+func TestDailyJobsKeepACompanyLoadedOnDemandCurrent(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	e := newEnv(t, envOptions{now: "2026-10-27T12:00:00Z"})
+	narrow := e.newRunner(t, e.pool, 0, []string{"NVDA"})
+	must(narrow.SECTickers(ctx))(t)
+	must(narrow.LoadCompanyResult(ctx, "KO"))(t)
+
+	e.clock.Set("2026-10-30T12:00:00Z")
+	must(narrow.PricesDaily(ctx))(t)
+	if n := e.count(t, `SELECT count(*) FROM prices_daily WHERE symbol = 'KO' AND date > '2026-10-26'`); n != 3 {
+		t.Errorf("KO has %d bars after its load, want the 3 new days", n)
+	}
+}
+
+// sec-bulk leaves sec-daily a cursor at its start, so the filings between
+// the bulk load and the first daily run are read.
+func TestSECBulkSetsTheSECDailyCursor(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	e := newEnv(t, envOptions{})
+	must(e.runner.SECTickers(ctx))(t)
+	must(e.runner.SECBulk(ctx, ingest.BulkAPI))(t)
+	if cursor := must(e.store.GetIngestCursor(ctx, ingest.JobSECDaily))(t); cursor != domain.NewDate(2026, 10, 30) {
+		t.Errorf("cursor = %s, want the bulk load's day, 2026-10-30", cursor)
+	}
+}
+
+// A second on-demand load asks only for the bars after the newest one.
+func TestLoadCompanyFetchesOnlyTheBarsAfterTheNewestOne(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	var mu sync.Mutex
+	var ranges []string
+	e := newEnv(t, envOptions{now: "2026-10-27T12:00:00Z", wrap: func(h http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if rest, ok := strings.CutPrefix(r.URL.Path, fixtureserver.PrefixMassive+"/v2/aggs/ticker/NVDA/range/1/day/"); ok {
+				mu.Lock()
+				ranges = append(ranges, rest)
+				mu.Unlock()
+			}
+			h.ServeHTTP(w, r)
+		})
+	}})
+	must(e.runner.LoadCompanyResult(ctx, "NVDA"))(t)
+	e.clock.Set("2026-10-30T12:00:00Z")
+	res := must(e.runner.LoadCompanyResult(ctx, "NVDA"))(t)
+	if res.Bars != 3 {
+		t.Errorf("second load stored %d bars, want 3", res.Bars)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if diff := cmp.Diff([]string{"2021-10-28/2026-10-26", "2026-10-27/2026-10-29"}, ranges); diff != "" {
+		t.Errorf("requested ranges (-want +got):\n%s", diff)
 	}
 }

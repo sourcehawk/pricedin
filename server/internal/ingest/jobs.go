@@ -38,7 +38,7 @@ func Jobs() []Job {
 		},
 		{
 			Name: JobSECBulk, Args: "[auto|archive|api]", MaxArgs: 1, SEC: true,
-			Summary: "Load the submissions and company facts of every universe company",
+			Summary: "Load the submissions and company facts of every covered company: the universe and the companies loaded on demand",
 			run: func(ctx context.Context, r *Runner, args []string) (Result, error) {
 				return r.SECBulk(ctx, argOr(args, BulkAuto))
 			},
@@ -52,14 +52,14 @@ func Jobs() []Job {
 		},
 		{
 			Name: JobSECDaily, SEC: true,
-			Summary: "Read the daily filing indexes since the last run and load the universe companies that filed",
+			Summary: "Read the daily filing indexes since the last run, load the covered companies that filed, and retry earlier failures",
 			run: func(ctx context.Context, r *Runner, _ []string) (Result, error) {
 				return r.SECDaily(ctx)
 			},
 		},
 		{
 			Name: JobPriceReference, Prices: true,
-			Summary: "Load the provider's ticker map, and the splits and dividends of every universe symbol",
+			Summary: "Load the provider's ticker map, and the splits and dividends of every covered symbol",
 			run: func(ctx context.Context, r *Runner, _ []string) (Result, error) {
 				return r.PriceReference(ctx)
 			},

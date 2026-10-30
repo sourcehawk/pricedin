@@ -10,6 +10,7 @@ import (
 	"maps"
 	"os"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/sourcehawk/pricedin/server/internal/blob"
@@ -145,16 +146,29 @@ func (r *Runner) Universe(ctx context.Context) (UniverseResult, error) {
 	return UniverseResult{Members: members}, nil
 }
 
-// universe returns the members, or ErrEmptyUniverse.
-func (r *Runner) universe(ctx context.Context) ([]domain.Ticker, error) {
+// covered returns the tickers that the daily jobs keep current: the
+// universe, and every current SEC ticker of the companies loaded on demand.
+// It returns ErrEmptyUniverse when there are none.
+func (r *Runner) covered(ctx context.Context) ([]domain.Ticker, error) {
 	u, err := r.Universe(ctx)
 	if err != nil {
 		return nil, err
 	}
-	if len(u.Members) == 0 {
+	tracked, err := r.store.ListTrackedTickers(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := u.Members
+	for _, t := range tracked {
+		if !slices.ContainsFunc(out, func(m domain.Ticker) bool { return m.Symbol == t.Symbol }) {
+			out = append(out, t)
+		}
+	}
+	if len(out) == 0 {
 		return nil, ErrEmptyUniverse
 	}
-	return u.Members, nil
+	slices.SortFunc(out, func(a, b domain.Ticker) int { return strings.Compare(a.Symbol, b.Symbol) })
+	return out, nil
 }
 
 // SECCompanyResult counts what loading companies from SEC wrote.
@@ -259,10 +273,10 @@ func (r *Runner) storeSECCompany(ctx context.Context, sub sec.Submissions, facts
 }
 
 // loadSECCompanies loads each company in turn. A company that fails is
-// counted and skipped, unless the failure stops every later one.
+// counted and recorded in sec_company_retries, unless the failure stops
+// every later one.
 func (r *Runner) loadSECCompanies(ctx context.Context, ciks []domain.CIK, withFacts func(domain.CIK) bool) (SECCompanyResult, error) {
 	var total SECCompanyResult
-	var fails failures
 	for _, cik := range ciks {
 		res, err := r.loadSECCompany(ctx, cik, withFacts(cik))
 		if err != nil {
@@ -270,14 +284,28 @@ func (r *Runner) loadSECCompanies(ctx context.Context, ciks []domain.CIK, withFa
 				return total, err
 			}
 			total.Failed++
-			fails.add(cik.String(), err)
-			r.logger.WarnContext(ctx, "ingest: company failed", "cik", cik, "error", err.Error())
+			r.logger.WarnContext(ctx, "ingest: company failed; a later run tries it again", "cik", cik, "error", err.Error())
+			if _, err := r.store.RecordSECRetryFailure(ctx, cik, err.Error(), r.now(), secRetryWait, secRetryMaxWait); err != nil {
+				return total, err
+			}
 			continue
+		}
+		if err := r.store.DeleteSECRetry(ctx, cik); err != nil {
+			return total, err
 		}
 		total.add(res)
 	}
-	return total, fails.err(len(ciks))
+	return total, nil
 }
+
+// The retries of a company whose SEC load failed: the first after
+// secRetryWait, each later one after twice the wait before, at most
+// secRetryMaxWait, and none after secRetryAttempts failures.
+const (
+	secRetryWait     = 6 * time.Hour
+	secRetryMaxWait  = 7 * 24 * time.Hour
+	secRetryAttempts = 6
+)
 
 // Bulk modes of sec-bulk.
 const (
@@ -286,16 +314,16 @@ const (
 	BulkAPI     = "api"
 )
 
-// bulkArchiveMinCompanies is the universe size from which sec-bulk in auto
-// mode reads company facts from the bulk archive, which is more than 1 GB,
-// instead of one request per company.
+// bulkArchiveMinCompanies is the number of covered companies from which
+// sec-bulk in auto mode reads company facts from the bulk archive, which is
+// more than 1 GB, instead of one request per company.
 const bulkArchiveMinCompanies = 200
 
 // SECBulkResult counts what sec-bulk wrote.
 type SECBulkResult struct {
 	SECCompanyResult
 	ArchiveBytes     int64
-	ArchiveCompanies int64 // universe companies whose facts came from the archive
+	ArchiveCompanies int64 // covered companies whose facts came from the archive
 }
 
 // Stats implements Result.
@@ -305,12 +333,13 @@ func (s SECBulkResult) Stats() map[string]int64 {
 	return m
 }
 
-// SECBulk loads every company of the universe: the submissions always
-// through the API, and the company facts from the bulk archive
-// companyfacts.zip (mode archive), through the API (mode api), or from the
-// archive when the universe has 200 companies or more (mode auto). A
-// company that the archive lacks gets its facts through the API. The
-// archive goes to the blob store before it is read.
+// SECBulk loads every covered company (the universe and the companies
+// loaded on demand): the submissions always through the API, and the
+// company facts from the bulk archive companyfacts.zip (mode archive),
+// through the API (mode api), or from the archive when 200 or more
+// companies are covered (mode auto). A company that the archive lacks gets
+// its facts through the API. The archive goes to the blob store before it
+// is read.
 func (r *Runner) SECBulk(ctx context.Context, mode string) (SECBulkResult, error) {
 	if err := r.needSEC(JobSECBulk); err != nil {
 		return SECBulkResult{}, err
@@ -328,7 +357,8 @@ func (r *Runner) SECBulk(ctx context.Context, mode string) (SECBulkResult, error
 }
 
 func (r *Runner) secBulk(ctx context.Context, mode string) (SECBulkResult, error) {
-	members, err := r.universe(ctx)
+	start := r.today()
+	members, err := r.covered(ctx)
 	if err != nil {
 		return SECBulkResult{}, err
 	}
@@ -348,11 +378,17 @@ func (r *Runner) secBulk(ctx context.Context, mode string) (SECBulkResult, error
 	}
 	loaded, err := r.loadSECCompanies(ctx, ciks, func(cik domain.CIK) bool { return !fromArchive[cik] })
 	res.add(loaded)
+	if err != nil {
+		return res, err
+	}
+	// sec-daily then starts from the first day that the bulk load may have
+	// missed, not a week back.
+	_, err = r.store.SetIngestCursorIfMissing(ctx, JobSECDaily, start)
 	return res, err
 }
 
 // loadFactsArchive downloads companyfacts.zip to a temporary file, records
-// it in the blob store, and stores the facts of the universe companies. It
+// it in the blob store, and stores the facts of the companies of ciks. It
 // marks in fromArchive each company that the archive holds.
 func (r *Runner) loadFactsArchive(ctx context.Context, ciks []domain.CIK, res *SECBulkResult, fromArchive map[domain.CIK]bool) (int64, error) {
 	f, err := os.CreateTemp("", "companyfacts-*.zip")
@@ -420,22 +456,31 @@ type SECDailyResult struct {
 	SECCompanyResult
 	Indexes int64 // daily indexes read
 	Missing int64 // weekdays without an index, such as holidays
-	Filers  int64 // universe companies that filed a periodic report
+	Filers  int64 // covered companies that filed a periodic report
+	// RetriesDue counts the companies tried again after a failure,
+	// RetriesWaiting those that wait for a later try, and
+	// RetriesExhausted those that failed too often to be tried again.
+	RetriesDue, RetriesWaiting, RetriesExhausted int64
 }
 
 // Stats implements Result.
 func (s SECDailyResult) Stats() map[string]int64 {
 	m := s.SECCompanyResult.Stats()
 	m["indexes"], m["missing"], m["filers"] = s.Indexes, s.Missing, s.Filers
+	m["retries_due"], m["retries_waiting"], m["retries_exhausted"] = s.RetriesDue, s.RetriesWaiting, s.RetriesExhausted
 	return m
 }
 
 // SECDaily reads the daily filing index of each weekday from the last
-// index it read (or a week back on its first run) to today, and loads every
-// universe company that filed a 10-Q, a 10-K or a 10-KT, or an amendment of
-// one. A day without an index, such as a holiday or a day that SEC has not
-// finished, is skipped; the next run reads the last index again and every
-// day after it, so a late index is never missed.
+// index it read, or from the day sec-bulk started, or a week back when
+// neither exists, to today, and loads every covered company that filed a
+// 10-Q, a 10-K or a 10-KT, or an amendment of one, and every company whose
+// earlier load failed and is due for another try. A day without an index,
+// such as a holiday or a day that SEC has not finished, is skipped; the
+// next run reads the last index again and every day after it, so a late
+// index is never missed. A company that fails does not fail the run,
+// unless SEC refused the client or the context ended: it is tried again in
+// a later run, up to secRetryAttempts failures.
 func (r *Runner) SECDaily(ctx context.Context) (SECDailyResult, error) {
 	if err := r.needSEC(JobSECDaily); err != nil {
 		return SECDailyResult{}, err
@@ -444,7 +489,7 @@ func (r *Runner) SECDaily(ctx context.Context) (SECDailyResult, error) {
 }
 
 func (r *Runner) secDaily(ctx context.Context) (SECDailyResult, error) {
-	members, err := r.universe(ctx)
+	members, err := r.covered(ctx)
 	if err != nil {
 		return SECDailyResult{}, err
 	}
@@ -489,18 +534,26 @@ func (r *Runner) secDaily(ctx context.Context) (SECDailyResult, error) {
 			}
 		}
 	}
-	ciks := slices.Sorted(maps.Keys(filed))
-	res.Filers = int64(len(ciks))
-	loaded, err := r.loadSECCompanies(ctx, ciks, func(domain.CIK) bool { return true })
-	res.add(loaded)
-	if err != nil {
-		// The cursor stays, so the next run tries the failed companies again.
-		return res, err
-	}
+	res.Filers = int64(len(filed))
+	// The cursor moves on also when a company fails: the retries keep it.
 	if !lastRead.IsZero() {
 		if err := r.store.SetIngestCursor(ctx, JobSECDaily, lastRead); err != nil {
 			return res, err
 		}
 	}
-	return res, nil
+	due, err := r.store.ListDueSECRetries(ctx, r.now(), secRetryAttempts)
+	if err != nil {
+		return res, err
+	}
+	res.RetriesDue = int64(len(due))
+	for _, c := range due {
+		filed[c] = true
+	}
+	loaded, err := r.loadSECCompanies(ctx, slices.Sorted(maps.Keys(filed)), func(domain.CIK) bool { return true })
+	res.add(loaded)
+	if err != nil {
+		return res, err
+	}
+	res.RetriesWaiting, res.RetriesExhausted, err = r.store.CountSECRetries(ctx, secRetryAttempts)
+	return res, err
 }

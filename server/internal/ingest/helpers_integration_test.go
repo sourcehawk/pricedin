@@ -174,6 +174,9 @@ func snapshotTables() map[string][]string {
 		"price_grouped_loads":    nil,
 		"price_reference_checks": nil,
 		"ingest_cursors":         nil,
+		"fundamentals_pending":   nil,
+		"sec_company_retries":    nil,
+		"tracked_companies":      nil,
 	}
 }
 

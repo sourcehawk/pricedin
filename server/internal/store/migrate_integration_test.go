@@ -26,16 +26,19 @@ var wantTables = []string{
 	"goose_db_version",
 	"ingest_cursors",
 	"ingest_lock_releases",
+	"ingest_lock_waits",
 	"ingest_runs",
 	"price_grouped_loads",
 	"price_reference_checks",
 	"price_splits",
 	"prices_daily",
 	"quarterly_fundamentals",
+	"sec_company_retries",
 	"sessions",
 	"stock_splits",
 	"ticker_syncs",
 	"tickers",
+	"tracked_companies",
 }
 
 func publicTables(t *testing.T, db *sql.DB) []string {

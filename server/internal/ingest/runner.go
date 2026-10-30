@@ -27,9 +27,10 @@ var ErrAlreadyRunning = errors.New("ingest: the job is already running")
 // copy of the SEC ticker map knows the symbol.
 var ErrUnknownSymbol = errors.New("ingest: unknown symbol")
 
-// ErrEmptyUniverse means that the covered universe has no company, because
-// sec-tickers has not run yet or PRICEDIN_UNIVERSE names no covered
-// symbol.
+// ErrEmptyUniverse means that the daily jobs have no company to keep
+// current: the covered universe is empty, because sec-tickers has not run
+// yet or PRICEDIN_UNIVERSE names no covered symbol, and no company loaded
+// on demand has a current SEC ticker.
 var ErrEmptyUniverse = errors.New("ingest: the covered universe is empty; run sec-tickers first, and check PRICEDIN_UNIVERSE")
 
 // The time limits of one external call. The clients have no limit on a
@@ -44,10 +45,15 @@ const (
 
 // Options configure a Runner.
 type Options struct {
-	// Pool is the database. The Runner opens a second, small pool with the
-	// same settings for its advisory locks, so that held locks never take
-	// the connections that the jobs' queries need; Close closes it.
+	// Pool is the database. The Runner opens a second, small pool for its
+	// advisory locks, so that held locks never take the connections that
+	// the jobs' queries need; Close closes it.
 	Pool *pgxpool.Pool
+	// LockURL is the connection of the lock pool
+	// (PRICEDIN_DATABASE_LOCK_URL). Empty means the settings of Pool. It
+	// must keep one session per connection: New fails with
+	// ErrSessionRequired behind a pooler in transaction mode.
+	LockURL string
 	// Blob keeps the bulk archives. The clients record the other responses
 	// themselves, with a Recorder over the same store.
 	Blob blob.Store
@@ -96,23 +102,41 @@ type Runner struct {
 	logger       *slog.Logger
 }
 
-// New returns a Runner. Pool and Blob are required. The caller closes the
-// Runner with Close.
+// New returns a Runner. Pool and Blob are required. It connects to the
+// lock database, and returns an error that wraps ErrSessionRequired when
+// its check finds that the connection does not keep its session. The
+// caller closes the Runner with Close.
 func New(ctx context.Context, opts Options) (*Runner, error) {
 	if opts.Pool == nil || opts.Blob == nil {
 		return nil, errors.New("ingest: a database pool and a blob store are required")
 	}
 	lockCfg := opts.Pool.Config().Copy()
+	if opts.LockURL != "" {
+		var err error
+		if lockCfg, err = pgxpool.ParseConfig(opts.LockURL); err != nil {
+			// The parse error can repeat the URL, and with it the password.
+			return nil, errors.New("ingest: the lock database URL does not parse")
+		}
+	}
 	lockCfg.MaxConns, lockCfg.MinConns = maxJobs*locksPerJob, 0
 	lockPool, err := pgxpool.NewWithConfig(ctx, lockCfg)
 	if err != nil {
 		return nil, fmt.Errorf("ingest: lock pool: %w", err)
 	}
+	logger := opts.Logger
+	if logger == nil {
+		logger = slog.New(slog.DiscardHandler)
+	}
 	holder := make([]byte, 8)
 	_, _ = rand.Read(holder)
+	locks := locker{pool: lockPool, holder: hex.EncodeToString(holder), logger: logger}
+	if err := locks.checkSession(ctx); err != nil {
+		lockPool.Close()
+		return nil, err
+	}
 	r := &Runner{
 		store:        store.New(opts.Pool),
-		locks:        locker{pool: lockPool, holder: hex.EncodeToString(holder)},
+		locks:        locks,
 		lockPool:     lockPool,
 		slots:        make(chan struct{}, maxJobs),
 		blob:         opts.Blob,
@@ -122,16 +146,13 @@ func New(ctx context.Context, opts Options) (*Runner, error) {
 		backfillDays: opts.PricesBackfillDays,
 		waitForLocks: opts.WaitForLocks,
 		now:          opts.Now,
-		logger:       opts.Logger,
+		logger:       logger,
 	}
 	if r.backfillDays <= 0 {
 		r.backfillDays = defaultBackfillDays
 	}
 	if r.now == nil {
 		r.now = time.Now
-	}
-	if r.logger == nil {
-		r.logger = slog.New(slog.DiscardHandler)
 	}
 	return r, nil
 }
@@ -208,14 +229,17 @@ func runJob[T Result](ctx context.Context, r *Runner, job, lockName string, wait
 		return zero, err
 	}
 	if lk == nil {
-		r.logger.InfoContext(ctx, "ingest: job is already running elsewhere; skipping", "job", job, "lock", lockName)
+		r.logger.WarnContext(ctx, "ingest: job is already running elsewhere; skipping", "job", job, "lock", lockName)
 		return zero, fmt.Errorf("%s: %w", job, ErrAlreadyRunning)
 	}
-	defer lk.release(ctx)
+	defer r.locks.release(ctx, lk)
 
-	id, err := r.store.StartIngestRun(ctx, job)
+	id, abandoned, err := r.store.StartIngestRunForLock(ctx, job, lockName)
 	if err != nil {
 		return zero, err
+	}
+	if abandoned > 0 {
+		r.logger.WarnContext(ctx, "ingest: marked runs of a process that died as failed", "job", job, "lock", lockName, "runs", abandoned)
 	}
 	start := time.Now()
 	r.logger.InfoContext(ctx, "ingest: job started", "job", job, "run", id)

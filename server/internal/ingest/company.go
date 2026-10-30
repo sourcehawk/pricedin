@@ -43,11 +43,12 @@ func (r *Runner) LoadCompany(ctx context.Context, symbol string) error {
 // LoadCompanyResult loads, in this order, the SEC submissions and facts of
 // the company that symbol maps to, the provider's splits and dividends of
 // symbol and of the company's other current share classes, their daily
-// bars for the provider's history window, and the derived quarters. It returns an error that wraps ErrUnknownSymbol when
-// the symbol is not in the ticker map, after it fetched a fresh copy of the
-// SEC map if today's was not loaded yet. A second load of the same company
-// waits for the first and then changes nothing, so calling it again is
-// safe; later loads fetch only the bars that are missing.
+// bars up to the last finished session (the provider's history window for
+// a class with no stored bar), and the derived quarters. It returns an
+// error that wraps ErrUnknownSymbol when the symbol is not in the ticker
+// map, after it fetched a fresh copy of the SEC map if today's was not
+// loaded yet. A second load of the same company waits for the first and
+// then changes nothing, so calling it again is safe.
 func (r *Runner) LoadCompanyResult(ctx context.Context, symbol string) (CompanyResult, error) {
 	if err := r.needSEC(JobCompany); err != nil {
 		return CompanyResult{}, err
@@ -117,6 +118,11 @@ func (r *Runner) loadCompany(ctx context.Context, t domain.Ticker) (CompanyResul
 	}
 	if res.SEC.NotFound > 0 {
 		return res, fmt.Errorf("company %s: SEC has no submissions for it", t.CIK)
+	}
+	// The daily jobs keep a tracked company current, also outside the
+	// universe.
+	if err := r.store.AddTrackedCompany(ctx, t.CIK); err != nil {
+		return res, err
 	}
 	symbols, err := r.shareClasses(ctx, t)
 	if err != nil {

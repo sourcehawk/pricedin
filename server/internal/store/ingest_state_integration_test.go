@@ -444,3 +444,119 @@ func TestABarWriteWaitsForARunningRebuild(t *testing.T) {
 		}
 	}
 }
+
+func TestStartIngestRunForLockMarksAnOlderRunningRunAbandoned(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	s, _ := newStore(t)
+
+	dead, abandoned, err := s.StartIngestRunForLock(ctx, "prices-daily", "prices-daily")
+	if err != nil || abandoned != 0 {
+		t.Fatalf("first StartIngestRunForLock() = %d, %d, %v", dead, abandoned, err)
+	}
+	other, _, err := s.StartIngestRunForLock(ctx, "sec-company", "sec-company:0000000001")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The process of the first run died; the next holder of its lock starts.
+	next, abandoned, err := s.StartIngestRunForLock(ctx, "prices-daily", "prices-daily")
+	if err != nil || abandoned != 1 {
+		t.Fatalf("second StartIngestRunForLock() = %d, %d, %v; want one abandoned run", next, abandoned, err)
+	}
+	got, err := s.GetIngestRun(ctx, dead)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Status != store.RunFailed || got.Error != "abandoned" || got.FinishedAt == nil {
+		t.Errorf("abandoned run = %+v, want failed with error abandoned", got)
+	}
+	for _, id := range []int64{other, next} {
+		if r, _ := s.GetIngestRun(ctx, id); r.Status != store.RunRunning {
+			t.Errorf("run %d = %s, want running", id, r.Status)
+		}
+	}
+}
+
+func TestSetIngestCursorIfMissingKeepsAStoredCursor(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	s, _ := newStore(t)
+	if ok, err := s.SetIngestCursorIfMissing(ctx, "sec-daily", date(t, "2026-10-30")); err != nil || !ok {
+		t.Fatalf("SetIngestCursorIfMissing() = %v, %v; want stored", ok, err)
+	}
+	if ok, err := s.SetIngestCursorIfMissing(ctx, "sec-daily", date(t, "2026-11-02")); err != nil || ok {
+		t.Errorf("second SetIngestCursorIfMissing() = %v, %v; want not stored", ok, err)
+	}
+	if got, _ := s.GetIngestCursor(ctx, "sec-daily"); got != date(t, "2026-10-30") {
+		t.Errorf("cursor = %s, want 2026-10-30", got)
+	}
+}
+
+func TestSECRetriesWaitAndStopAfterTheLimit(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	s, _ := newStore(t)
+	mustUpsertCompanies(t, s, acme, globex)
+	t0 := time.Date(2026, 10, 30, 12, 0, 0, 0, time.UTC)
+
+	if n, err := s.RecordSECRetryFailure(ctx, acme.CIK, "boom", t0, 6*time.Hour, 24*time.Hour); err != nil || n != 1 {
+		t.Fatalf("RecordSECRetryFailure() = %d, %v; want 1 attempt", n, err)
+	}
+	if n, _ := s.RecordSECRetryFailure(ctx, globex.CIK, "boom", t0, time.Hour, 24*time.Hour); n != 1 {
+		t.Fatal("want 1 attempt")
+	}
+	// The second failure waits twice as long: 2 hours.
+	if n, _ := s.RecordSECRetryFailure(ctx, globex.CIK, "boom again", t0.Add(time.Hour), time.Hour, 24*time.Hour); n != 2 {
+		t.Fatal("want 2 attempts")
+	}
+	if due, _ := s.ListDueSECRetries(ctx, t0.Add(2*time.Hour+59*time.Minute), 3); len(due) != 0 {
+		t.Errorf("due before the doubled wait = %v, want none", due)
+	}
+
+	due, err := s.ListDueSECRetries(ctx, t0.Add(3*time.Hour), 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if diff := cmp.Diff([]domain.CIK{globex.CIK}, due); diff != "" {
+		t.Errorf("due after the doubled wait (-want +got):\n%s", diff)
+	}
+	// After the limit, a company is no longer due but stays listed.
+	if due, _ := s.ListDueSECRetries(ctx, t0.Add(7*time.Hour), 2); len(due) != 1 || due[0] != acme.CIK {
+		t.Errorf("due with a limit of 2 = %v, want only ACME", due)
+	}
+	waiting, exhausted, err := s.CountSECRetries(ctx, 2)
+	if err != nil || waiting != 1 || exhausted != 1 {
+		t.Errorf("CountSECRetries() = %d, %d, %v; want 1 waiting and 1 exhausted", waiting, exhausted, err)
+	}
+	if err := s.DeleteSECRetry(ctx, acme.CIK); err != nil {
+		t.Fatal(err)
+	}
+	if waiting, _, _ := s.CountSECRetries(ctx, 2); waiting != 0 {
+		t.Errorf("waiting after the delete = %d, want 0", waiting)
+	}
+}
+
+func TestTrackedCompaniesListTheirCurrentSECTickers(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	s, _ := newStore(t)
+	mustUpsertCompanies(t, s, acme, globex)
+	day := date(t, "2026-10-30")
+	if _, err := s.SyncTickers(ctx, store.TickerSourceSEC, day, []domain.Ticker{
+		{Symbol: "ACME", CIK: acme.CIK, Exchange: "OTC"}, {Symbol: "GLBX", CIK: globex.CIK, Exchange: "NYSE"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	for range 2 {
+		if err := s.AddTrackedCompany(ctx, acme.CIK); err != nil {
+			t.Fatalf("AddTrackedCompany() error = %v", err)
+		}
+	}
+	got, err := s.ListTrackedTickers(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if diff := cmp.Diff([]domain.Ticker{{Symbol: "ACME", CIK: acme.CIK, Exchange: "OTC", ValidFrom: day}}, got); diff != "" {
+		t.Errorf("ListTrackedTickers() (-want +got):\n%s", diff)
+	}
+}

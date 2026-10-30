@@ -14,6 +14,14 @@
 // and each process has its own rate limiter, so every SEC request also
 // holds the advisory lock "sec-api": the scheduler, a `jobs run` and an
 // on-demand load in the API process take turns, one company or one file
-// at a time. Within a process, the jobs send SEC requests from one
-// goroutine at a time.
+// at a time, and a process that takes the lock over from another one starts
+// no sooner than a second after that one released it. The download of companyfacts.zip by sec-bulk does not
+// hold the lock: it is one long request, and one request beside the others
+// at the limit is an accepted excess.
+//
+// Connections: a process uses its query pool, which `pricedin` sizes to at
+// least 8 connections, and a lock pool of at most 12 (four concurrent jobs
+// with up to three locks each). The locks hold database sessions, so the
+// lock pool needs a direct connection, not a pooler in transaction mode;
+// PRICEDIN_DATABASE_LOCK_URL can name one apart from the query pool's.
 package ingest

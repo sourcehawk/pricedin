@@ -21,8 +21,9 @@ import (
 	"github.com/sourcehawk/pricedin/server/internal/store"
 )
 
-// minPoolConns leaves room for the advisory locks that the jobs hold on
-// their own connections.
+// minPoolConns is the least size of the query pool, with room for the four
+// jobs that a Runner runs at once. The advisory locks use a pool of their
+// own.
 const minPoolConns = 8
 
 func newJobsCmd(getenv func(string) string, stdout io.Writer) *cobra.Command {
@@ -126,7 +127,7 @@ func runJob(ctx context.Context, getenv func(string) string, logOut, out io.Writ
 	defer cleanup()
 	res, err := r.Run(ctx, job, args)
 	if errors.Is(err, ingest.ErrAlreadyRunning) {
-		logger.InfoContext(ctx, "jobs run: another process runs the job; nothing to do", "job", job.Name)
+		logger.WarnContext(ctx, "jobs run: another process runs the job; nothing to do", "job", job.Name)
 		return nil
 	}
 	if res != nil {
@@ -179,7 +180,7 @@ func buildRunner(ctx context.Context, getenv func(string) string, logOut io.Writ
 	}
 	rec := ingest.NewRecorder(bs, time.Now)
 	opts := ingest.Options{
-		Pool: pool, Blob: bs, Universe: cfg.Ingest.Universe,
+		Pool: pool, LockURL: cfg.Database.LockURL, Blob: bs, Universe: cfg.Ingest.Universe,
 		PricesBackfillDays: cfg.Ingest.PricesBackfillDays, WaitForLocks: wait, Logger: logger,
 	}
 	if withSEC {

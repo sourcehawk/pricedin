@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -301,4 +302,131 @@ func (s *Store) MarkFundamentalsPendingForSplitsReached(ctx context.Context, bar
 // bars were loaded, or ErrNotFound.
 func (s *Store) GetEarliestGroupedPriceDate(ctx context.Context) (domain.Date, error) {
 	return s.latestDate(ctx, "earliest grouped price date", `SELECT min(date) FROM price_grouped_loads`)
+}
+
+// StartIngestRunForLock records that job started now under the advisory
+// lock lockName, as StartIngestRun does. In the same transaction it marks
+// each older run under lockName that is still running as failed with the
+// error "abandoned", and returns how many. Call it only while holding the
+// lock: a run that is still running then belongs to a process that died.
+func (s *Store) StartIngestRunForLock(ctx context.Context, job, lockName string) (id, abandoned int64, err error) {
+	err = s.inTx(ctx, func(tx pgx.Tx) error {
+		tag, err := tx.Exec(ctx, `
+			UPDATE ingest_runs SET status = 'failed', finished_at = now(), error = 'abandoned'
+			WHERE lock_name = $1 AND status = 'running'`, lockName)
+		if err != nil {
+			return err
+		}
+		abandoned = tag.RowsAffected()
+		return tx.QueryRow(ctx, `INSERT INTO ingest_runs (job, lock_name) VALUES ($1, $2) RETURNING id`, job, lockName).Scan(&id)
+	})
+	if err != nil {
+		return 0, 0, fmt.Errorf("start ingest run of %s: %w", job, err)
+	}
+	return id, abandoned, nil
+}
+
+// SetIngestCursorIfMissing stores the position of job when it has none, and
+// reports whether it stored it.
+func (s *Store) SetIngestCursorIfMissing(ctx context.Context, job string, position domain.Date) (bool, error) {
+	tag, err := s.db.Exec(ctx, `
+		INSERT INTO ingest_cursors (job, position) VALUES ($1, $2) ON CONFLICT (job) DO NOTHING`, job, pgDate(position))
+	if err != nil {
+		return false, fmt.Errorf("set ingest cursor of %s: %w", job, err)
+	}
+	return tag.RowsAffected() == 1, nil
+}
+
+// RecordSECRetryFailure records that the SEC load of the CIK failed at at
+// with errText. The next try is due after wait, doubled for each earlier
+// failure and at most maxWait. It returns the number of failed attempts so
+// far. The CIK must be a stored company.
+func (s *Store) RecordSECRetryFailure(ctx context.Context, cik domain.CIK, errText string, at time.Time, wait, maxWait time.Duration) (int, error) {
+	var attempts int
+	err := s.db.QueryRow(ctx, `
+		INSERT INTO sec_company_retries (cik, attempts, last_error, first_failed_at, last_failed_at, next_attempt_at)
+		VALUES ($1, 1, $2, $3::timestamptz, $3::timestamptz, $3::timestamptz + least($4::interval, $5::interval))
+		ON CONFLICT (cik) DO UPDATE SET attempts = sec_company_retries.attempts + 1,
+			last_error = excluded.last_error, last_failed_at = excluded.last_failed_at,
+			next_attempt_at = excluded.last_failed_at
+				+ least($4::interval * power(2, sec_company_retries.attempts), $5::interval)
+		RETURNING attempts`, int64(cik), errText, at, wait, maxWait).Scan(&attempts)
+	if err != nil {
+		return 0, fmt.Errorf("record SEC retry of %s: %w", cik, err)
+	}
+	return attempts, nil
+}
+
+// ListDueSECRetries returns the CIKs whose next try is due at now and that
+// failed fewer than maxAttempts times, in ascending order.
+func (s *Store) ListDueSECRetries(ctx context.Context, now time.Time, maxAttempts int) ([]domain.CIK, error) {
+	rows, err := s.db.Query(ctx, `
+		SELECT cik FROM sec_company_retries WHERE next_attempt_at <= $1 AND attempts < $2 ORDER BY cik`, now, maxAttempts)
+	if err != nil {
+		return nil, fmt.Errorf("list due SEC retries: %w", err)
+	}
+	out, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (domain.CIK, error) {
+		var c int64
+		err := row.Scan(&c)
+		return domain.CIK(c), err
+	})
+	if err != nil {
+		return nil, fmt.Errorf("list due SEC retries: %w", err)
+	}
+	return out, nil
+}
+
+// DeleteSECRetry removes the CIK from the retries, after a load that
+// succeeded.
+func (s *Store) DeleteSECRetry(ctx context.Context, cik domain.CIK) error {
+	if _, err := s.db.Exec(ctx, `DELETE FROM sec_company_retries WHERE cik = $1`, int64(cik)); err != nil {
+		return fmt.Errorf("delete SEC retry of %s: %w", cik, err)
+	}
+	return nil
+}
+
+// CountSECRetries returns the number of companies that wait for another
+// try, and the number that failed maxAttempts times and get none.
+func (s *Store) CountSECRetries(ctx context.Context, maxAttempts int) (waiting, exhausted int64, err error) {
+	err = s.db.QueryRow(ctx, `
+		SELECT count(*) FILTER (WHERE attempts < $1), count(*) FILTER (WHERE attempts >= $1)
+		FROM sec_company_retries`, maxAttempts).Scan(&waiting, &exhausted)
+	if err != nil {
+		return 0, 0, fmt.Errorf("count SEC retries: %w", err)
+	}
+	return waiting, exhausted, nil
+}
+
+// AddTrackedCompany records that the company was loaded on demand. A
+// company that is already tracked keeps its first record.
+func (s *Store) AddTrackedCompany(ctx context.Context, cik domain.CIK) error {
+	if _, err := s.db.Exec(ctx, `
+		INSERT INTO tracked_companies (cik) VALUES ($1) ON CONFLICT (cik) DO NOTHING`, int64(cik)); err != nil {
+		return fmt.Errorf("track company %s: %w", cik, err)
+	}
+	return nil
+}
+
+// ListTrackedTickers returns the current SEC tickers of the tracked
+// companies, ordered by symbol.
+func (s *Store) ListTrackedTickers(ctx context.Context) ([]domain.Ticker, error) {
+	rows, err := s.db.Query(ctx, `
+		SELECT t.symbol, t.cik, t.exchange, t.valid_from FROM tickers t
+		JOIN tracked_companies c ON c.cik = t.cik
+		WHERE t.source = '`+TickerSourceSEC+`' AND t.valid_to IS NULL ORDER BY t.symbol`)
+	if err != nil {
+		return nil, fmt.Errorf("list tracked tickers: %w", err)
+	}
+	out, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (domain.Ticker, error) {
+		var t domain.Ticker
+		var cik int64
+		var from pgtype.Date
+		err := row.Scan(&t.Symbol, &cik, &t.Exchange, &from)
+		t.CIK, t.ValidFrom = domain.CIK(cik), fromPgDate(from)
+		return t, err
+	})
+	if err != nil {
+		return nil, fmt.Errorf("list tracked tickers: %w", err)
+	}
+	return out, nil
 }

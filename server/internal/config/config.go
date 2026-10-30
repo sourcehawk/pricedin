@@ -106,6 +106,11 @@ type Database struct {
 	// URL is a URL with the scheme postgres or postgresql, also when it was
 	// built from the parts. Empty when neither form is set.
 	URL string
+	// LockURL is the connection of the ingestion jobs' advisory locks,
+	// from PRICEDIN_DATABASE_LOCK_URL, or URL when that is not set. The
+	// locks hold a session, so it must not go through a pooler in
+	// transaction mode.
+	LockURL string
 }
 
 const (
@@ -116,9 +121,27 @@ const (
 	envDatabasePassword = "PRICEDIN_DATABASE_PASSWORD" //nolint:gosec // G101: a variable name, not a credential.
 	envDatabaseName     = "PRICEDIN_DATABASE_NAME"
 	envDatabaseSSLMode  = "PRICEDIN_DATABASE_SSLMODE"
+	envDatabaseLockURL  = "PRICEDIN_DATABASE_LOCK_URL"
 )
 
 func loadDatabase(getenv func(string) string) (Database, []error) {
+	db, errs := loadDatabaseURL(getenv)
+	db.LockURL = db.URL
+	if raw := getenv(envDatabaseLockURL); raw != "" {
+		lock, lockErrs := checkDatabaseURL(raw)
+		for _, e := range lockErrs {
+			var verr *VarError
+			if errors.As(e, &verr) {
+				verr.Var = envDatabaseLockURL
+			}
+		}
+		db.LockURL = lock.URL
+		errs = append(errs, lockErrs...)
+	}
+	return db, errs
+}
+
+func loadDatabaseURL(getenv func(string) string) (Database, []error) {
 	rawURL := getenv(envDatabaseURL)
 	parts := map[string]string{}
 	for _, name := range []string{envDatabaseHost, envDatabasePort, envDatabaseUser, envDatabasePassword, envDatabaseName, envDatabaseSSLMode} {

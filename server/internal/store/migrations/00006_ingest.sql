@@ -70,7 +70,44 @@ CREATE TABLE ingest_lock_releases (
     released_at timestamptz NOT NULL
 );
 
+-- The lock that a run held, so that the next holder of that lock can mark
+-- a run of a process that died as failed.
+ALTER TABLE ingest_runs ADD COLUMN lock_name text NOT NULL DEFAULT '';
+CREATE INDEX ingest_runs_running_lock ON ingest_runs (lock_name) WHERE status = 'running';
+
+-- The companies whose SEC load failed, which later runs try again with a
+-- growing wait, up to a limit of attempts; after it they stay listed.
+CREATE TABLE sec_company_retries (
+    cik             bigint PRIMARY KEY REFERENCES companies (cik),
+    attempts        integer NOT NULL CHECK (attempts > 0),
+    last_error      text NOT NULL DEFAULT '',
+    first_failed_at timestamptz NOT NULL,
+    last_failed_at  timestamptz NOT NULL,
+    next_attempt_at timestamptz NOT NULL
+);
+
+-- The companies that the owner loaded on demand. The daily jobs keep them
+-- current together with the covered universe.
+CREATE TABLE tracked_companies (
+    cik             bigint PRIMARY KEY REFERENCES companies (cik),
+    first_loaded_at timestamptz NOT NULL DEFAULT now()
+);
+
+-- The processes that wait for a lock now, so that a holder that releases
+-- it lets them in before it takes it again.
+CREATE TABLE ingest_lock_waits (
+    name   text NOT NULL,
+    waiter text NOT NULL,
+    at     timestamptz NOT NULL,
+    PRIMARY KEY (name, waiter)
+);
+
 -- +goose Down
+DROP TABLE ingest_lock_waits;
+DROP TABLE tracked_companies;
+DROP TABLE sec_company_retries;
+DROP INDEX ingest_runs_running_lock;
+ALTER TABLE ingest_runs DROP COLUMN lock_name;
 DROP TABLE ingest_lock_releases;
 DROP TABLE fundamentals_pending;
 DROP TABLE ingest_cursors;
