@@ -888,3 +888,38 @@ func TestReprocessDoesNotJoinATickerPageWithTwoVersionsOnTheNextDay(t *testing.T
 		t.Errorf("GetTickerSyncDate(massive) error = %v, want no sync", err)
 	}
 }
+
+// A file that completes the request of the day before still belongs to
+// its own day too, so a corrected response of that day loads.
+func TestReprocessLoadsTheCorrectionOfTheDayThatCompletedTheDayBefore(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, envOptions{})
+	bs := newBlob(t)
+	split := func(to string) string {
+		return `{"status":"OK","results":[{"id":"s1","ticker":"KO","execution_date":"2024-06-10","split_from":1,"split_to":` + to + `}]}`
+	}
+	dividends := `{"status":"OK","results":[{"id":"d1","ticker":"KO","ex_dividend_date":"2026-09-15","cash_amount":0.51}]}`
+	record(t, bs, "2026-10-28T23:59:59Z", "prices/massive/splits/KO/page-1.json", split("2"))
+	record(t, bs, "2026-10-29T00:00:01Z", "prices/massive/dividends/KO/page-1.json", dividends)
+	// The job of the next day gets the corrected split and the same
+	// dividends, which the blob store keeps once.
+	record(t, bs, "2026-10-29T12:00:00Z", "prices/massive/splits/KO/page-1.json", split("3"))
+	record(t, bs, "2026-10-29T12:00:00Z", "prices/massive/dividends/KO/page-1.json", dividends)
+	// A ticker list whose last page arrived after midnight.
+	const list = "prices/massive/tickers/stocks-active/"
+	record(t, bs, "2026-10-28T23:59:59Z", list+"page-1.json",
+		`{"status":"OK","results":[],"next_url":"https://api.massive.com/v3/reference/tickers?cursor=p2"}`)
+	record(t, bs, "2026-10-29T00:00:01Z", list+"page-2.json", `{"status":"OK","results":[]}`)
+	r, pool := offlineRunner(t, e, bs)
+	res, err := r.Reprocess(context.Background(), ingest.ReprocessOptions{})
+	if err != nil || res.Incomplete != 0 {
+		t.Errorf("Reprocess() = %+v, %v; want nothing incomplete", res, err)
+	}
+	var to float64
+	if err := pool.QueryRow(context.Background(), `SELECT split_to FROM price_splits WHERE symbol = 'KO'`).Scan(&to); err != nil {
+		t.Fatal(err)
+	}
+	if to != 3 {
+		t.Errorf("split to = %v, want 3 of the correction", to)
+	}
+}

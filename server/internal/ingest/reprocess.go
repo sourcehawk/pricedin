@@ -263,9 +263,9 @@ type rawIndex struct {
 	archiveCompanies map[domain.Date]map[domain.CIK]bool
 	// nextDay maps a fetch to the fetch of its source on the day after.
 	nextDay map[*rawFetch]*rawFetch
-	// consumed holds the keys of the files that a fetch of the day before
-	// already loaded.
-	consumed map[string]bool
+	// borrowed holds the keys of the files that completed a request of the
+	// day before.
+	borrowed map[string]bool
 	// priceSymbols holds the SEC symbols with stored splits, dividends or
 	// bars of their own.
 	priceSymbols map[string]bool
@@ -390,7 +390,7 @@ func (r *Runner) indexRaw(ctx context.Context, opts ReprocessOptions, cikSymbols
 		keys: map[string]bool{}, extras: map[string][]rawFile{}, extraNames: map[domain.CIK][]string{},
 		firstSubmitted: map[domain.CIK]domain.Date{}, priceSymbols: map[string]bool{},
 		archiveCompanies: map[domain.Date]map[domain.CIK]bool{}, nextDay: map[*rawFetch]*rawFetch{},
-		consumed: map[string]bool{},
+		borrowed: map[string]bool{},
 	}
 	var prefixes []string
 	if opts.Prefix != ReprocessPrices {
@@ -854,7 +854,7 @@ func (r *Runner) reprocessSubmissions(ctx context.Context, idx *rawIndex, u *raw
 // of a list of more pages cannot be told apart, so such a day loads only
 // when it has one version of each page.
 func (r *Runner) reprocessProviderTickers(ctx context.Context, idx *rawIndex, f *rawFetch, res *ReprocessResult, out *unitOutcome, fails *failures) error {
-	files := idx.unconsumed(f.files)
+	files := f.files
 	pages := map[int]int{}
 	for i := range files {
 		pages[files[i].req.Page]++
@@ -880,6 +880,9 @@ func (r *Runner) reprocessProviderTickers(ctx context.Context, idx *rawIndex, f 
 		return fmt.Errorf("%w: a page of the ticker list has two versions on one day", errIncomplete)
 	default:
 		got, used, bad, err := r.readFetch(ctx, idx, f, nil, failed)
+		if len(used) == 0 {
+			return nil
+		}
 		// The job syncs the list as of the day when the last page arrived.
 		day := f.day
 		for i := range used {
@@ -1036,28 +1039,31 @@ func (r *Runner) archiveCompanies(ctx context.Context, idx *rawIndex, day domain
 }
 
 // readFetch reads the files that assemble gives for f, as readPages
-// does, and requires the kinds of want. It marks those files consumed and
-// returns them.
+// does, and requires the kinds of want, and returns the files. It returns
+// no file when f is incomplete and each of its files completed a request
+// of the day before: they loaded there.
 func (r *Runner) readFetch(ctx context.Context, idx *rawIndex, f *rawFetch, want []prices.StoredKind, failed func(*rawFile, error) error) (map[prices.StoredKind]prices.StoredPage, []rawFile, int64, error) {
 	files := r.assemble(ctx, idx, f, want)
-	if len(files) == 0 {
-		return nil, nil, 0, nil
+	if len(files) == len(f.files) && !slices.ContainsFunc(f.files, func(file rawFile) bool { return !idx.borrowed[file.key] }) {
+		ignore := func(*rawFile, error) error { return nil }
+		if _, _, err := r.readPagesOf(ctx, files, want, ignore); errors.Is(err, errIncomplete) {
+			return nil, nil, 0, nil
+		}
 	}
-	for i := range files {
-		idx.consumed[files[i].key] = true
+	for i := len(f.files); i < len(files); i++ {
+		idx.borrowed[files[i].key] = true
 	}
 	pages, bad, err := r.readPagesOf(ctx, files, want, failed)
 	return pages, files, bad, err
 }
 
-// assemble returns the files of f that no fetch of the day before loaded.
-// A request can go on past midnight UTC, so when those files lack a part,
-// it adds the files of the next day of the same source whose kind and
-// page f lacks, if they complete the request. It never adds a page that
-// the next day holds in two versions, because the two cannot be told
-// apart.
+// assemble returns the files of f, first. A request can go on past
+// midnight UTC, so when they lack a part, it adds the files of the next
+// day of the same source whose kind and page f lacks, if they complete the
+// request. It never adds a page that the next day holds in two versions,
+// because the two cannot be told apart.
 func (r *Runner) assemble(ctx context.Context, idx *rawIndex, f *rawFetch, want []prices.StoredKind) []rawFile {
-	files := idx.unconsumed(f.files)
+	files := f.files
 	ignore := func(*rawFile, error) error { return nil }
 	if len(files) == 0 {
 		return files
@@ -1073,7 +1079,7 @@ func (r *Runner) assemble(ctx context.Context, idx *rawIndex, f *rawFetch, want 
 	for i := range files {
 		have[fmt.Sprint(files[i].req.Kind, files[i].req.Page)] = true
 	}
-	rest := idx.unconsumed(next.files)
+	rest := next.files
 	versions := map[string]int{}
 	for i := range rest {
 		versions[fmt.Sprint(rest[i].req.Kind, rest[i].req.Page)]++
@@ -1108,17 +1114,6 @@ func (r *Runner) readPagesOf(ctx context.Context, files []rawFile, want []prices
 		}
 	}
 	return pages, bad, nil
-}
-
-// unconsumed returns the files that no fetch of the day before loaded.
-func (idx *rawIndex) unconsumed(files []rawFile) []rawFile {
-	out := make([]rawFile, 0, len(files))
-	for i := range files {
-		if !idx.consumed[files[i].key] {
-			out = append(out, files[i])
-		}
-	}
-	return out
 }
 
 // readPages decodes the price files of one fetch and joins the pages of
