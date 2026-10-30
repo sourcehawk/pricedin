@@ -1,7 +1,7 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient } from "@tanstack/react-query";
 import { http, HttpResponse } from "msw";
-import { useEffect } from "react";
+import { memo, useEffect } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createApi } from "@/api/client";
 import { ApiProvider } from "@/api/queries";
@@ -11,7 +11,13 @@ import { evaluate } from "@/engine";
 import { renderWithStock, testLevers } from "@/testing/render";
 import { engineLevers } from "./levers";
 import { saveLevers } from "./storage";
-import { StockProvider, useStock, type StockContextValue } from "./StockProvider";
+import {
+  StockProvider,
+  useEvaluation,
+  useLeverDispatch,
+  useStock,
+  type StockContextValue,
+} from "./StockProvider";
 
 withApiServer();
 
@@ -108,6 +114,61 @@ describe("StockProvider", () => {
     });
     expect(history).not.toHaveBeenCalled();
     expect(current().evaluation).toBeNull();
+  });
+
+  it("does not re-render a component that only dispatches when a lever changes", async () => {
+    let renders = 0;
+    const OnlyDispatch = memo(function OnlyDispatch() {
+      useLeverDispatch();
+      renders++;
+      return null;
+    });
+    renderWithStock(
+      <>
+        <Probe />
+        <OnlyDispatch />
+      </>,
+    );
+    await waitFor(() => {
+      expect(current().evaluation).not.toBeNull();
+    });
+    const before = renders;
+    act(() => {
+      current().dispatch({ type: "setTargetReturn", value: 0.1 });
+    });
+    expect(renders).toBe(before);
+  });
+
+  it("gives panels the lever state that their evaluation was computed from", async () => {
+    let seen: { target: number; levers: number } | null = null;
+    const see = (v: { target: number; levers: number }) => {
+      seen = v;
+    };
+    function Panel() {
+      const { state, levers } = useEvaluation();
+      useEffect(() => {
+        see({ target: state.targetReturn, levers: levers.targetReturn });
+      });
+      return null;
+    }
+    function Ready() {
+      return useStock().evaluation === null ? null : <Panel />;
+    }
+    renderWithStock(
+      <>
+        <Probe />
+        <Ready />
+      </>,
+    );
+    await waitFor(() => {
+      expect(seen).not.toBeNull();
+    });
+    act(() => {
+      current().dispatch({ type: "setTargetReturn", value: 0.1 });
+    });
+    await waitFor(() => {
+      expect(seen).toEqual({ target: 0.1, levers: 0.1 });
+    });
   });
 
   it("opens the stock saved in this browser", async () => {

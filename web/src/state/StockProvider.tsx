@@ -6,6 +6,7 @@ import {
   useEffect,
   useMemo,
   useReducer,
+  useDeferredValue,
   useSyncExternalStore,
   type Dispatch,
   type ReactNode,
@@ -35,7 +36,13 @@ export type Provenance = { kind: "stock"; sourced: SourcedNumber } | { kind: "us
 
 /** StockContextValue is everything the page knows about the selected stock and the levers. */
 export interface StockContextValue {
+  /** The levers as the user set them now. */
   state: LeverState;
+  /**
+   * The levers that levers and evaluation were computed from. While the
+   * user drags a slider, they can trail state by a render.
+   */
+  evaluatedState: LeverState;
   dispatch: Dispatch<LeverAction>;
   /** True once the saved levers of this browser are read; the page waits for it before it shows a stock. */
   restored: boolean;
@@ -51,7 +58,11 @@ export interface StockContextValue {
   provenance: Record<StartingPointField, Provenance>;
 }
 
-const StockContext = createContext<StockContextValue | null>(null);
+/** StockData is the stock context without the dispatch, which has a context of its own. */
+type StockData = Omit<StockContextValue, "dispatch">;
+
+const StockContext = createContext<StockData | null>(null);
+const DispatchContext = createContext<Dispatch<LeverAction> | null>(null);
 
 const noSubscription = () => () => undefined;
 
@@ -113,18 +124,22 @@ export function StockProvider({
   const loaded = profile.data?.loaded === true;
   const history = useHistory(state.ticker, loaded ? (profile.data?.freshness ?? null) : null);
 
+  // The engine and the panels run on a deferred copy of the levers, so a
+  // slider drag stays responsive while the panels catch up.
+  const evaluated = useDeferredValue(state);
   const quarters = history.data?.history.quarters;
   const trajectoryRates = useMemo(() => {
     if (quarters === undefined) {
       return null;
     }
-    const t = trajectoryFill(quarters, state.holdingYears);
+    const t = trajectoryFill(quarters, evaluated.holdingYears);
     return t.value === null ? null : t.value.rates;
-  }, [quarters, state.holdingYears]);
+  }, [quarters, evaluated.holdingYears]);
 
   const levers = useMemo(
-    () => (loaded ? engineLevers(state, stockStartingPoint(profile.data), trajectoryRates) : null),
-    [loaded, state, profile.data, trajectoryRates],
+    () =>
+      loaded ? engineLevers(evaluated, stockStartingPoint(profile.data), trajectoryRates) : null,
+    [loaded, evaluated, profile.data, trajectoryRates],
   );
 
   const result = useMemo((): { ev: Evaluation | null; err: InvalidInputError | null } => {
@@ -158,34 +173,54 @@ export function StockProvider({
   }, [ev, state.scenarios]);
 
   const p = profile.data;
-  const value: StockContextValue = {
-    state,
-    dispatch,
-    restored,
-    profile,
-    history,
-    levers,
-    evaluation: result.ev,
-    evaluationError: result.err,
-    provenance: {
-      price: provenanceOf(state.price, p?.latestClose),
-      ttmEps: provenanceOf(state.ttmEps, p?.ttmEps),
-      dividend: provenanceOf(state.dividend, present(p?.ttmDividend)),
-    },
-  };
-  return <StockContext value={value}>{children}</StockContext>;
+  const value = useMemo(
+    (): StockData => ({
+      state,
+      evaluatedState: evaluated,
+      restored,
+      profile,
+      history,
+      levers,
+      evaluation: result.ev,
+      evaluationError: result.err,
+      provenance: {
+        price: provenanceOf(state.price, p?.latestClose),
+        ttmEps: provenanceOf(state.ttmEps, p?.ttmEps),
+        dividend: provenanceOf(state.dividend, present(p?.ttmDividend)),
+      },
+    }),
+    [state, evaluated, restored, profile, history, levers, result, p],
+  );
+  return (
+    <DispatchContext value={dispatch}>
+      <StockContext value={value}>{children}</StockContext>
+    </DispatchContext>
+  );
 }
 
 /** useStock returns the stock context; the values are null or undefined while data loads. */
 export function useStock(): StockContextValue {
-  const v = useContext(StockContext);
-  if (v === null) {
+  const data = useContext(StockContext);
+  const dispatch = useContext(DispatchContext);
+  if (data === null || dispatch === null) {
     throw new Error("useStock needs a StockProvider");
   }
-  return v;
+  return { ...data, dispatch };
 }
 
-/** ReadyStock is the stock context once the evaluation exists. */
+/**
+ * useLeverDispatch returns the dispatch of the levers alone. A component
+ * that only changes levers re-renders less with it than with useStock.
+ */
+export function useLeverDispatch(): Dispatch<LeverAction> {
+  const dispatch = useContext(DispatchContext);
+  if (dispatch === null) {
+    throw new Error("useLeverDispatch needs a StockProvider");
+  }
+  return dispatch;
+}
+
+/** ReadyStock is the stock context once the evaluation exists. Its state is the one that the evaluation was computed from. */
 export interface ReadyStock {
   evaluation: Evaluation;
   levers: Levers;
@@ -218,7 +253,7 @@ export function useEvaluation(): ReadyStock {
     levers: s.levers,
     profile: s.profile.data,
     history: s.history.data,
-    state: s.state,
+    state: s.evaluatedState,
     dispatch: s.dispatch,
     provenance: s.provenance,
   };
