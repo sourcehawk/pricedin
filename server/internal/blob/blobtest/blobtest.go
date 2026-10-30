@@ -123,6 +123,8 @@ func list(t *testing.T, s blob.Store) {
 			"sec/submissions/2026-10-30/b.json",
 		}},
 		{"none/", nil},
+		// The prefix runs through a key, which the filesystem stores as a file.
+		{"sec/submissions/2026-10-30/b.json/x/", nil},
 	}
 	for _, tt := range tests {
 		got, err := s.List(ctx, tt.prefix)

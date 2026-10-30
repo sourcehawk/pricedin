@@ -11,6 +11,7 @@ import (
 	"path"
 	"slices"
 	"strings"
+	"syscall"
 )
 
 // tmpDir holds files that Put is writing. Keys cannot start with a dot, so
@@ -163,7 +164,9 @@ func (s *FS) List(ctx context.Context, prefix string) ([]string, error) {
 	var keys []string
 	err = fs.WalkDir(root.FS(), start, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
-			if errors.Is(err, fs.ErrNotExist) && p == start {
+			// A prefix whose folder is missing, or runs through a file,
+			// names no key.
+			if p == start && (errors.Is(err, fs.ErrNotExist) || errors.Is(err, syscall.ENOTDIR)) {
 				return fs.SkipAll
 			}
 			return err
