@@ -169,7 +169,8 @@ var priceSplitStage = stage{
 // UpsertPriceSplits stores the provider's splits. A split is identified by
 // its symbol and execution date (Split.Date); Split.Evidence holds the
 // provider's identifier. A split whose identifier is stored under another
-// date replaces that row, so a corrected date never counts twice. A stored
+// date replaces that row, so a corrected date never counts twice. Loads of
+// one source run one after the other. A stored
 // split changes only when the provider's values differ. From and To must be
 // positive. It returns the number of splits added or changed.
 func (s *Store) UpsertPriceSplits(ctx context.Context, splits []domain.Split) (int64, error) {
@@ -186,6 +187,14 @@ func (s *Store) UpsertPriceSplits(ctx context.Context, splits []domain.Split) (i
 	var n int64
 	err := s.inTx(ctx, func(tx pgx.Tx) error {
 		if err := priceSplitStage.load(ctx, tx, rows); err != nil {
+			return err
+		}
+		// Without the lock, two loads that move one provider event can both
+		// delete nothing, and the second insert then fails on the unique
+		// provider ID. Sources lock in one order, so loads cannot deadlock.
+		if _, err := tx.Exec(ctx, `
+			SELECT pg_advisory_xact_lock(hashtextextended('price_splits:' || source, 0))
+			FROM (SELECT DISTINCT source FROM stage_price_splits ORDER BY source) s`); err != nil {
 			return err
 		}
 		if _, err := tx.Exec(ctx, `

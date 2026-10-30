@@ -361,3 +361,39 @@ func TestUpsertPriceSplitsKeepsTheLaterCopyOfAProviderIDInOneBatch(t *testing.T)
 		t.Errorf("ListPriceSplits() (-want +got):\n%s", diff)
 	}
 }
+
+func TestUpsertPriceSplitsOfOneProviderEventRunOneAfterTheOther(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	s, pool := newStore(t)
+	first := domain.Split{Symbol: "NVDA", Date: date(t, "2024-06-07"), From: 1, To: 10, Source: "massive", Evidence: "P1"}
+	corrected := first
+	corrected.Date = date(t, "2024-06-10")
+
+	second := make(chan error, 1)
+	err := s.WithTx(ctx, func(tx *store.Store) error {
+		if _, err := tx.UpsertPriceSplits(ctx, []domain.Split{first}); err != nil {
+			return err
+		}
+		go func() {
+			_, err := s.UpsertPriceSplits(ctx, []domain.Split{corrected})
+			second <- err
+		}()
+		waitForBlockedQuery(ctx, t, pool)
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("first UpsertPriceSplits() error = %v", err)
+	}
+	if err := <-second; err != nil {
+		t.Fatalf("second UpsertPriceSplits() error = %v", err)
+	}
+
+	got, err := s.ListPriceSplits(ctx, "NVDA")
+	if err != nil {
+		t.Fatalf("ListPriceSplits() error = %v", err)
+	}
+	if diff := cmp.Diff([]domain.Split{corrected}, got); diff != "" {
+		t.Errorf("ListPriceSplits() (-want +got):\n%s", diff)
+	}
+}
