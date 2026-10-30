@@ -6,7 +6,7 @@ tracking_issue: "#1"
 sub_pr_approval: autonomous
 sub_pr_review_loop: on
 sub_pr_target: main
-status: foundational-wave
+status: consumer-wave
 ---
 
 # PricedIn v1 — orchestration state
@@ -27,11 +27,11 @@ status: foundational-wave
 | Issue | Branch | Worktree path | PR (→ base) | Status |
 | --- | --- | --- | --- | --- |
 | planning | docs/pricedin-v1-plan | (main checkout) | #18 → main | self-merged |
-| #2 | chore/project-foundation | .claude/worktrees/project-foundation | → main | in-progress |
-| #3 | feat/go-engine | .claude/worktrees/go-engine | → main | not-started |
-| #4 | feat/database-store | .claude/worktrees/database-store | → main | not-started |
-| #5 | feat/sec-client | .claude/worktrees/sec-client | → main | not-started |
-| #6 | feat/massive-prices | .claude/worktrees/massive-prices | → main | not-started |
+| #2 | chore/project-foundation | .claude/worktrees/project-foundation | #19 → main | ready |
+| #3 | feat/go-engine | .claude/worktrees/go-engine | → main | in-progress |
+| #4 | feat/database-store | .claude/worktrees/database-store | → main | in-progress |
+| #5 | feat/sec-client | .claude/worktrees/sec-client | → main | in-progress |
+| #6 | feat/massive-prices | .claude/worktrees/massive-prices | → main | in-progress |
 | #7 | feat/ts-engine | .claude/worktrees/ts-engine | → main | not-started |
 | #8 | feat/quarter-derivation | .claude/worktrees/quarter-derivation | → main | not-started |
 | #9 | feat/ingestion-jobs | .claude/worktrees/ingestion-jobs | → main | not-started |
@@ -60,6 +60,7 @@ status: foundational-wave
 
 ## Bubble-up log
 
+- 2026-10-30: Wave 2 (#3-#6) started before #19 merged, from foundation head 140abf3. Each agent waits for #19 on main, then runs `git rebase --onto origin/main 140abf3` before opening its PR.
 - 2026-10-30: Copilot review of the planning PR (#18) added the spec section "Corrections to the prototype" (median, exact-baseline grid row, chart scales, band hover layering, scenario walkthrough), the `raw-recorder` contract with dated, hashed keys, the duration-weighted Q4 share rule, explicit dated split evidence, and the narrowed Origin check. Wave-2 briefs carry them.
 - 2026-10-30: Stooq requires a CAPTCHA-gated key and a JS browser check. The owner chose Massive Stocks Starter. Spec, plan and `CLAUDE.md` updated. Do not bypass Stooq's check.
 - 2026-10-30: The owner is away and wants no blocking questions. Decide and record decisions here.
