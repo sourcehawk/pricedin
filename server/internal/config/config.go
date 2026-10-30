@@ -113,6 +113,11 @@ type Database struct {
 	// locks hold a session, so it must not go through a pooler in
 	// transaction mode.
 	LockURL string
+	// MigrateURL is the connection of `pricedin migrate`, from
+	// PRICEDIN_DATABASE_MIGRATE_URL, or URL when that is not set. In
+	// production it names the role that owns the tables, while URL names
+	// a role that does not.
+	MigrateURL string
 }
 
 const (
@@ -124,23 +129,32 @@ const (
 	envDatabaseName     = "PRICEDIN_DATABASE_NAME"
 	envDatabaseSSLMode  = "PRICEDIN_DATABASE_SSLMODE"
 	envDatabaseLockURL  = "PRICEDIN_DATABASE_LOCK_URL"
+	envDatabaseMigrate  = "PRICEDIN_DATABASE_MIGRATE_URL"
 )
 
 func loadDatabase(getenv func(string) string) (Database, []error) {
 	db, errs := loadDatabaseURL(getenv)
-	db.LockURL = db.URL
-	if raw := getenv(envDatabaseLockURL); raw != "" {
-		lock, lockErrs := checkDatabaseURL(raw)
-		for _, e := range lockErrs {
-			var verr *VarError
-			if errors.As(e, &verr) {
-				verr.Var = envDatabaseLockURL
-			}
-		}
-		db.LockURL = lock.URL
-		errs = append(errs, lockErrs...)
+	var lockErrs, migrateErrs []error
+	db.LockURL, lockErrs = loadOtherDatabaseURL(getenv, envDatabaseLockURL, db.URL)
+	db.MigrateURL, migrateErrs = loadOtherDatabaseURL(getenv, envDatabaseMigrate, db.URL)
+	return db, concat(errs, lockErrs, migrateErrs)
+}
+
+// loadOtherDatabaseURL reads the database URL in the variable name, or
+// returns fallback when it is not set.
+func loadOtherDatabaseURL(getenv func(string) string, name, fallback string) (string, []error) {
+	raw := getenv(name)
+	if raw == "" {
+		return fallback, nil
 	}
-	return db, errs
+	db, errs := checkDatabaseURL(raw)
+	for _, e := range errs {
+		var verr *VarError
+		if errors.As(e, &verr) {
+			verr.Var = name
+		}
+	}
+	return db.URL, errs
 }
 
 func loadDatabaseURL(getenv func(string) string) (Database, []error) {
@@ -221,6 +235,16 @@ func databaseFromParts(parts map[string]string) (Database, []error) {
 func (d Database) Require() error {
 	if d.URL == "" {
 		return &VarError{Var: envDatabaseURL, Err: fmt.Errorf("%w: set it, or set %s and the other parts", ErrMissing, envDatabaseHost)}
+	}
+	return nil
+}
+
+// RequireMigrate returns a *VarError that wraps ErrMissing when MigrateURL
+// is empty: neither PRICEDIN_DATABASE_MIGRATE_URL nor the database URL or
+// its parts are set.
+func (d Database) RequireMigrate() error {
+	if d.MigrateURL == "" {
+		return &VarError{Var: envDatabaseURL, Err: fmt.Errorf("%w: set it, the PRICEDIN_DATABASE_ parts, or %s", ErrMissing, envDatabaseMigrate)}
 	}
 	return nil
 }

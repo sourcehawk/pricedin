@@ -98,18 +98,19 @@ func newMigrateCmd(getenv func(string) string) *cobra.Command {
 	return cmd
 }
 
-// withMigrator opens the configured database, runs fn with a migrator and
-// the database, and closes the database. With allowDropFacts, a rollback of
+// withMigrator opens the database of PRICEDIN_DATABASE_MIGRATE_URL, or of
+// the database URL when that is not set, runs fn with a migrator and the
+// database, and closes the database. With allowDropFacts, a rollback of
 // the facts migration drops facts also when the table holds rows.
 func withMigrator(ctx context.Context, getenv func(string) string, allowDropFacts bool, fn func(*goose.Provider, *sql.DB) error) (err error) {
 	cfg, err := config.Load(getenv)
 	if err != nil {
 		return err
 	}
-	if err := cfg.Database.Require(); err != nil {
+	if err := cfg.Database.RequireMigrate(); err != nil {
 		return err
 	}
-	connCfg, err := pgx.ParseConfig(cfg.Database.URL)
+	connCfg, err := pgx.ParseConfig(cfg.Database.MigrateURL)
 	if err != nil {
 		// The parse error can repeat the URL, and with it the password.
 		return errors.New("migrate: the database URL does not parse")

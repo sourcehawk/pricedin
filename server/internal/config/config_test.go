@@ -3,6 +3,7 @@ package config_test
 import (
 	"errors"
 	"log/slog"
+	"strings"
 	"testing"
 	"time"
 
@@ -41,6 +42,7 @@ func TestLoadReadsEveryVariable(t *testing.T) {
 		"PRICEDIN_METRICS_ADDR":         "127.0.0.1:9191",
 		"PRICEDIN_DATABASE_URL":         "postgres://u:p@db:5432/pricedin?sslmode=disable",
 		"PRICEDIN_DATABASE_LOCK_URL":    "postgres://u:p@db-direct:5432/pricedin?sslmode=disable",
+		"PRICEDIN_DATABASE_MIGRATE_URL": "postgres://owner:p@db-direct:5432/pricedin?sslmode=disable",
 		"PRICEDIN_LOG_LEVEL":            "debug",
 		"PRICEDIN_LOG_FORMAT":           "text",
 		"PRICEDIN_SEC_USER_AGENT":       "PricedIn owner@example.com",
@@ -60,7 +62,8 @@ func TestLoadReadsEveryVariable(t *testing.T) {
 		HTTP: config.HTTP{Addr: "127.0.0.1:8181", MetricsAddr: "127.0.0.1:9191"},
 		Database: config.Database{
 			URL:     "postgres://u:p@db:5432/pricedin?sslmode=disable",
-			LockURL: "postgres://u:p@db-direct:5432/pricedin?sslmode=disable",
+			LockURL:    "postgres://u:p@db-direct:5432/pricedin?sslmode=disable",
+			MigrateURL: "postgres://owner:p@db-direct:5432/pricedin?sslmode=disable",
 		},
 		Log: config.Log{Level: slog.LevelDebug, Format: config.LogFormatText},
 		SEC: config.SEC{
@@ -136,6 +139,7 @@ func TestLoadRejectsInvalidValues(t *testing.T) {
 		{"negative massive rate limit", map[string]string{"PRICEDIN_MASSIVE_RATE_LIMIT": "-1"}, "PRICEDIN_MASSIVE_RATE_LIMIT"},
 		{"infinite massive rate limit", map[string]string{"PRICEDIN_MASSIVE_RATE_LIMIT": "Inf"}, "PRICEDIN_MASSIVE_RATE_LIMIT"},
 		{"lock url with other scheme", map[string]string{"PRICEDIN_DATABASE_LOCK_URL": "mysql://db/pricedin"}, "PRICEDIN_DATABASE_LOCK_URL"},
+		{"migrate url with other scheme", map[string]string{"PRICEDIN_DATABASE_MIGRATE_URL": "mysql://db/pricedin"}, "PRICEDIN_DATABASE_MIGRATE_URL"},
 		{"universe symbol with a space", map[string]string{"PRICEDIN_UNIVERSE": "NVDA,BRK B"}, "PRICEDIN_UNIVERSE"},
 		{"universe symbol with a slash", map[string]string{"PRICEDIN_UNIVERSE": "../KO"}, "PRICEDIN_UNIVERSE"},
 		{"backfill days of zero", map[string]string{"PRICEDIN_PRICES_BACKFILL_DAYS": "0"}, "PRICEDIN_PRICES_BACKFILL_DAYS"},
@@ -270,5 +274,49 @@ func TestDatabaseLockURLDefaultsToTheDatabaseURL(t *testing.T) {
 	}
 	if got.Database.LockURL != "postgres://db/pricedin" {
 		t.Errorf("LockURL = %q, want the database URL", got.Database.LockURL)
+	}
+}
+
+func TestDatabaseMigrateURLDefaultsToTheDatabaseURL(t *testing.T) {
+	got, err := config.Load(env(map[string]string{"PRICEDIN_DATABASE_URL": "postgres://db/pricedin"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Database.MigrateURL != "postgres://db/pricedin" {
+		t.Errorf("MigrateURL = %q, want the database URL", got.Database.MigrateURL)
+	}
+}
+
+func TestDatabaseMigrateURLDefaultsToTheURLBuiltFromParts(t *testing.T) {
+	got, err := config.Load(env(map[string]string{"PRICEDIN_DATABASE_HOST": "db", "PRICEDIN_DATABASE_NAME": "pricedin"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Database.MigrateURL == "" || got.Database.MigrateURL != got.Database.URL {
+		t.Errorf("MigrateURL = %q, want the URL built from the parts, %q", got.Database.MigrateURL, got.Database.URL)
+	}
+}
+
+func TestDatabaseMigrateURLAloneIsEnoughForTheMigrations(t *testing.T) {
+	got, err := config.Load(env(map[string]string{"PRICEDIN_DATABASE_MIGRATE_URL": "postgres://owner@db/pricedin"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := got.Database.RequireMigrate(); err != nil {
+		t.Errorf("RequireMigrate() error = %v, want nil", err)
+	}
+	if got.Database.URL != "" || got.Database.LockURL != "" {
+		t.Errorf("URL = %q, LockURL = %q; want both empty, the migrate URL is for the migrations only", got.Database.URL, got.Database.LockURL)
+	}
+}
+
+func TestDatabaseRequireMigrate(t *testing.T) {
+	err := config.Database{}.RequireMigrate()
+	var verr *config.VarError
+	if !errors.As(err, &verr) || verr.Var != "PRICEDIN_DATABASE_URL" || !errors.Is(err, config.ErrMissing) {
+		t.Errorf("RequireMigrate() without a URL error = %v, want ErrMissing for PRICEDIN_DATABASE_URL", err)
+	}
+	if err == nil || !strings.Contains(err.Error(), "PRICEDIN_DATABASE_MIGRATE_URL") {
+		t.Errorf("RequireMigrate() error = %v, want it to name PRICEDIN_DATABASE_MIGRATE_URL too", err)
 	}
 }
