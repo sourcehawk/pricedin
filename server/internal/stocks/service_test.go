@@ -169,20 +169,44 @@ func TestHistorySplitAdjustsNVIDIAClosesAndEPS(t *testing.T) {
 func TestHistoryDailyTTMEPSIsTheOneKnownOnEachDay(t *testing.T) {
 	st := stockstest.Fixture(t)
 	svc := newService(t, st, nil)
-	h, err := svc.History(context.Background(), "NVDA", stocks.RangeMax)
-	if err != nil {
-		t.Fatal(err)
-	}
-	series, err := deriveNVDA(st)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, d := range h.History.Daily {
-		_, v, ok := fundamentals.TTMKnownOn(series, fundamentals.EPSDiluted, d.Date)
-		if ok != (d.TTMEPS != nil) || (ok && !near(*d.TTMEPS, v.V)) {
-			t.Fatalf("ttmEps on %s = %v, want %v (known %v)", d.Date, d.TTMEPS, v.V, ok)
+	today := date(t, "2026-10-30")
+	for _, c := range []struct {
+		ticker string
+		cik    domain.CIK
+	}{{"NVDA", stockstest.CIKNVDA}, {"KO", stockstest.CIKKO}} {
+		h, err := svc.History(context.Background(), c.ticker, stocks.RangeMax)
+		if err != nil {
+			t.Fatal(err)
+		}
+		series, err := deriveAsOf(st, c.cik, c.ticker, today)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, d := range h.History.Daily {
+			_, v, ok := fundamentals.TTMKnownOn(series, fundamentals.EPSDiluted, d.Date)
+			if ok != (d.TTMEPS != nil) || (ok && !near(*d.TTMEPS, v.V)) {
+				t.Fatalf("%s ttmEps on %s = %v, want %v (known %v)", c.ticker, d.Date, d.TTMEPS, v.V, ok)
+			}
 		}
 	}
+}
+
+// deriveAsOf derives a company's quarters as the service does: its own
+// facts filed by asOf and its symbol's provider splits.
+func deriveAsOf(m *stockstest.Store, cik domain.CIK, symbol string, asOf domain.Date) (fundamentals.Series, error) {
+	var facts []domain.Fact
+	for i := range m.Facts {
+		if m.Facts[i].CIK == cik {
+			facts = append(facts, m.Facts[i])
+		}
+	}
+	var splits []domain.Split
+	for _, sp := range m.Splits {
+		if sp.Symbol == symbol {
+			splits = append(splits, sp)
+		}
+	}
+	return fundamentals.Derive(cik, facts, fundamentals.Options{AsOf: &asOf, Splits: splits, ProviderChecked: true})
 }
 
 func TestHistoryRangeCutsTheDailyClosesWithAYearBefore(t *testing.T) {

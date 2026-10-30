@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"math"
+	"slices"
 
 	"github.com/sourcehawk/pricedin/server/internal/domain"
 	"github.com/sourcehawk/pricedin/server/internal/engine"
@@ -157,13 +158,14 @@ func (st *stock) history(rng HistoryRange) History {
 	}
 
 	from := st.dailyFrom(rng)
+	known := st.ttmKnown()
 	for _, b := range st.bars {
 		if b.Bar.Date.Before(from) {
 			continue
 		}
 		p := engine.PricePoint{Date: b.Bar.Date, Close: b.Close}
-		if _, v, ok := fundamentals.TTMKnownOn(st.series, fundamentals.EPSDiluted, b.Bar.Date); ok && math.Abs(v.V) <= maxPerShare {
-			eps := boundedEPS(v.V)
+		if v, ok := known.on(b.Bar.Date); ok && math.Abs(v) <= maxPerShare {
+			eps := boundedEPS(v)
 			p.TTMEPS = &eps
 		}
 		out.History.Daily = append(out.History.Daily, p)
@@ -185,4 +187,41 @@ func (st *stock) dailyFrom(rng HistoryRange) domain.Date {
 		return earliest
 	}
 	return domain.DateOf(last.Bar.Date.Time().AddDate(0, -rng.months(), -lookBackSlack))
+}
+
+// ttmWalk answers fundamentals.TTMKnownOn for the EPS on days that never
+// go back in time, in one pass over the bars.
+type ttmWalk struct {
+	ttm    []fundamentals.Value // by quarter index
+	order  []int                // the quarters with a TTM, by the day it was known
+	next   int                  // the first quarter of order not yet known
+	latest int                  // the newest quarter known so far, or -1
+}
+
+func (st *stock) ttmKnown() *ttmWalk {
+	w := &ttmWalk{ttm: make([]fundamentals.Value, len(st.series.Quarters)), latest: -1}
+	for i := range st.series.Quarters {
+		if v, ok := fundamentals.TTM(st.series, fundamentals.EPSDiluted, i); ok {
+			w.ttm[i] = v
+			w.order = append(w.order, i)
+		}
+	}
+	slices.SortStableFunc(w.order, func(a, b int) int {
+		return w.ttm[a].FirstFiled.Time().Compare(w.ttm[b].FirstFiled.Time())
+	})
+	return w
+}
+
+// on returns the TTM EPS known on day, as fundamentals.TTMKnownOn does: the
+// newest quarter whose TTM was known by then. day must not be before the
+// day of the previous call.
+func (w *ttmWalk) on(day domain.Date) (float64, bool) {
+	for w.next < len(w.order) && !w.ttm[w.order[w.next]].FirstFiled.After(day) {
+		w.latest = max(w.latest, w.order[w.next])
+		w.next++
+	}
+	if w.latest < 0 {
+		return 0, false
+	}
+	return w.ttm[w.latest].V, true
 }
