@@ -165,7 +165,9 @@ const marketReturn = 0.1;
 export function evaluate(h: History, l: Levers): Evaluation {
   validateLevers(l);
   validateHistory(h);
-  const s = new Series(h.quarters);
+  const quarters = h.quarters ?? [];
+  const daily = h.daily ?? [];
+  const s = new Series(quarters);
   const n = l.holdingYears;
   const inv: Investment = {
     price: l.price,
@@ -271,7 +273,7 @@ export function evaluate(h: History, l: Levers): Evaluation {
     verdict: verdictOut,
     atBaseline: atBaseline(inv, g, pe, req, required.eps),
     sensitivity: sensitivity(inv, pe),
-    quarters: h.quarters.map((q, i) => ({
+    quarters: quarters.map((q, i) => ({
       label: q.label,
       periodEnd: q.periodEnd,
       eps: q.eps,
@@ -297,18 +299,18 @@ export function evaluate(h: History, l: Levers): Evaluation {
             trailing: trailingGrowth.growth,
           }),
     earningsPaths: earningsPaths({
-      quarters: h.quarters,
+      quarters,
       eps: l.ttmEps,
       years: n,
       baseline: g,
       yearlyRates: yearly,
       requiredEps: required.eps,
     }),
-    howDemanding: howDemanding(h.quarters, inv, pe),
+    howDemanding: howDemanding(quarters, inv, pe),
     scenarios: evaluatedScenarios(inv, l, weighted, pe),
-    shareCountEvents: shareCountEvents(h.quarters),
-    priceChart: priceChart(h.daily, h.quarters, l.chartRange),
-    financials: financials(h.quarters),
+    shareCountEvents: shareCountEvents(quarters),
+    priceChart: priceChart(daily, quarters, l.chartRange),
+    financials: financials(quarters),
   };
   return ev;
 }

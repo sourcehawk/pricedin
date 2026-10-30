@@ -30,10 +30,14 @@ export interface PricePoint {
   ttmEps: number | null;
 }
 
-/** History is everything the engine knows about a stock: consecutive quarters and trading days, oldest first. */
+/**
+ * History is everything the engine knows about a stock: consecutive
+ * quarters and trading days, oldest first. Null is an empty list.
+ */
 export interface History {
-  quarters: readonly Quarter[];
-  daily: readonly PricePoint[];
+  // Go marshals a nil slice as null.
+  quarters: readonly Quarter[] | null;
+  daily: readonly PricePoint[] | null;
 }
 
 /** ExitPeMode selects how the exit P/E is set. */
@@ -267,7 +271,7 @@ export function validateLevers(l: Levers): void {
  * before it.
  */
 export function validateHistory(h: History): void {
-  h.quarters.forEach((q, i) => {
+  (h.quarters ?? []).forEach((q, i) => {
     const at = `quarters[${String(i)}]`;
     if (!isDate(q.periodEnd)) {
       fail(`${at}.periodEnd must be a YYYY-MM-DD date, got ${JSON.stringify(q.periodEnd)}`);
@@ -292,7 +296,7 @@ export function validateHistory(h: History): void {
     }
   });
   let prev: string | undefined;
-  h.daily.forEach((d, i) => {
+  (h.daily ?? []).forEach((d, i) => {
     const at = `daily[${String(i)}]`;
     if (!isDate(d.date)) {
       fail(`${at}.date must be a YYYY-MM-DD date, got ${JSON.stringify(d.date)}`);

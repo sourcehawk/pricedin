@@ -5,7 +5,6 @@ import {
   type BaselineMode,
   type ChartRange,
   type ExitPeMode,
-  type History,
   type Levers,
   type PricePoint,
   type Quarter,
@@ -13,7 +12,7 @@ import {
 import { compareJson, readJson, toJson, type Json } from "./testing/json";
 
 interface Example {
-  input: { history: History; levers: Levers };
+  input: { history: { quarters: Quarter[]; daily: PricePoint[] }; levers: Levers };
   output: Json;
 }
 
@@ -183,6 +182,15 @@ describe("evaluate", () => {
     const h = copyHistory();
     h.daily = [{ date: "2024-02-29", close: 10, ttmEps: 1 }];
     expect(() => evaluate(h, levers)).not.toThrow();
+  });
+
+  // Go marshals a nil slice of a History as null, so the API can send one.
+  it("reads null quarters and days as an empty history", () => {
+    const empty = evaluate({ quarters: [], daily: [] }, levers);
+    expect(toJson(evaluate({ quarters: null, daily: null }, levers))).toEqual(toJson(empty));
+    expect(toJson(evaluate({ quarters: history.quarters, daily: null }, levers))).toEqual(
+      toJson(evaluate({ quarters: history.quarters, daily: [] }, levers)),
+    );
   });
 
   it("treats missing optional levers as their defaults", () => {
