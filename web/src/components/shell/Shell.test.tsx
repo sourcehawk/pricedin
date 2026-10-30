@@ -50,8 +50,8 @@ describe("StockMain", () => {
 
   it("keeps the panels when a refresh of the profile fails, and says so", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
+    const { unmount } = await renderReady(<StockMain />);
     try {
-      await renderReady(<StockMain />);
       apiServer.use(
         http.get(apiUrl("/api/v1/stocks/:ticker"), () => problem(503, "Service Unavailable")),
       );
@@ -64,6 +64,8 @@ describe("StockMain", () => {
       expect(screen.getByRole("region", { name: "Priced in" })).toBeInTheDocument();
       expect(screen.queryByRole("heading", { name: /could not be read/ })).toBeNull();
     } finally {
+      // A focus change refetches the queries of a mounted page.
+      unmount();
       vi.useRealTimers();
       focusManager.setFocused(undefined);
     }
