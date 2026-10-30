@@ -56,6 +56,8 @@ export const NOTES = {
   positiveColumns: "v1: return-grid columns whose rounded exit P/E is zero or less drop out.",
   bandSlack:
     "v1: the band loop's end slack is the smaller of 1e-9 and a millionth of the step, so a tiny P/E range does not fill up with bands.",
+  lowerExitPe:
+    "v1: the lower-exit-P/E experiment is at least 0.5 and never above the exit P/E in use; the prototype's floor of 1 raises an exit P/E of 0.5.",
   rulerStep:
     "v1: the growth scale widens its step when the span holds more than 12 steps; the prototype keeps 20 pp.",
   typicalToday: "v1: the typical P/E counts today's P/E also when the history has no quarter.",
@@ -1359,7 +1361,9 @@ export function evaluate({ history, levers }) {
         dividend: D,
         ...o,
       });
-    const lowerPe = Math.max(1, pe.value - 2),
+    // v1: at least 0.5, the lowest custom exit P/E, and never above the exit
+    // P/E in use (the prototype's floor of 1 raises an exit P/E of 0.5).
+    const lowerPe = Math.min(pe.value, Math.max(0.5, pe.value - 2)),
       lowerTarget = Math.max(0, r - 0.02);
     sensitivity = val({
       lowerExitPe: { exitPe: lowerPe, requiredGrowth: rq({ exitPe: lowerPe }) },

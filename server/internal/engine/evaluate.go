@@ -82,7 +82,7 @@ type AtBaseline struct {
 
 // LeverSensitivity is the required growth after one lever change each.
 type LeverSensitivity struct {
-	LowerExitPE  SensitivityAt `json:"lowerExitPe"`  // exit P/E 2 lower, at least 1
+	LowerExitPE  SensitivityAt `json:"lowerExitPe"`  // exit P/E 2 lower, at least 0.5 and never above the exit P/E in use
 	LowerTarget  SensitivityAt `json:"lowerTarget"`  // target 2 pp lower, at least 0
 	MarketTarget SensitivityAt `json:"marketTarget"` // a 10% target, the S&P 500's long-run average
 	OneYear      SensitivityAt `json:"oneYear"`
@@ -275,7 +275,7 @@ func sensitivity(inv Investment, pe Number) Maybe[LeverSensitivity] {
 	case !pe.Ok():
 		return None[LeverSensitivity](pe.Reason)
 	}
-	lowerPE := math.Max(1, pe.Get()-2)
+	lowerPE := math.Min(pe.Get(), math.Max(minCustomExitPE, pe.Get()-2))
 	lowerTarget := math.Max(0, inv.TargetReturn-0.02)
 	market := marketReturn
 	one, five := 1, 5

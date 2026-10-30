@@ -84350,6 +84350,1742 @@
    },
    "tolerance": 1e-9,
    "note": "v1: typical P/E is the conventional median (the mean of the two middle values for an even count); the prototype takes the upper middle value. v1: the return grid has a row at the exact baseline growth, tagged with its baseline, and the YOU cell sits in it; the prototype marks the nearest row. v1: the earnings-path scale covers every plotted point, including intermediate points and negative TTM EPS; the prototype uses only the end points and clamps the minimum at 0. v1: 12-month EPS growth compares the TTM EPS known on a day with the TTM EPS known 365 days earlier; the prototype uses the TTM of four quarters earlier, which is the same value without a reporting lag. v1: the daily P/E is null when TTM EPS is not positive; the prototype divides anyway. v1: the typical required growth over the period is the conventional median, like the typical P/E. v1: the count of quarters where the price asked for more than was delivered compares only quarters with both values. v1: correlations skip quarters where either change is missing; the prototype has no missing data. v1: bar scales include negative values and zero; the prototype assumes positive values. v1: the typical P/E counts today's P/E also when the history has no quarter."
+  },
+  {
+   "name": "evaluate the lowest custom exit P/E",
+   "fn": "evaluate",
+   "input": {
+    "history": {
+     "quarters": [
+      {
+       "label": "Q1 FY22",
+       "periodEnd": "2022-03-31",
+       "eps": 1.3,
+       "close": null,
+       "dilutedShares": 194558325,
+       "revenue": null,
+       "operatingIncome": null,
+       "operatingCosts": null,
+       "freeCashFlow": null
+      },
+      {
+       "label": "Q2 FY22",
+       "periodEnd": "2022-06-30",
+       "eps": 1.45,
+       "close": null,
+       "dilutedShares": 194655604,
+       "revenue": null,
+       "operatingIncome": null,
+       "operatingCosts": null,
+       "freeCashFlow": null
+      },
+      {
+       "label": "Q3 FY22",
+       "periodEnd": "2022-09-30",
+       "eps": 1.5,
+       "close": null,
+       "dilutedShares": 194752932,
+       "revenue": null,
+       "operatingIncome": null,
+       "operatingCosts": null,
+       "freeCashFlow": null
+      },
+      {
+       "label": "Q4 FY22",
+       "periodEnd": "2022-12-31",
+       "eps": 1.5,
+       "close": null,
+       "dilutedShares": 194850308,
+       "revenue": null,
+       "operatingIncome": null,
+       "operatingCosts": null,
+       "freeCashFlow": null
+      },
+      {
+       "label": "Q1 FY23",
+       "periodEnd": "2023-03-31",
+       "eps": 1.35,
+       "close": null,
+       "dilutedShares": 194947733,
+       "revenue": null,
+       "operatingIncome": null,
+       "operatingCosts": null,
+       "freeCashFlow": null
+      },
+      {
+       "label": "Q2 FY23",
+       "periodEnd": "2023-06-30",
+       "eps": 1.65,
+       "close": null,
+       "dilutedShares": 195045207,
+       "revenue": null,
+       "operatingIncome": null,
+       "operatingCosts": null,
+       "freeCashFlow": null
+      },
+      {
+       "label": "Q3 FY23",
+       "periodEnd": "2023-09-30",
+       "eps": 1.7,
+       "close": 102,
+       "dilutedShares": 195142730,
+       "revenue": null,
+       "operatingIncome": null,
+       "operatingCosts": null,
+       "freeCashFlow": null
+      },
+      {
+       "label": "Q4 FY23",
+       "periodEnd": "2023-12-31",
+       "eps": 1.85,
+       "close": 128,
+       "dilutedShares": 195240301,
+       "revenue": null,
+       "operatingIncome": null,
+       "operatingCosts": null,
+       "freeCashFlow": null
+      },
+      {
+       "label": "Q1 FY24",
+       "periodEnd": "2024-03-31",
+       "eps": 1.55,
+       "close": 148,
+       "dilutedShares": 195337921,
+       "revenue": null,
+       "operatingIncome": null,
+       "operatingCosts": null,
+       "freeCashFlow": null
+      },
+      {
+       "label": "Q2 FY24",
+       "periodEnd": "2024-06-30",
+       "eps": 2,
+       "close": 162,
+       "dilutedShares": 195435590,
+       "revenue": null,
+       "operatingIncome": null,
+       "operatingCosts": null,
+       "freeCashFlow": null
+      },
+      {
+       "label": "Q3 FY24",
+       "periodEnd": "2024-09-30",
+       "eps": 2.2,
+       "close": 175,
+       "dilutedShares": 195533308,
+       "revenue": null,
+       "operatingIncome": null,
+       "operatingCosts": null,
+       "freeCashFlow": null
+      },
+      {
+       "label": "Q4 FY24",
+       "periodEnd": "2024-12-31",
+       "eps": 2.45,
+       "close": 205,
+       "dilutedShares": 195631075,
+       "revenue": 1820000000,
+       "operatingIncome": 520000000,
+       "operatingCosts": 1300000000,
+       "freeCashFlow": 380000000
+      },
+      {
+       "label": "Q1 FY25",
+       "periodEnd": "2025-03-31",
+       "eps": 2.05,
+       "close": 210,
+       "dilutedShares": 195728890,
+       "revenue": 1540000000,
+       "operatingIncome": 330000000,
+       "operatingCosts": 1210000000,
+       "freeCashFlow": 360000000
+      },
+      {
+       "label": "Q2 FY25",
+       "periodEnd": "2025-06-30",
+       "eps": 2.3,
+       "close": 205,
+       "dilutedShares": 195826755,
+       "revenue": 1760000000,
+       "operatingIncome": 450000000,
+       "operatingCosts": 1310000000,
+       "freeCashFlow": 160000000
+      },
+      {
+       "label": "Q3 FY25",
+       "periodEnd": "2025-09-30",
+       "eps": 2.45,
+       "close": 245,
+       "dilutedShares": 195924668,
+       "revenue": 1776000000,
+       "operatingIncome": 457000000,
+       "operatingCosts": 1319000000,
+       "freeCashFlow": 425000000
+      },
+      {
+       "label": "Q4 FY25",
+       "periodEnd": "2025-12-31",
+       "eps": 3.05,
+       "close": 225,
+       "dilutedShares": 191712288,
+       "revenue": 2117000000,
+       "operatingIncome": 640000000,
+       "operatingCosts": 1477000000,
+       "freeCashFlow": 470000000
+      },
+      {
+       "label": "Q1 FY26",
+       "periodEnd": "2026-03-31",
+       "eps": 2.4,
+       "close": 240,
+       "dilutedShares": 191808144,
+       "revenue": 1810000000,
+       "operatingIncome": 420000000,
+       "operatingCosts": 1390000000,
+       "freeCashFlow": 390000000
+      },
+      {
+       "label": "Q2 FY26",
+       "periodEnd": "2026-06-30",
+       "eps": 2.6,
+       "close": 255,
+       "dilutedShares": 191904048,
+       "revenue": 1815000000,
+       "operatingIncome": 505000000,
+       "operatingCosts": 1310000000,
+       "freeCashFlow": 210000000
+      },
+      {
+       "label": "Q3 FY26",
+       "periodEnd": "2026-09-30",
+       "eps": 2.75,
+       "close": 270,
+       "dilutedShares": 192000000,
+       "revenue": 1990000000,
+       "operatingIncome": 612000000,
+       "operatingCosts": 1378000000,
+       "freeCashFlow": 293000000
+      }
+     ],
+     "daily": []
+    },
+    "levers": {
+     "price": 1,
+     "ttmEps": 10,
+     "dividend": 0,
+     "targetReturn": 0.15,
+     "holdingYears": 3,
+     "exitPe": {"mode":"custom","custom":0.5,"trailingMonths":36},
+     "baseline": {"mode":"weighted","trailingMonths":12},
+     "scenarios": [],
+     "chartRange": "3Y"
+    }
+   },
+   "expected": {
+    "peNow": {"value":0.1},
+    "exitPe": {
+     "mode": "custom",
+     "inUse": {"value":{"pe":0.5,"rule":"custom"}},
+     "estimate": {"value":{"pe":6,"rule":"lowPeKeep"}},
+     "g0": {"value":0.15950428064100572},
+     "gExit": {"value":0.10975214032050286},
+     "typical": {"pe":{"value":22.84263959390863},"months":36,"points":13},
+     "peNowVsTypical": {"value":"below"},
+     "vsNow": {"value":"higher"},
+     "sliderMax": 45
+    },
+    "baselines": {
+     "active": "weighted",
+     "growth": {"value":0.15950428064100572},
+     "weighted": {"value":0.15950428064100572},
+     "today": {"value":0.12244897959183665},
+     "trailing": {
+      "growth": {"value":0.16756756756756763},
+      "months": 12,
+      "maxMonths": 45,
+      "fromTtm": {"value":9.25},
+      "toTtm": {"value":10.8}
+     },
+     "custom": {"value":null,"reason":"not_applicable"},
+     "yoyShift": {"value":-0.12244897959183665}
+    },
+    "yearByYear": {"value":null,"reason":"not_applicable"},
+    "trajectory": {
+     "value": {
+      "rates": [0.14,0.13,0.125],
+      "slope": -0.042265134911476016,
+      "previous": {"value":0.20176941555248173},
+      "highest": 0.27527609534356345,
+      "capped": false
+     }
+    },
+    "required": {
+     "growth": {"value":-0.32747592021104077},
+     "exitPrice": {"value":1.5208749999999998},
+     "priceChange": {"value":0.5208749999999998},
+     "eps": {"value":3.0417499999999995},
+     "dividends": 0,
+     "tightFrom": {"value":-0.3424759202110408},
+     "undemandingFrom": {"value":-0.31247592021104076}
+    },
+    "gap": {"value":0.4869802008520465},
+    "verdict": {"value":"undemanding"},
+    "atBaseline": {
+     "value": {
+      "exitPrice": 7.794478675684655,
+      "totalReturn": 6.794478675684655,
+      "yearlyReturn": 0.9827244299647859,
+      "vsTarget": 0.8327244299647859,
+      "tone": "good",
+      "meetsTarget": true,
+      "eps": 15.58895735136931,
+      "epsGap": {"value":12.547207351369309},
+      "exitPeNeeded": {"value":0.09756104694624805},
+      "fragile": true
+     }
+    },
+    "sensitivity": {
+     "value": {
+      "lowerExitPe": {"exitPe":0.5,"requiredGrowth":{"value":-0.32747592021104077}},
+      "lowerTarget": {"targetReturn":0.13,"requiredGrowth":{"value":-0.3391719911638923}},
+      "marketTarget": {"targetReturn":0.1,"requiredGrowth":{"value":-0.35671609759316936}},
+      "oneYear": {"years":1,"requiredGrowth":{"value":-0.77}},
+      "fiveYears": {"years":5,"requiredGrowth":{"value":-0.16650338677065024}}
+     }
+    },
+    "quarters": [
+     {
+      "label": "Q1 FY22",
+      "periodEnd": "2022-03-31",
+      "eps": 1.3,
+      "ttmEps": {"value":null,"reason":"insufficient_history"},
+      "yoy": {"value":null,"reason":"insufficient_history"},
+      "ttmYoy": {"value":null,"reason":"insufficient_history"},
+      "weightedTrend": {"value":null,"reason":"insufficient_history"}
+     },
+     {
+      "label": "Q2 FY22",
+      "periodEnd": "2022-06-30",
+      "eps": 1.45,
+      "ttmEps": {"value":null,"reason":"insufficient_history"},
+      "yoy": {"value":null,"reason":"insufficient_history"},
+      "ttmYoy": {"value":null,"reason":"insufficient_history"},
+      "weightedTrend": {"value":null,"reason":"insufficient_history"}
+     },
+     {
+      "label": "Q3 FY22",
+      "periodEnd": "2022-09-30",
+      "eps": 1.5,
+      "ttmEps": {"value":null,"reason":"insufficient_history"},
+      "yoy": {"value":null,"reason":"insufficient_history"},
+      "ttmYoy": {"value":null,"reason":"insufficient_history"},
+      "weightedTrend": {"value":null,"reason":"insufficient_history"}
+     },
+     {
+      "label": "Q4 FY22",
+      "periodEnd": "2022-12-31",
+      "eps": 1.5,
+      "ttmEps": {"value":5.75},
+      "yoy": {"value":null,"reason":"insufficient_history"},
+      "ttmYoy": {"value":null,"reason":"insufficient_history"},
+      "weightedTrend": {"value":null,"reason":"insufficient_history"}
+     },
+     {
+      "label": "Q1 FY23",
+      "periodEnd": "2023-03-31",
+      "eps": 1.35,
+      "ttmEps": {"value":5.8},
+      "yoy": {"value":0.03846153846153855},
+      "ttmYoy": {"value":null,"reason":"insufficient_history"},
+      "weightedTrend": {"value":0.03846153846153855}
+     },
+     {
+      "label": "Q2 FY23",
+      "periodEnd": "2023-06-30",
+      "eps": 1.65,
+      "ttmEps": {"value":6},
+      "yoy": {"value":0.13793103448275867},
+      "ttmYoy": {"value":null,"reason":"insufficient_history"},
+      "weightedTrend": {"value":0.09672942018835269}
+     },
+     {
+      "label": "Q3 FY23",
+      "periodEnd": "2023-09-30",
+      "eps": 1.7,
+      "ttmEps": {"value":6.199999999999999},
+      "yoy": {"value":0.1333333333333333},
+      "ttmYoy": {"value":null,"reason":"insufficient_history"},
+      "weightedTrend": {"value":0.11331398848246224}
+     },
+     {
+      "label": "Q4 FY23",
+      "periodEnd": "2023-12-31",
+      "eps": 1.85,
+      "ttmEps": {"value":6.549999999999999},
+      "yoy": {"value":0.2333333333333334},
+      "ttmYoy": {"value":0.13913043478260856},
+      "weightedTrend": {"value":0.16018445812680013}
+     },
+     {
+      "label": "Q1 FY24",
+      "periodEnd": "2024-03-31",
+      "eps": 1.55,
+      "ttmEps": {"value":6.75},
+      "yoy": {"value":0.14814814814814814},
+      "ttmYoy": {"value":0.1637931034482758},
+      "weightedTrend": {"value":0.15590207988004462}
+     },
+     {
+      "label": "Q2 FY24",
+      "periodEnd": "2024-06-30",
+      "eps": 2,
+      "ttmEps": {"value":7.1000000000000005},
+      "yoy": {"value":0.21212121212121215},
+      "ttmYoy": {"value":0.18333333333333335},
+      "weightedTrend": {"value":0.17472059713834714}
+     },
+     {
+      "label": "Q3 FY24",
+      "periodEnd": "2024-09-30",
+      "eps": 2.2,
+      "ttmEps": {"value":7.6},
+      "yoy": {"value":0.2941176470588236},
+      "ttmYoy": {"value":0.22580645161290325},
+      "weightedTrend": {"value":0.21308187321223815}
+     },
+     {
+      "label": "Q4 FY24",
+      "periodEnd": "2024-12-31",
+      "eps": 2.45,
+      "ttmEps": {"value":8.200000000000001},
+      "yoy": {"value":0.32432432432432434},
+      "ttmYoy": {"value":0.2519083969465652},
+      "weightedTrend": {"value":0.24783617675881636}
+     },
+     {
+      "label": "Q1 FY25",
+      "periodEnd": "2025-03-31",
+      "eps": 2.05,
+      "ttmEps": {"value":8.7},
+      "yoy": {"value":0.32258064516129026},
+      "ttmYoy": {"value":0.28888888888888875},
+      "weightedTrend": {"value":0.27527609534356345}
+     },
+     {
+      "label": "Q2 FY25",
+      "periodEnd": "2025-06-30",
+      "eps": 2.3,
+      "ttmEps": {"value":9},
+      "yoy": {"value":0.1499999999999999},
+      "ttmYoy": {"value":0.26760563380281677},
+      "weightedTrend": {"value":0.23881923774854583}
+     },
+     {
+      "label": "Q3 FY25",
+      "periodEnd": "2025-09-30",
+      "eps": 2.45,
+      "ttmEps": {"value":9.25},
+      "yoy": {"value":0.11363636363636354},
+      "ttmYoy": {"value":0.2171052631578947},
+      "weightedTrend": {"value":0.20176941555248173}
+     },
+     {
+      "label": "Q4 FY25",
+      "periodEnd": "2025-12-31",
+      "eps": 3.05,
+      "ttmEps": {"value":9.85},
+      "yoy": {"value":0.2448979591836733},
+      "ttmYoy": {"value":0.20121951219512169},
+      "weightedTrend": {"value":0.21462728688533644}
+     },
+     {
+      "label": "Q1 FY26",
+      "periodEnd": "2026-03-31",
+      "eps": 2.4,
+      "ttmEps": {"value":10.2},
+      "yoy": {"value":0.17073170731707332},
+      "ttmYoy": {"value":0.1724137931034484},
+      "weightedTrend": {"value":0.20221154071638922}
+     },
+     {
+      "label": "Q2 FY26",
+      "periodEnd": "2026-06-30",
+      "eps": 2.6,
+      "ttmEps": {"value":10.5},
+      "yoy": {"value":0.1304347826086958},
+      "ttmYoy": {"value":0.16666666666666674},
+      "weightedTrend": {"value":0.17959358824667904}
+     },
+     {
+      "label": "Q3 FY26",
+      "periodEnd": "2026-09-30",
+      "eps": 2.75,
+      "ttmEps": {"value":10.8},
+      "yoy": {"value":0.12244897959183665},
+      "ttmYoy": {"value":0.16756756756756763},
+      "weightedTrend": {"value":0.15950428064100572}
+     }
+    ],
+    "growthScale": {"min":-0.35,"max":0.35,"step":0.1},
+    "returnGrid": {
+     "value": {
+      "step": 0.05,
+      "columns": [{"exitPe":0.5,"today":true},{"exitPe":1,"today":false}],
+      "rows": [
+       {
+        "growth": -0.35,
+        "epsAtExit": 2.74625,
+        "exact": false,
+        "tags": ["required"],
+        "cells": [
+         {
+          "exitPrice": 1.373125,
+          "totalReturn": 0.37312499999999993,
+          "yearlyReturn": 0.11148436533985295,
+          "vsTarget": -0.03851563466014704,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 2.74625,
+          "totalReturn": 1.7462499999999999,
+          "yearlyReturn": 0.4003825485207244,
+          "vsTarget": 0.2503825485207244,
+          "tone": "good"
+         }
+        ]
+       },
+       {
+        "growth": -0.3,
+        "epsAtExit": 3.4299999999999993,
+        "exact": false,
+        "tags": [],
+        "cells": [
+         {
+          "exitPrice": 1.7149999999999996,
+          "totalReturn": 0.7149999999999996,
+          "yearlyReturn": 0.19698316267368776,
+          "vsTarget": 0.04698316267368777,
+          "tone": "good"
+         },
+         {
+          "exitPrice": 3.4299999999999993,
+          "totalReturn": 2.4299999999999993,
+          "yearlyReturn": 0.5081042830223184,
+          "vsTarget": 0.35810428302231834,
+          "tone": "good"
+         }
+        ]
+       },
+       {
+        "growth": -0.25,
+        "epsAtExit": 4.21875,
+        "exact": false,
+        "tags": [],
+        "cells": [
+         {
+          "exitPrice": 2.109375,
+          "totalReturn": 1.109375,
+          "yearlyReturn": 0.2824819600075228,
+          "vsTarget": 0.1324819600075228,
+          "tone": "good"
+         },
+         {
+          "exitPrice": 4.21875,
+          "totalReturn": 3.21875,
+          "yearlyReturn": 0.6158260175239127,
+          "vsTarget": 0.4658260175239127,
+          "tone": "good"
+         }
+        ]
+       },
+       {
+        "growth": -0.2,
+        "epsAtExit": 5.120000000000001,
+        "exact": false,
+        "tags": [],
+        "cells": [
+         {
+          "exitPrice": 2.5600000000000005,
+          "totalReturn": 1.5600000000000005,
+          "yearlyReturn": 0.3679807573413576,
+          "vsTarget": 0.2179807573413576,
+          "tone": "good"
+         },
+         {
+          "exitPrice": 5.120000000000001,
+          "totalReturn": 4.120000000000001,
+          "yearlyReturn": 0.7235477520255071,
+          "vsTarget": 0.5735477520255071,
+          "tone": "good"
+         }
+        ]
+       },
+       {
+        "growth": -0.15,
+        "epsAtExit": 6.141249999999999,
+        "exact": false,
+        "tags": [],
+        "cells": [
+         {
+          "exitPrice": 3.0706249999999997,
+          "totalReturn": 2.0706249999999997,
+          "yearlyReturn": 0.4534795546751924,
+          "vsTarget": 0.3034795546751924,
+          "tone": "good"
+         },
+         {
+          "exitPrice": 6.141249999999999,
+          "totalReturn": 5.141249999999999,
+          "yearlyReturn": 0.8312694865271011,
+          "vsTarget": 0.6812694865271011,
+          "tone": "good"
+         }
+        ]
+       },
+       {
+        "growth": -0.1,
+        "epsAtExit": 7.290000000000001,
+        "exact": false,
+        "tags": [],
+        "cells": [
+         {
+          "exitPrice": 3.6450000000000005,
+          "totalReturn": 2.6450000000000005,
+          "yearlyReturn": 0.5389783520090272,
+          "vsTarget": 0.3889783520090272,
+          "tone": "good"
+         },
+         {
+          "exitPrice": 7.290000000000001,
+          "totalReturn": 6.290000000000001,
+          "yearlyReturn": 0.9389912210286953,
+          "vsTarget": 0.7889912210286952,
+          "tone": "good"
+         }
+        ]
+       },
+       {
+        "growth": -0.05,
+        "epsAtExit": 8.573749999999999,
+        "exact": false,
+        "tags": [],
+        "cells": [
+         {
+          "exitPrice": 4.286874999999999,
+          "totalReturn": 3.2868749999999993,
+          "yearlyReturn": 0.624477149342862,
+          "vsTarget": 0.474477149342862,
+          "tone": "good"
+         },
+         {
+          "exitPrice": 8.573749999999999,
+          "totalReturn": 7.573749999999999,
+          "yearlyReturn": 1.0467129555302894,
+          "vsTarget": 0.8967129555302894,
+          "tone": "good"
+         }
+        ]
+       },
+       {
+        "growth": 0,
+        "epsAtExit": 10,
+        "exact": false,
+        "tags": [],
+        "cells": [
+         {
+          "exitPrice": 5,
+          "totalReturn": 4,
+          "yearlyReturn": 0.7099759466766968,
+          "vsTarget": 0.5599759466766968,
+          "tone": "good"
+         },
+         {
+          "exitPrice": 10,
+          "totalReturn": 9,
+          "yearlyReturn": 1.1544346900318838,
+          "vsTarget": 1.004434690031884,
+          "tone": "good"
+         }
+        ]
+       },
+       {
+        "growth": 0.05,
+        "epsAtExit": 11.576250000000002,
+        "exact": false,
+        "tags": [],
+        "cells": [
+         {
+          "exitPrice": 5.788125000000001,
+          "totalReturn": 4.788125000000001,
+          "yearlyReturn": 0.7954747440105319,
+          "vsTarget": 0.6454747440105318,
+          "tone": "good"
+         },
+         {
+          "exitPrice": 11.576250000000002,
+          "totalReturn": 10.576250000000002,
+          "yearlyReturn": 1.2621564245334778,
+          "vsTarget": 1.1121564245334778,
+          "tone": "good"
+         }
+        ]
+       },
+       {
+        "growth": 0.1,
+        "epsAtExit": 13.310000000000004,
+        "exact": false,
+        "tags": ["today"],
+        "cells": [
+         {
+          "exitPrice": 6.655000000000002,
+          "totalReturn": 5.655000000000002,
+          "yearlyReturn": 0.8809735413443669,
+          "vsTarget": 0.7309735413443669,
+          "tone": "good"
+         },
+         {
+          "exitPrice": 13.310000000000004,
+          "totalReturn": 12.310000000000004,
+          "yearlyReturn": 1.3698781590350722,
+          "vsTarget": 1.2198781590350722,
+          "tone": "good"
+         }
+        ]
+       },
+       {
+        "growth": 0.15,
+        "epsAtExit": 15.208749999999998,
+        "exact": false,
+        "tags": [],
+        "cells": [
+         {
+          "exitPrice": 7.604374999999999,
+          "totalReturn": 6.604374999999999,
+          "yearlyReturn": 0.9664723386782015,
+          "vsTarget": 0.8164723386782015,
+          "tone": "good"
+         },
+         {
+          "exitPrice": 15.208749999999998,
+          "totalReturn": 14.208749999999998,
+          "yearlyReturn": 1.477599893536666,
+          "vsTarget": 1.3275998935366662,
+          "tone": "good"
+         }
+        ]
+       },
+       {
+        "growth": 0.15950428064100572,
+        "epsAtExit": 15.58895735136931,
+        "exact": true,
+        "tags": ["weighted","trailing"],
+        "cells": [
+         {
+          "exitPrice": 7.794478675684655,
+          "totalReturn": 6.794478675684655,
+          "yearlyReturn": 0.9827244299647859,
+          "vsTarget": 0.8327244299647859,
+          "tone": "good"
+         },
+         {
+          "exitPrice": 15.58895735136931,
+          "totalReturn": 14.58895735136931,
+          "yearlyReturn": 1.498076245453447,
+          "vsTarget": 1.3480762454534472,
+          "tone": "good"
+         }
+        ]
+       },
+       {
+        "growth": 0.2,
+        "epsAtExit": 17.279999999999998,
+        "exact": false,
+        "tags": [],
+        "cells": [
+         {
+          "exitPrice": 8.639999999999999,
+          "totalReturn": 7.639999999999999,
+          "yearlyReturn": 1.0519711360120363,
+          "vsTarget": 0.9019711360120363,
+          "tone": "good"
+         },
+         {
+          "exitPrice": 17.279999999999998,
+          "totalReturn": 16.279999999999998,
+          "yearlyReturn": 1.58532162803826,
+          "vsTarget": 1.4353216280382601,
+          "tone": "good"
+         }
+        ]
+       },
+       {
+        "growth": 0.25,
+        "epsAtExit": 19.53125,
+        "exact": false,
+        "tags": [],
+        "cells": [
+         {
+          "exitPrice": 9.765625,
+          "totalReturn": 8.765625,
+          "yearlyReturn": 1.137469933345871,
+          "vsTarget": 0.9874699333458711,
+          "tone": "good"
+         },
+         {
+          "exitPrice": 19.53125,
+          "totalReturn": 18.53125,
+          "yearlyReturn": 1.6930433625398544,
+          "vsTarget": 1.5430433625398545,
+          "tone": "good"
+         }
+        ]
+       },
+       {
+        "growth": 0.3,
+        "epsAtExit": 21.97,
+        "exact": false,
+        "tags": [],
+        "cells": [
+         {
+          "exitPrice": 10.985,
+          "totalReturn": 9.985,
+          "yearlyReturn": 1.222968730679706,
+          "vsTarget": 1.072968730679706,
+          "tone": "good"
+         },
+         {
+          "exitPrice": 21.97,
+          "totalReturn": 20.97,
+          "yearlyReturn": 1.8007650970414488,
+          "vsTarget": 1.650765097041449,
+          "tone": "good"
+         }
+        ]
+       }
+      ],
+      "you": {"value":{"row":11,"column":0}},
+      "columnSensitivity": {"value":{"growthStep":0.04999999999999999,"returnChange":0.08549879733383459}}
+     }
+    },
+    "earningsPaths": {
+     "value": {
+      "history": [
+       {
+        "label": "Q3 FY23",
+        "periodEnd": "2023-09-30",
+        "ttmEps": {"value":6.199999999999999},
+        "ttmYoy": {"value":null,"reason":"insufficient_history"}
+       },
+       {
+        "label": "Q4 FY23",
+        "periodEnd": "2023-12-31",
+        "ttmEps": {"value":6.549999999999999},
+        "ttmYoy": {"value":0.13913043478260856}
+       },
+       {
+        "label": "Q1 FY24",
+        "periodEnd": "2024-03-31",
+        "ttmEps": {"value":6.75},
+        "ttmYoy": {"value":0.1637931034482758}
+       },
+       {
+        "label": "Q2 FY24",
+        "periodEnd": "2024-06-30",
+        "ttmEps": {"value":7.1000000000000005},
+        "ttmYoy": {"value":0.18333333333333335}
+       },
+       {
+        "label": "Q3 FY24",
+        "periodEnd": "2024-09-30",
+        "ttmEps": {"value":7.6},
+        "ttmYoy": {"value":0.22580645161290325}
+       },
+       {
+        "label": "Q4 FY24",
+        "periodEnd": "2024-12-31",
+        "ttmEps": {"value":8.200000000000001},
+        "ttmYoy": {"value":0.2519083969465652}
+       },
+       {
+        "label": "Q1 FY25",
+        "periodEnd": "2025-03-31",
+        "ttmEps": {"value":8.7},
+        "ttmYoy": {"value":0.28888888888888875}
+       },
+       {
+        "label": "Q2 FY25",
+        "periodEnd": "2025-06-30",
+        "ttmEps": {"value":9},
+        "ttmYoy": {"value":0.26760563380281677}
+       },
+       {
+        "label": "Q3 FY25",
+        "periodEnd": "2025-09-30",
+        "ttmEps": {"value":9.25},
+        "ttmYoy": {"value":0.2171052631578947}
+       },
+       {
+        "label": "Q4 FY25",
+        "periodEnd": "2025-12-31",
+        "ttmEps": {"value":9.85},
+        "ttmYoy": {"value":0.20121951219512169}
+       },
+       {
+        "label": "Q1 FY26",
+        "periodEnd": "2026-03-31",
+        "ttmEps": {"value":10.2},
+        "ttmYoy": {"value":0.1724137931034484}
+       },
+       {
+        "label": "Q2 FY26",
+        "periodEnd": "2026-06-30",
+        "ttmEps": {"value":10.5},
+        "ttmYoy": {"value":0.16666666666666674}
+       },
+       {
+        "label": "Q3 FY26",
+        "periodEnd": "2026-09-30",
+        "ttmEps": {"value":10.8},
+        "ttmYoy": {"value":0.16756756756756763}
+       }
+      ],
+      "future": [
+       {
+        "quartersAhead": 0,
+        "label": "Q3 FY26",
+        "baseline": {"value":10},
+        "required": {"value":10},
+        "gap": {"value":0}
+       },
+       {
+        "quartersAhead": 1,
+        "label": "Q4 FY26",
+        "baseline": {"value":10.37691093196926},
+        "required": {"value":9.055802862904322},
+        "gap": {"value":1.3211080690649375}
+       },
+       {
+        "quartersAhead": 2,
+        "label": "Q1 FY27",
+        "baseline": {"value":10.768028049002314},
+        "required": {"value":8.200756549178614},
+        "gap": {"value":2.5672714998237005}
+       },
+       {
+        "quartersAhead": 3,
+        "label": "Q2 FY27",
+        "baseline": {"value":11.173886797744373},
+        "required": {"value":7.426443463603306},
+        "gap": {"value":3.7474433341410673}
+       },
+       {
+        "quartersAhead": 4,
+        "label": "Q3 FY27",
+        "baseline": {"value":11.595042806410056},
+        "required": {"value":6.725240797889592},
+        "gap": {"value":4.869802008520464}
+       },
+       {
+        "quartersAhead": 5,
+        "label": "Q4 FY27",
+        "baseline": {"value":12.032072645448803},
+        "required": {"value":6.090245487124951},
+        "gap": {"value":5.941827158323852}
+       },
+       {
+        "quartersAhead": 6,
+        "label": "Q1 FY28",
+        "baseline": {"value":12.4855746168806},
+        "required": {"value":5.5152062518096265},
+        "gap": {"value":6.970368365070973}
+       },
+       {
+        "quartersAhead": 7,
+        "label": "Q2 FY28",
+        "baseline": {"value":12.956169573382619},
+        "required": {"value":4.9944620564645446},
+        "gap": {"value":7.961707516918074}
+       },
+       {
+        "quartersAhead": 8,
+        "label": "Q3 FY28",
+        "baseline": {"value":13.444501768248161},
+        "required": {"value":4.522886378959863},
+        "gap": {"value":8.921615389288299}
+       },
+       {
+        "quartersAhead": 9,
+        "label": "Q4 FY28",
+        "baseline": {"value":13.951239737381439},
+        "required": {"value":4.095836741917569},
+        "gap": {"value":9.85540299546387}
+       },
+       {
+        "quartersAhead": 10,
+        "label": "Q1 FY29",
+        "baseline": {"value":14.477077214535738},
+        "required": {"value":3.709109009344584},
+        "gap": {"value":10.767968205191154}
+       },
+       {
+        "quartersAhead": 11,
+        "label": "Q2 FY29",
+        "baseline": {"value":15.022734081047897},
+        "required": {"value":3.3588959985646905},
+        "gap": {"value":11.663838082483206}
+       },
+       {
+        "quartersAhead": 12,
+        "label": "Q3 FY29",
+        "baseline": {"value":15.58895735136931},
+        "required": {"value":3.0417499999999995},
+        "gap": {"value":12.547207351369309}
+       }
+      ],
+      "gapTone": {"value":"good"},
+      "scale": {"min":2,"max":16.21251564542408,"step":2}
+     }
+    },
+    "howDemanding": {
+     "points": [
+      {
+       "label": "Q3 FY23",
+       "periodEnd": "2023-09-30",
+       "today": false,
+       "price": {"value":102},
+       "ttmEps": {"value":6.199999999999999},
+       "pe": {"value":16.451612903225808},
+       "required": {"value":2.6850552164472274},
+       "delivered": {"value":null,"reason":"insufficient_history"}
+      },
+      {
+       "label": "Q4 FY23",
+       "periodEnd": "2023-12-31",
+       "today": false,
+       "price": {"value":128},
+       "ttmEps": {"value":6.549999999999999},
+       "pe": {"value":19.54198473282443},
+       "required": {"value":2.9026900586355775},
+       "delivered": {"value":0.13913043478260856}
+      },
+      {
+       "label": "Q1 FY24",
+       "periodEnd": "2024-03-31",
+       "today": false,
+       "price": {"value":148},
+       "ttmEps": {"value":6.75},
+       "pe": {"value":21.925925925925927},
+       "required": {"value":3.055338895732225},
+       "delivered": {"value":0.1637931034482758}
+      },
+      {
+       "label": "Q2 FY24",
+       "periodEnd": "2024-06-30",
+       "today": false,
+       "price": {"value":162},
+       "ttmEps": {"value":7.1000000000000005},
+       "pe": {"value":22.816901408450704},
+       "required": {"value":3.1095417240355605},
+       "delivered": {"value":0.18333333333333335}
+      },
+      {
+       "label": "Q3 FY24",
+       "periodEnd": "2024-09-30",
+       "today": false,
+       "price": {"value":175},
+       "ttmEps": {"value":7.6},
+       "pe": {"value":23.026315789473685},
+       "required": {"value":3.1220759649168546},
+       "delivered": {"value":0.22580645161290325}
+      },
+      {
+       "label": "Q4 FY24",
+       "periodEnd": "2024-12-31",
+       "today": false,
+       "price": {"value":205},
+       "ttmEps": {"value":8.200000000000001},
+       "pe": {"value":24.999999999999996},
+       "required": {"value":3.2366362234364434},
+       "delivered": {"value":0.2519083969465652}
+      },
+      {
+       "label": "Q1 FY25",
+       "periodEnd": "2025-03-31",
+       "today": false,
+       "price": {"value":210},
+       "ttmEps": {"value":8.7},
+       "pe": {"value":24.13793103448276},
+       "required": {"value":3.1873685442790123},
+       "delivered": {"value":0.28888888888888875}
+      },
+      {
+       "label": "Q2 FY25",
+       "periodEnd": "2025-06-30",
+       "today": false,
+       "price": {"value":205},
+       "ttmEps": {"value":9},
+       "pe": {"value":22.77777777777778},
+       "required": {"value":3.10719153381463},
+       "delivered": {"value":0.26760563380281677}
+      },
+      {
+       "label": "Q3 FY25",
+       "periodEnd": "2025-09-30",
+       "today": false,
+       "price": {"value":245},
+       "ttmEps": {"value":9.25},
+       "pe": {"value":26.486486486486488},
+       "required": {"value":3.3189942194112536},
+       "delivered": {"value":0.2171052631578947}
+      },
+      {
+       "label": "Q4 FY25",
+       "periodEnd": "2025-12-31",
+       "today": false,
+       "price": {"value":225},
+       "ttmEps": {"value":9.85},
+       "pe": {"value":22.84263959390863},
+       "required": {"value":3.111086374331001},
+       "delivered": {"value":0.20121951219512169}
+      },
+      {
+       "label": "Q1 FY26",
+       "periodEnd": "2026-03-31",
+       "today": false,
+       "price": {"value":240},
+       "ttmEps": {"value":10.2},
+       "pe": {"value":23.529411764705884},
+       "required": {"value":3.151880663749658},
+       "delivered": {"value":0.1724137931034484}
+      },
+      {
+       "label": "Q2 FY26",
+       "periodEnd": "2026-06-30",
+       "today": false,
+       "price": {"value":255},
+       "ttmEps": {"value":10.5},
+       "pe": {"value":24.285714285714285},
+       "required": {"value":3.195896813346187},
+       "delivered": {"value":0.16666666666666674}
+      },
+      {
+       "label": "Q3 FY26",
+       "periodEnd": "2026-09-30",
+       "today": true,
+       "price": {"value":1},
+       "ttmEps": {"value":10},
+       "pe": {"value":0.1},
+       "required": {"value":-0.32747592021104077},
+       "delivered": {"value":0.16756756756756763}
+      }
+     ],
+     "scale": {"min":-1,"max":4,"step":1},
+     "typicalRequired": {"value":3.111086374331001},
+     "peak": {"value":{"index":8,"growth":3.3189942194112536}},
+     "requiredAboveDelivered": 11,
+     "compared": 12
+    },
+    "scenarios": {
+     "defaults": true,
+     "cases": [
+      {
+       "name": "Bear",
+       "growth": 0.1,
+       "exitPe": 6,
+       "result": {
+        "value": {
+         "eps": 13.310000000000004,
+         "exitPrice": 79.86000000000003,
+         "totalReturn": 78.86000000000003,
+         "yearlyReturn": 3.3063544052857505,
+         "vsTarget": 3.1563544052857506,
+         "tone": "good",
+         "meetsTarget": true
+        }
+       }
+      },
+      {
+       "name": "Base",
+       "growth": 0.16,
+       "exitPe": 0.5,
+       "result": {
+        "value": {
+         "eps": 15.608959999999996,
+         "exitPrice": 7.804479999999998,
+         "totalReturn": 6.804479999999998,
+         "yearlyReturn": 0.9835720981449683,
+         "vsTarget": 0.8335720981449682,
+         "tone": "good",
+         "meetsTarget": true
+        }
+       }
+      },
+      {
+       "name": "Bull",
+       "growth": 0.22,
+       "exitPe": 0.5,
+       "result": {
+        "value": {
+         "eps": 18.158479999999997,
+         "exitPrice": 9.079239999999999,
+         "totalReturn": 8.079239999999999,
+         "yearlyReturn": 1.0861706549455703,
+         "vsTarget": 0.9361706549455703,
+         "tone": "good",
+         "meetsTarget": true
+        }
+       }
+      }
+     ],
+     "meetingTarget": ["Bear","Base","Bull"],
+     "worstYearlyReturn": {"value":0.9835720981449683}
+    },
+    "shareCountEvents": [
+     {
+      "label": "Q4 FY25",
+      "periodEnd": "2025-12-31",
+      "from": 195924668,
+      "to": 191712288,
+      "change": -0.02149999815235104,
+      "kind": "buyback"
+     }
+    ],
+    "priceChart": {"value":null,"reason":"insufficient_history"},
+    "financials": {
+     "quarters": [
+      {"label":"Q4 FY24","periodEnd":"2024-12-31"},
+      {"label":"Q1 FY25","periodEnd":"2025-03-31"},
+      {"label":"Q2 FY25","periodEnd":"2025-06-30"},
+      {"label":"Q3 FY25","periodEnd":"2025-09-30"},
+      {"label":"Q4 FY25","periodEnd":"2025-12-31"},
+      {"label":"Q1 FY26","periodEnd":"2026-03-31"},
+      {"label":"Q2 FY26","periodEnd":"2026-06-30"},
+      {"label":"Q3 FY26","periodEnd":"2026-09-30"}
+     ],
+     "metrics": {
+      "revenue": {
+       "values": [1820000000,1540000000,1760000000,1776000000,2117000000,1810000000,1815000000,1990000000],
+       "yoy": [
+        {"value":null,"reason":"insufficient_history"},
+        {"value":null,"reason":"insufficient_history"},
+        {"value":null,"reason":"insufficient_history"},
+        {"value":null,"reason":"insufficient_history"},
+        {"value":0.16318681318681327},
+        {"value":0.17532467532467533},
+        {"value":0.03125},
+        {"value":0.12049549549549554}
+       ],
+       "yoyTone": [
+        {"value":null,"reason":"insufficient_history"},
+        {"value":null,"reason":"insufficient_history"},
+        {"value":null,"reason":"insufficient_history"},
+        {"value":null,"reason":"insufficient_history"},
+        {"value":"good"},
+        {"value":"good"},
+        {"value":"good"},
+        {"value":"good"}
+       ],
+       "qoq": [
+        {"value":null,"reason":"insufficient_history"},
+        {"value":-0.15384615384615385},
+        {"value":0.1428571428571428},
+        {"value":0.009090909090909038},
+        {"value":0.19200450450450446},
+        {"value":-0.1450165328294757},
+        {"value":0.0027624309392264568},
+        {"value":0.09641873278236912}
+       ],
+       "qoqTone": [
+        {"value":null,"reason":"insufficient_history"},
+        {"value":"bad"},
+        {"value":"good"},
+        {"value":"good"},
+        {"value":"good"},
+        {"value":"bad"},
+        {"value":"good"},
+        {"value":"good"}
+       ],
+       "scale": {"value":{"min":0,"max":2371040000}}
+      },
+      "operatingCosts": {
+       "values": [1300000000,1210000000,1310000000,1319000000,1477000000,1390000000,1310000000,1378000000],
+       "yoy": [
+        {"value":null,"reason":"insufficient_history"},
+        {"value":null,"reason":"insufficient_history"},
+        {"value":null,"reason":"insufficient_history"},
+        {"value":null,"reason":"insufficient_history"},
+        {"value":0.13615384615384607},
+        {"value":0.14876033057851235},
+        {"value":0},
+        {"value":0.04473085670962851}
+       ],
+       "yoyTone": [
+        {"value":null,"reason":"insufficient_history"},
+        {"value":null,"reason":"insufficient_history"},
+        {"value":null,"reason":"insufficient_history"},
+        {"value":null,"reason":"insufficient_history"},
+        {"value":"neutral"},
+        {"value":"neutral"},
+        {"value":"neutral"},
+        {"value":"neutral"}
+       ],
+       "qoq": [
+        {"value":null,"reason":"insufficient_history"},
+        {"value":-0.0692307692307692},
+        {"value":0.0826446280991735},
+        {"value":0.006870229007633677},
+        {"value":0.11978771796815768},
+        {"value":-0.05890318212593093},
+        {"value":-0.05755395683453235},
+        {"value":0.051908396946564794}
+       ],
+       "qoqTone": [
+        {"value":null,"reason":"insufficient_history"},
+        {"value":"good"},
+        {"value":"bad"},
+        {"value":"bad"},
+        {"value":"bad"},
+        {"value":"good"},
+        {"value":"good"},
+        {"value":"bad"}
+       ],
+       "scale": {"value":{"min":0,"max":1654240000.0000002}}
+      },
+      "operatingIncome": {
+       "values": [520000000,330000000,450000000,457000000,640000000,420000000,505000000,612000000],
+       "yoy": [
+        {"value":null,"reason":"insufficient_history"},
+        {"value":null,"reason":"insufficient_history"},
+        {"value":null,"reason":"insufficient_history"},
+        {"value":null,"reason":"insufficient_history"},
+        {"value":0.23076923076923084},
+        {"value":0.2727272727272727},
+        {"value":0.12222222222222223},
+        {"value":0.33916849015317285}
+       ],
+       "yoyTone": [
+        {"value":null,"reason":"insufficient_history"},
+        {"value":null,"reason":"insufficient_history"},
+        {"value":null,"reason":"insufficient_history"},
+        {"value":null,"reason":"insufficient_history"},
+        {"value":"good"},
+        {"value":"good"},
+        {"value":"good"},
+        {"value":"good"}
+       ],
+       "qoq": [
+        {"value":null,"reason":"insufficient_history"},
+        {"value":-0.3653846153846154},
+        {"value":0.36363636363636354},
+        {"value":0.015555555555555545},
+        {"value":0.4004376367614879},
+        {"value":-0.34375},
+        {"value":0.20238095238095233},
+        {"value":0.21188118811881185}
+       ],
+       "qoqTone": [
+        {"value":null,"reason":"insufficient_history"},
+        {"value":"bad"},
+        {"value":"good"},
+        {"value":"good"},
+        {"value":"good"},
+        {"value":"bad"},
+        {"value":"good"},
+        {"value":"good"}
+       ],
+       "scale": {"value":{"min":0,"max":716800000.0000001}}
+      },
+      "eps": {
+       "values": [2.45,2.05,2.3,2.45,3.05,2.4,2.6,2.75],
+       "yoy": [
+        {"value":null,"reason":"insufficient_history"},
+        {"value":null,"reason":"insufficient_history"},
+        {"value":null,"reason":"insufficient_history"},
+        {"value":null,"reason":"insufficient_history"},
+        {"value":0.2448979591836733},
+        {"value":0.17073170731707332},
+        {"value":0.1304347826086958},
+        {"value":0.12244897959183665}
+       ],
+       "yoyTone": [
+        {"value":null,"reason":"insufficient_history"},
+        {"value":null,"reason":"insufficient_history"},
+        {"value":null,"reason":"insufficient_history"},
+        {"value":null,"reason":"insufficient_history"},
+        {"value":"good"},
+        {"value":"good"},
+        {"value":"good"},
+        {"value":"good"}
+       ],
+       "qoq": [
+        {"value":null,"reason":"insufficient_history"},
+        {"value":-0.16326530612244916},
+        {"value":0.12195121951219523},
+        {"value":0.0652173913043479},
+        {"value":0.2448979591836733},
+        {"value":-0.21311475409836067},
+        {"value":0.08333333333333348},
+        {"value":0.05769230769230771}
+       ],
+       "qoqTone": [
+        {"value":null,"reason":"insufficient_history"},
+        {"value":"bad"},
+        {"value":"good"},
+        {"value":"good"},
+        {"value":"good"},
+        {"value":"bad"},
+        {"value":"good"},
+        {"value":"good"}
+       ],
+       "scale": {"value":{"min":0,"max":3.416}}
+      },
+      "freeCashFlow": {
+       "values": [380000000,360000000,160000000,425000000,470000000,390000000,210000000,293000000],
+       "yoy": [
+        {"value":null,"reason":"insufficient_history"},
+        {"value":null,"reason":"insufficient_history"},
+        {"value":null,"reason":"insufficient_history"},
+        {"value":null,"reason":"insufficient_history"},
+        {"value":0.23684210526315796},
+        {"value":0.08333333333333326},
+        {"value":0.3125},
+        {"value":-0.3105882352941176}
+       ],
+       "yoyTone": [
+        {"value":null,"reason":"insufficient_history"},
+        {"value":null,"reason":"insufficient_history"},
+        {"value":null,"reason":"insufficient_history"},
+        {"value":null,"reason":"insufficient_history"},
+        {"value":"good"},
+        {"value":"good"},
+        {"value":"good"},
+        {"value":"bad"}
+       ],
+       "qoq": [
+        {"value":null,"reason":"insufficient_history"},
+        {"value":-0.052631578947368474},
+        {"value":-0.5555555555555556},
+        {"value":1.65625},
+        {"value":0.10588235294117654},
+        {"value":-0.17021276595744683},
+        {"value":-0.46153846153846156},
+        {"value":0.39523809523809517}
+       ],
+       "qoqTone": [
+        {"value":null,"reason":"insufficient_history"},
+        {"value":"bad"},
+        {"value":"bad"},
+        {"value":"good"},
+        {"value":"good"},
+        {"value":"bad"},
+        {"value":"bad"},
+        {"value":"good"}
+       ],
+       "scale": {"value":{"min":0,"max":526400000.00000006}}
+      },
+      "dilutedShares": {
+       "values": [195631075,195728890,195826755,195924668,191712288,191808144,191904048,192000000],
+       "yoy": [
+        {"value":null,"reason":"insufficient_history"},
+        {"value":null,"reason":"insufficient_history"},
+        {"value":null,"reason":"insufficient_history"},
+        {"value":null,"reason":"insufficient_history"},
+        {"value":-0.02003151595420105},
+        {"value":-0.020031513998776562},
+        {"value":-0.020031517143814237},
+        {"value":-0.02003151537814518}
+       ],
+       "yoyTone": [
+        {"value":null,"reason":"insufficient_history"},
+        {"value":null,"reason":"insufficient_history"},
+        {"value":null,"reason":"insufficient_history"},
+        {"value":null,"reason":"insufficient_history"},
+        {"value":"good"},
+        {"value":"good"},
+        {"value":"good"},
+        {"value":"good"}
+       ],
+       "qoq": [
+        {"value":null,"reason":"insufficient_history"},
+        {"value":0.00049999725248151},
+        {"value":0.0005000028355548469},
+        {"value":0.0004999980722757424},
+        {"value":-0.02149999815235104},
+        {"value":0.0004999992488743388},
+        {"value":0.0004999996246248806},
+        {"value":0.0004999998749375401}
+       ],
+       "qoqTone": [
+        {"value":null,"reason":"insufficient_history"},
+        {"value":"bad"},
+        {"value":"bad"},
+        {"value":"bad"},
+        {"value":"good"},
+        {"value":"bad"},
+        {"value":"bad"},
+        {"value":"bad"}
+       ],
+       "scale": {"value":{"min":190237955,"max":197399001}}
+      }
+     },
+     "operatingMargin": [
+      {"value":0.2857142857142857},
+      {"value":0.21428571428571427},
+      {"value":0.2556818181818182},
+      {"value":0.25731981981981983},
+      {"value":0.3023145961265942},
+      {"value":0.23204419889502761},
+      {"value":0.27823691460055094},
+      {"value":0.3075376884422111}
+     ],
+     "costShareOfRevenue": [
+      {"value":0.7142857142857143},
+      {"value":0.7857142857142857},
+      {"value":0.7443181818181818},
+      {"value":0.7426801801801802},
+      {"value":0.6976854038734057},
+      {"value":0.7679558011049724},
+      {"value":0.721763085399449},
+      {"value":0.6924623115577889}
+     ],
+     "tiles": {
+      "value": {
+       "label": "Q3 FY26",
+       "compareLabel": "Q3 FY25",
+       "revenue": {
+        "latest": {"value":1990000000},
+        "change": {"value":0.12049549549549554},
+        "tone": {"value":"good"}
+       },
+       "operatingCosts": {
+        "latest": {"value":1378000000},
+        "change": {"value":0.04473085670962851},
+        "tone": {"value":"neutral"}
+       },
+       "operatingIncome": {"latest":{"value":612000000},"change":{"value":0.33916849015317285},"tone":{"value":"good"}},
+       "operatingMargin": {
+        "latest": {"value":0.3075376884422111},
+        "previous": {"value":0.25731981981981983},
+        "change": {"value":0.05021786862239125},
+        "tone": {"value":"good"}
+       },
+       "eps": {"latest":{"value":2.75},"change":{"value":0.12244897959183665},"tone":{"value":"good"}},
+       "freeCashFlow": {"latest":{"value":293000000},"change":{"value":-0.3105882352941176},"tone":{"value":"bad"}},
+       "dilutedShares": {
+        "latest": {"value":192000000},
+        "change": {"value":-0.02003151537814518},
+        "tone": {"value":"good"}
+       }
+      }
+     },
+     "compare": {
+      "sinceStart": {
+       "revenue": [
+        {"value":0},
+        {"value":-0.15384615384615385},
+        {"value":-0.03296703296703296},
+        {"value":-0.0241758241758242},
+        {"value":0.16318681318681327},
+        {"value":-0.005494505494505475},
+        {"value":-0.0027472527472527375},
+        {"value":0.0934065934065933}
+       ],
+       "operatingCosts": [
+        {"value":0},
+        {"value":-0.0692307692307692},
+        {"value":0.007692307692307665},
+        {"value":0.014615384615384697},
+        {"value":0.13615384615384607},
+        {"value":0.0692307692307692},
+        {"value":0.007692307692307665},
+        {"value":0.06000000000000005}
+       ],
+       "operatingIncome": [
+        {"value":0},
+        {"value":-0.3653846153846154},
+        {"value":-0.13461538461538458},
+        {"value":-0.12115384615384617},
+        {"value":0.23076923076923084},
+        {"value":-0.1923076923076923},
+        {"value":-0.028846153846153855},
+        {"value":0.17692307692307696}
+       ],
+       "eps": [
+        {"value":0},
+        {"value":-0.16326530612244916},
+        {"value":-0.061224489795918546},
+        {"value":0},
+        {"value":0.2448979591836733},
+        {"value":-0.020408163265306256},
+        {"value":0.061224489795918435},
+        {"value":0.12244897959183665}
+       ],
+       "freeCashFlow": [
+        {"value":0},
+        {"value":-0.052631578947368474},
+        {"value":-0.5789473684210527},
+        {"value":0.11842105263157898},
+        {"value":0.23684210526315796},
+        {"value":0.026315789473684292},
+        {"value":-0.4473684210526315},
+        {"value":-0.22894736842105268}
+       ],
+       "dilutedShares": [
+        {"value":0},
+        {"value":0.00049999725248151},
+        {"value":0.0010002500880803566},
+        {"value":0.0015007482834719088},
+        {"value":-0.02003151595420105},
+        {"value":-0.019541532448257515},
+        {"value":-0.019051303582521384},
+        {"value":-0.018560829356992548}
+       ]
+      },
+      "quarterOverQuarter": {
+       "revenue": [
+        {"value":null,"reason":"insufficient_history"},
+        {"value":-0.15384615384615385},
+        {"value":0.1428571428571428},
+        {"value":0.009090909090909038},
+        {"value":0.19200450450450446},
+        {"value":-0.1450165328294757},
+        {"value":0.0027624309392264568},
+        {"value":0.09641873278236912}
+       ],
+       "operatingCosts": [
+        {"value":null,"reason":"insufficient_history"},
+        {"value":-0.0692307692307692},
+        {"value":0.0826446280991735},
+        {"value":0.006870229007633677},
+        {"value":0.11978771796815768},
+        {"value":-0.05890318212593093},
+        {"value":-0.05755395683453235},
+        {"value":0.051908396946564794}
+       ],
+       "operatingIncome": [
+        {"value":null,"reason":"insufficient_history"},
+        {"value":-0.3653846153846154},
+        {"value":0.36363636363636354},
+        {"value":0.015555555555555545},
+        {"value":0.4004376367614879},
+        {"value":-0.34375},
+        {"value":0.20238095238095233},
+        {"value":0.21188118811881185}
+       ],
+       "eps": [
+        {"value":null,"reason":"insufficient_history"},
+        {"value":-0.16326530612244916},
+        {"value":0.12195121951219523},
+        {"value":0.0652173913043479},
+        {"value":0.2448979591836733},
+        {"value":-0.21311475409836067},
+        {"value":0.08333333333333348},
+        {"value":0.05769230769230771}
+       ],
+       "freeCashFlow": [
+        {"value":null,"reason":"insufficient_history"},
+        {"value":-0.052631578947368474},
+        {"value":-0.5555555555555556},
+        {"value":1.65625},
+        {"value":0.10588235294117654},
+        {"value":-0.17021276595744683},
+        {"value":-0.46153846153846156},
+        {"value":0.39523809523809517}
+       ],
+       "dilutedShares": [
+        {"value":null,"reason":"insufficient_history"},
+        {"value":0.00049999725248151},
+        {"value":0.0005000028355548469},
+        {"value":0.0004999980722757424},
+        {"value":-0.02149999815235104},
+        {"value":0.0004999992488743388},
+        {"value":0.0004999996246248806},
+        {"value":0.0004999998749375401}
+       ]
+      },
+      "correlations": [
+       {
+        "a": "revenue",
+        "b": "operatingCosts",
+        "result": {"value":{"correlation":0.935422384412021,"class":"strongSame"}}
+       },
+       {
+        "a": "revenue",
+        "b": "operatingIncome",
+        "result": {"value":{"correlation":0.9673992577876495,"class":"strongSame"}}
+       },
+       {
+        "a": "revenue",
+        "b": "eps",
+        "result": {"value":{"correlation":0.9446134464542113,"class":"strongSame"}}
+       },
+       {
+        "a": "revenue",
+        "b": "freeCashFlow",
+        "result": {"value":{"correlation":0.011174976472134501,"class":"weak"}}
+       },
+       {
+        "a": "revenue",
+        "b": "dilutedShares",
+        "result": {"value":{"correlation":-0.562320302618569,"class":"moderateOpposite"}}
+       },
+       {
+        "a": "operatingCosts",
+        "b": "operatingIncome",
+        "result": {"value":{"correlation":0.8187698774154656,"class":"strongSame"}}
+       },
+       {
+        "a": "operatingCosts",
+        "b": "eps",
+        "result": {"value":{"correlation":0.8131451010119045,"class":"strongSame"}}
+       },
+       {
+        "a": "operatingCosts",
+        "b": "freeCashFlow",
+        "result": {"value":{"correlation":0.08515898729274166,"class":"weak"}}
+       },
+       {
+        "a": "operatingCosts",
+        "b": "dilutedShares",
+        "result": {"value":{"correlation":-0.6321914685878209,"class":"strongOpposite"}}
+       },
+       {
+        "a": "operatingIncome",
+        "b": "eps",
+        "result": {"value":{"correlation":0.9566203908289398,"class":"strongSame"}}
+       },
+       {
+        "a": "operatingIncome",
+        "b": "freeCashFlow",
+        "result": {"value":{"correlation":-0.09154102747164757,"class":"weak"}}
+       },
+       {
+        "a": "operatingIncome",
+        "b": "dilutedShares",
+        "result": {"value":{"correlation":-0.4630635381541659,"class":"moderateOpposite"}}
+       },
+       {
+        "a": "eps",
+        "b": "freeCashFlow",
+        "result": {"value":{"correlation":0.0964243085337264,"class":"weak"}}
+       },
+       {
+        "a": "eps",
+        "b": "dilutedShares",
+        "result": {"value":{"correlation":-0.5930288696911545,"class":"moderateOpposite"}}
+       },
+       {
+        "a": "freeCashFlow",
+        "b": "dilutedShares",
+        "result": {"value":{"correlation":0.014872990547427616,"class":"weak"}}
+       }
+      ],
+      "changes": 7
+     }
+    }
+   },
+   "tolerance": 1e-9,
+   "note": "v1: typical P/E is the conventional median (the mean of the two middle values for an even count); the prototype takes the upper middle value. v1: the return grid has a row at the exact baseline growth, tagged with its baseline, and the YOU cell sits in it; the prototype marks the nearest row. v1: the earnings-path scale covers every plotted point, including intermediate points and negative TTM EPS; the prototype uses only the end points and clamps the minimum at 0. v1: 12-month EPS growth compares the TTM EPS known on a day with the TTM EPS known 365 days earlier; the prototype uses the TTM of four quarters earlier, which is the same value without a reporting lag. v1: the daily P/E is null when TTM EPS is not positive; the prototype divides anyway. v1: the typical required growth over the period is the conventional median, like the typical P/E. v1: the count of quarters where the price asked for more than was delivered compares only quarters with both values. v1: correlations skip quarters where either change is missing; the prototype has no missing data. v1: bar scales include negative values and zero; the prototype assumes positive values. v1: the lower-exit-P/E experiment is at least 0.5 and never above the exit P/E in use; the prototype's floor of 1 raises an exit P/E of 0.5."
   }
  ]
 }

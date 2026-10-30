@@ -1060,6 +1060,16 @@ add(
   },
   [...evalNotes, N.typicalToday],
 );
+add(
+  "evaluate the lowest custom exit P/E",
+  "evaluate",
+  ev(noDaily(GRMN), {
+    price: 1,
+    ttmEps: 10,
+    exitPe: { mode: "custom", custom: 0.5, trailingMonths: 36 },
+  }),
+  [...evalNotes, N.lowerExitPe],
+);
 
 // ------------------------------------------------------------------ write
 

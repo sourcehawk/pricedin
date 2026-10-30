@@ -311,3 +311,19 @@ func TestEvaluateAcceptsPinnedDefaultsAtAHugeTrailingPE(t *testing.T) {
 		t.Errorf("evaluate with the pinned cases: %v", err)
 	}
 }
+
+// The lower-exit-P/E experiment never goes above the exit P/E in use, also
+// at the lowest custom exit P/E.
+func TestSensitivityLowerExitPEIsNotHigher(t *testing.T) {
+	ex := loadExample(t)
+	l := ex.Input.Levers
+	l.Price, l.TTMEPS, l.ExitPE = 1, 10, ExitPELever{Mode: ExitPECustom, Custom: 0.5}
+	ev, err := Evaluate(ex.Input.History, l)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := wantSome(t, "sensitivity", ev.Sensitivity)
+	if got := *s.LowerExitPE.ExitPE; got != 0.5 {
+		t.Errorf("lower exit P/E = %v, want 0.5", got)
+	}
+}
