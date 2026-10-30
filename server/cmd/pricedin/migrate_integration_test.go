@@ -112,3 +112,14 @@ func TestMigrateDownRefusesWhileFactsHasRows(t *testing.T) {
 		t.Errorf("down --to 0 --force:\n%s\nwant the facts migration rolled back", out)
 	}
 }
+
+func TestMigrateUsesTheMigrateURLOverTheDatabaseURL(t *testing.T) {
+	env := map[string]string{
+		// Nothing listens on port 1, so a migration over this URL fails.
+		"PRICEDIN_DATABASE_URL":         "postgres://app@127.0.0.1:1/pricedin?sslmode=disable&connect_timeout=2",
+		"PRICEDIN_DATABASE_MIGRATE_URL": pgtest.NewEmptyURL(t),
+	}
+	if out := run(t, env, "migrate", "up"); !strings.Contains(out, "up  00001_sec_reference.sql") {
+		t.Errorf("up:\n%s\nwant the migrations applied through the migrate URL", out)
+	}
+}

@@ -2,89 +2,68 @@
 
 PricedIn shows how much future earnings growth a stock price already assumes. It answers one question before any deep research starts: what must this company deliver for me to earn my target return, and has it ever delivered that?
 
-PricedIn never tells you to buy or sell. It shows which stocks deserve research, and why.
+![The PricedIn web app](docs/images/pricedin.png)
 
-v1 is in development. The product brief is in `CLAUDE.md`, the design in `docs/superpowers/specs/`, and the behavior reference in `prototype/pricedin.html`.
+## What PricedIn is
 
-## Develop
+- For a US stock that files with the SEC, PricedIn calculates the **required growth**: the yearly EPS growth that turns today's price into your target return, at the P/E that you expect when you sell.
+- It puts the company's own record next to that number: its recent EPS growth, its P/E history, its financials, its splits and its dividends.
+- Every number carries its source and its as-of date. A figure from a filing links to that filing.
+- All data is real. Earnings come from SEC filings, and prices come from Massive (formerly Polygon.io), a licensed price provider. PricedIn uses no analyst estimates and no forward P/E.
 
-### Prerequisites
+## What PricedIn is not
 
-- [asdf](https://asdf-vm.com/) 0.16 or later. It installs the tool versions in `.tool-versions`: Go, Node.js, pnpm, golangci-lint, actionlint and shellcheck.
-- Docker with Compose v2.
+- It never tells you to buy or sell. It does not say what a stock is worth. It shows what must happen for an investment to succeed, so that you know which stocks deserve research.
+- It is not public. v1 is a private deployment for one owner, behind a login, because the price data is licensed for personal use only (see `docs/data-sources.md`).
 
-### First setup
+## Quick start
+
+You need Docker with Compose v2, `make` and `git`. These commands start the whole stack on your machine with fixture data, so you need no API key and no network access to SEC or the price provider:
 
 ```sh
-make tools deps
+git clone https://github.com/sourcehawk/pricedin.git
+cd pricedin
 cp .env.example .env
-make up
-```
-
-`make tools` adds the asdf plugins that are missing and installs the pinned tools. `make deps` installs the Go modules, the npm packages and the Playwright browser. `make up` builds the images and starts the stack in the background:
-
-- the web app on http://localhost:3000
-- the API on http://localhost:8080 (`/healthz` and `/readyz`)
-- the metrics on http://localhost:9090/metrics
-- Postgres on `localhost:5432`
-
-Before the server starts, the `migrate` service applies the database migrations. The server keeps raw downloads in the `blob-data` volume.
-
-If one of these ports is in use, change it in `.env` (`PRICEDIN_WEB_PORT`, `PRICEDIN_API_PORT`, `PRICEDIN_METRICS_PORT`, `PRICEDIN_DB_PORT`). `make down` stops the stack. `make logs` follows its logs.
-
-### Load data without SEC and Massive
-
-The fixture server answers at the SEC and Massive paths from the files in `testdata/`, so you need no API key and no network access to those services:
-
-```sh
 make up-fixtures
 make seed
 ```
 
-`make up-fixtures` starts the stack with the fixture server and the scheduler (Compose files `docker-compose.yml` and `docker-compose.fixtures.yml`, profile `fixtures`). `make seed` then runs the jobs that load the five fixture companies: NVDA, AAPL, KO, GRMN and ADM. `make down-fixtures` stops that stack.
+`make up-fixtures` builds the images and starts Postgres, the API server, the scheduler, the web app and a fixture server that answers in place of SEC and Massive. The first build takes several minutes. `make seed` loads five fixture companies: NVDA, AAPL, KO, GRMN and ADM.
 
-### Load real data
+Then open http://localhost:3000. The API answers on http://localhost:8080.
 
-The ingestion jobs need `PRICEDIN_SEC_USER_AGENT` (a name and a contact email address) for SEC, and `PRICEDIN_MASSIVE_API_KEY` for prices. Set them in `.env`. While you develop, add this line to `.env` to narrow the jobs to a few tickers, or they load every NYSE and Nasdaq company:
+If a port is in use, change it in `.env` and run `make up-fixtures` again. The four ports are `PRICEDIN_WEB_PORT`, `PRICEDIN_API_PORT`, `PRICEDIN_METRICS_PORT` and `PRICEDIN_DB_PORT`. For example, `PRICEDIN_WEB_PORT=3001` moves the web app to http://localhost:3001. The stack allows logins from the web port that you set.
 
-```sh
-PRICEDIN_UNIVERSE=NVDA,KO
-```
+To log in to the web app, give the stack an owner:
 
-| Command | What it does |
+1. Make a hash of your password with the server image that `make up-fixtures` built. The command asks for the password two times, and prints the hash:
+
+   ```sh
+   docker run --rm -it pricedin-server:dev auth hash-password
+   ```
+
+2. Add your email address and the hash to `.env`. Put the hash in single quotes, because it holds `$` characters:
+
+   ```sh
+   PRICEDIN_OWNER_EMAIL=you@example.com
+   PRICEDIN_OWNER_PASSWORD_HASH='$argon2id$v=19$m=19456,t=2,p=1$...'
+   ```
+
+3. Run `make up-fixtures` again.
+4. Open the web app (http://localhost:3000, or your `PRICEDIN_WEB_PORT`). It shows the login page. Log in with that email and password.
+
+After the login, the stock page opens. Find a fixture company, such as GRMN, in the stock search of the left panel. The left panel also holds every lever: target return, holding period, exit P/E and the growth baseline, each with a text field. The main column holds the panels. The data page (`/data`) shows how fresh the data is, lists the latest ingest runs, and loads or refreshes a company.
+
+`make down-fixtures` stops the stack and keeps its data.
+
+## Documentation
+
+| Page | Read it to |
 | --- | --- |
-| `pricedin jobs list` | Lists the jobs and the latest run of each |
-| `pricedin jobs run <job> [args]` | Runs one job. For a first import, run `sec-tickers`, `sec-bulk`, `price-reference`, `prices-backfill` and `fundamentals-rebuild all`, in that order |
-| `pricedin ingest company <ticker>` | Loads one company: its SEC filings and facts, its splits, dividends and daily prices, and its quarters. It works for any ticker in the SEC ticker map, also outside `PRICEDIN_UNIVERSE` |
-| `pricedin scheduler` | Runs the `daily` job every day at `PRICEDIN_SCHEDULE_DAILY` (UTC, default 01:30) |
+| [docs/development.md](docs/development.md) | Work on the code: tools, the local stack, tests, migrations, generated files |
+| [docs/architecture.md](docs/architecture.md) | Understand the parts, the data flow, the two engines and the security model |
+| [docs/data-sources.md](docs/data-sources.md) | Learn what PricedIn reads from SEC and Massive, the rules that make quarters from filings, and the limits of the data |
+| [docs/api.md](docs/api.md) | Call the HTTP API with an API token |
+| [docs/runbook.md](docs/runbook.md) | Deploy to Fly.io and Vercel, and operate the deployment |
 
-In the Compose stack, put `docker compose exec server /pricedin` before each command, such as `docker compose exec server /pricedin ingest company GRMN`. On your host, run `go run ./cmd/pricedin` in `server/` instead. Every job is safe to run again. When another process runs the same job, `jobs run` skips it, or waits for it with `--wait`. `docker compose --profile scheduler up` also starts the scheduler.
-
-### Tests and checks
-
-| Target | What it runs |
-| --- | --- |
-| `make lint` | golangci-lint, ESLint, the TypeScript type check, Prettier, actionlint, shellcheck, and a check that the engine cases are current |
-| `make test` | The Go unit tests (`make test-server`) and the web unit tests (`make test-web`) |
-| `make test-integration` | The Go tests with the `integration` build tag |
-| `make test-e2e` | Builds the images, starts a separate Compose stack against the fixture server (project `pricedin-e2e`, web on port 3100, API on port 8180), runs Playwright, and removes that stack. The stack of `make up` is not touched |
-| `make generate-engine-cases` | Writes the shared engine cases in `testdata/engine/` from the prototype oracle in `tools/engine-oracle/` |
-| `make generate-price-fixtures` | Writes the synthetic Massive fixtures in `testdata/prices/massive/`, with closes that follow the earnings in the SEC fixtures |
-| `make ci` | Everything that CI runs, in the CI order |
-
-`make migrate` applies the migrations to the database of the Compose stack. `make migrate MIGRATE_ARGS=status` lists them, and `MIGRATE_ARGS=down` rolls back the latest one. For another database, set `PRICEDIN_DATABASE_URL` and run `go run ./cmd/pricedin migrate up` in `server/`.
-
-`make` without a target lists every target. CI calls the same targets, so a green `make ci` predicts a green CI run.
-
-### Layout
-
-| Path | Content |
-| --- | --- |
-| `server/` | Go module: the `pricedin` command, the API, the calculation engine (`internal/engine`), the ingestion jobs (`internal/ingest`) and the fixture server (`cmd/fixtureserver`) |
-| `web/` | Next.js app in TypeScript, with the browser copy of the calculation engine (`src/engine`) |
-| `e2e/` | Playwright tests that run against the Compose stack |
-| `prototype/` | The prototype, the reference for behavior, calculations, copy and layout |
-| `docs/` | The design, the plan and later the architecture and runbooks |
-| `scripts/` | Shell scripts that the Makefile calls |
-| `testdata/` | Test data that more than one part reads, such as the SEC fixtures in `testdata/sec/` and the shared engine cases in `testdata/engine/` |
-| `tools/` | Programs that make test data, such as `tools/sec-fixtures/` and the engine oracle in `tools/engine-oracle/` |
+The product brief is in `CLAUDE.md`, and the behavior reference is `prototype/pricedin.html`. The design decisions of v1 are in `docs/superpowers/specs/`.

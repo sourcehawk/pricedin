@@ -49,6 +49,7 @@ jobs:
           echo "$RUNNER_TEMP/shellcheck" >> "$GITHUB_PATH"
       - run: make deps-go deps-node
       - run: make lint
+      - run: make test-scripts
 
   test-server:
     runs-on: ubuntu-latest

@@ -38,6 +38,7 @@ services:
     environment:
       # The same database settings as the server; see there.
       PRICEDIN_DATABASE_URL: ""
+      PRICEDIN_DATABASE_MIGRATE_URL: ""
       PRICEDIN_DATABASE_HOST: db
       PRICEDIN_DATABASE_PORT: "5432"
       PRICEDIN_DATABASE_USER: ${POSTGRES_USER:-pricedin}
