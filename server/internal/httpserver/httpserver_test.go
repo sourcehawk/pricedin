@@ -224,6 +224,28 @@ pricedin_http_requests_total{code="404",method="GET",route="unmatched"} 1
 	}
 }
 
+func TestObserveGroupsNonstandardMethods(t *testing.T) {
+	reg := prometheus.NewRegistry()
+	h := httpserver.Observe(discard(), reg)(http.NotFoundHandler())
+
+	for _, method := range []string{"BREW", "X-RANDOM-1", "X-RANDOM-2", http.MethodDelete} {
+		h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequestWithContext(t.Context(), method, "/", http.NoBody))
+	}
+
+	want := `
+# HELP pricedin_http_requests_total HTTP requests by method, route pattern and status code.
+# TYPE pricedin_http_requests_total counter
+pricedin_http_requests_total{code="404",method="DELETE",route="unmatched"} 1
+pricedin_http_requests_total{code="404",method="OTHER",route="unmatched"} 3
+`
+	if err := testutil.GatherAndCompare(reg, strings.NewReader(want), "pricedin_http_requests_total"); err != nil {
+		t.Error(err)
+	}
+	if n, err := testutil.GatherAndCount(reg, "pricedin_http_request_duration_seconds"); err != nil || n != 2 {
+		t.Errorf("duration histogram series = %d (%v), want 2", n, err)
+	}
+}
+
 func TestObserveKeepsTheResponseControllerWorking(t *testing.T) {
 	h := httpserver.Observe(discard(), prometheus.NewRegistry())(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		if err := http.NewResponseController(w).Flush(); err != nil && !errors.Is(err, http.ErrNotSupported) {

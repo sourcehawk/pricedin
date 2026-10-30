@@ -39,8 +39,9 @@ func Observe(logger *slog.Logger, reg prometheus.Registerer) func(http.Handler) 
 			if route == "" {
 				route = "unmatched"
 			}
-			requests.WithLabelValues(r.Method, route, strconv.Itoa(rec.status)).Inc()
-			durations.WithLabelValues(r.Method, route).Observe(elapsed.Seconds())
+			method := methodLabel(r.Method)
+			requests.WithLabelValues(method, route, strconv.Itoa(rec.status)).Inc()
+			durations.WithLabelValues(method, route).Observe(elapsed.Seconds())
 			logger.LogAttrs(r.Context(), slog.LevelInfo, "http request",
 				slog.String("method", r.Method),
 				slog.String("path", r.URL.Path),
@@ -50,6 +51,19 @@ func Observe(logger *slog.Logger, reg prometheus.Registerer) func(http.Handler) 
 				slog.Duration("duration", elapsed),
 			)
 		})
+	}
+}
+
+// methodLabel returns OTHER for a method outside RFC 9110 and RFC 5789.
+// The server accepts any token as a method, so the raw value would let a
+// client create any number of metric series.
+func methodLabel(method string) string {
+	switch method {
+	case http.MethodGet, http.MethodHead, http.MethodPost, http.MethodPut, http.MethodPatch,
+		http.MethodDelete, http.MethodOptions, http.MethodConnect, http.MethodTrace:
+		return method
+	default:
+		return "OTHER"
 	}
 }
 
