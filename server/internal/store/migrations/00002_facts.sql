@@ -68,6 +68,19 @@ CREATE TABLE stock_splits (
 );
 
 -- +goose Down
+-- The lock holds until the rollback commits, so no fact can arrive between
+-- the check and the DROP.
+-- +goose StatementBegin
+DO $$
+BEGIN
+    LOCK TABLE facts IN ACCESS EXCLUSIVE MODE;
+    IF current_setting('pricedin.allow_drop_facts', true) IS DISTINCT FROM 'on'
+       AND EXISTS (SELECT 1 FROM facts) THEN
+        RAISE EXCEPTION 'facts holds rows, and this rollback drops them; roll back with --force to drop them anyway';
+    END IF;
+END;
+$$;
+-- +goose StatementEnd
 DROP TABLE stock_splits;
 DROP TABLE facts;
 DROP FUNCTION facts_reject_change();

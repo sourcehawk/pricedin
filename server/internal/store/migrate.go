@@ -9,6 +9,11 @@ import (
 	"github.com/pressly/goose/v3"
 )
 
+// AllowDropFactsSetting is a Postgres session setting. Rolling back the
+// migration that creates facts fails while facts holds rows, unless the
+// connection sets this setting to "on".
+const AllowDropFactsSetting = "pricedin.allow_drop_facts"
+
 //go:embed migrations/*.sql
 var migrations embed.FS
 

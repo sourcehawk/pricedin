@@ -8,8 +8,8 @@ import (
 	"io"
 	"time"
 
-	// Registers the "pgx" driver for database/sql, which goose needs.
-	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
 	"github.com/spf13/cobra"
 
@@ -32,7 +32,7 @@ func newMigrateCmd(getenv func(string) string) *cobra.Command {
 		Short: "Apply every pending migration",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return withMigrator(cmd.Context(), getenv, func(p *goose.Provider, _ *sql.DB) error {
+			return withMigrator(cmd.Context(), getenv, false, func(p *goose.Provider, _ *sql.DB) error {
 				results, err := p.Up(cmd.Context())
 				printResults(cmd.OutOrStdout(), results)
 				if len(results) == 0 && err == nil {
@@ -50,7 +50,7 @@ func newMigrateCmd(getenv func(string) string) *cobra.Command {
 		Short: "Roll back the latest migration, or every migration after --to",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return withMigrator(cmd.Context(), getenv, func(p *goose.Provider, db *sql.DB) error {
+			return withMigrator(cmd.Context(), getenv, force, func(p *goose.Provider, db *sql.DB) error {
 				if !force {
 					if err := refuseWhileFactsHasRows(cmd.Context(), db); err != nil {
 						return err
@@ -77,7 +77,7 @@ func newMigrateCmd(getenv func(string) string) *cobra.Command {
 		Short: "List each migration as applied or pending",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return withMigrator(cmd.Context(), getenv, func(p *goose.Provider, _ *sql.DB) error {
+			return withMigrator(cmd.Context(), getenv, false, func(p *goose.Provider, _ *sql.DB) error {
 				statuses, err := p.Status(cmd.Context())
 				if err != nil {
 					return err
@@ -99,8 +99,9 @@ func newMigrateCmd(getenv func(string) string) *cobra.Command {
 }
 
 // withMigrator opens the configured database, runs fn with a migrator and
-// the database, and closes the database.
-func withMigrator(ctx context.Context, getenv func(string) string, fn func(*goose.Provider, *sql.DB) error) (err error) {
+// the database, and closes the database. With allowDropFacts, a rollback of
+// the facts migration drops facts also when the table holds rows.
+func withMigrator(ctx context.Context, getenv func(string) string, allowDropFacts bool, fn func(*goose.Provider, *sql.DB) error) (err error) {
 	cfg, err := config.Load(getenv)
 	if err != nil {
 		return err
@@ -108,10 +109,15 @@ func withMigrator(ctx context.Context, getenv func(string) string, fn func(*goos
 	if err := cfg.Database.Require(); err != nil {
 		return err
 	}
-	db, err := sql.Open("pgx", cfg.Database.URL)
+	connCfg, err := pgx.ParseConfig(cfg.Database.URL)
 	if err != nil {
-		return fmt.Errorf("migrate: open database: %w", err)
+		// The parse error can repeat the URL, and with it the password.
+		return errors.New("migrate: the database URL does not parse")
 	}
+	if allowDropFacts {
+		connCfg.RuntimeParams[store.AllowDropFactsSetting] = "on"
+	}
+	db := stdlib.OpenDB(*connCfg)
 	defer func() { err = errors.Join(err, db.Close()) }()
 	if err := db.PingContext(ctx); err != nil {
 		return fmt.Errorf("migrate: connect: %w", err)
@@ -127,10 +133,12 @@ func withMigrator(ctx context.Context, getenv func(string) string, fn func(*goos
 }
 
 // refuseWhileFactsHasRows returns an error when the table facts exists and
-// holds rows. Facts are append-only, and a rollback can drop them.
+// holds rows, before any migration rolls back. Facts are append-only, and a
+// rollback can drop them. The down migration of facts checks again under a
+// lock, so a fact that arrives after this check still stops the rollback.
 func refuseWhileFactsHasRows(ctx context.Context, db *sql.DB) error {
 	var exists bool
-	if err := db.QueryRowContext(ctx, `SELECT to_regclass('public.facts') IS NOT NULL`).Scan(&exists); err != nil {
+	if err := db.QueryRowContext(ctx, `SELECT to_regclass('facts') IS NOT NULL`).Scan(&exists); err != nil {
 		return fmt.Errorf("check facts: %w", err)
 	}
 	if !exists {
