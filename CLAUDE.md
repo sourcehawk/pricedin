@@ -6,7 +6,7 @@ Product principle: show what must happen for an investment to succeed, not what 
 
 ## Status
 
-v1 is in development. The server side is complete. The web app has the login page, the stock page with the stock search, every lever and the inline walkthrough, and the data page. Its panels come with the panel issues (#13 to #16). The repository has these parts:
+v1 is complete and ready to deploy. The owner runs the first deploy with `docs/runbook.md`. The web app has the login page, the stock page with the stock search, every lever, all seven panels with their inline walkthroughs, and the data page. The repository has these parts:
 
 - `server/`: Go module `github.com/sourcehawk/pricedin/server`, one binary `pricedin` (`cmd/pricedin`) with these subcommands: `serve` (the HTTP API with the owner login), `migrate`, `jobs list|run`, `ingest company`, `scheduler`, `prices verify`, `auth hash-password|token|sessions`, and `healthcheck`.
   - `internal/engine`: the Go calculation engine, the source of truth.
@@ -18,7 +18,7 @@ v1 is in development. The server side is complete. The web app has the login pag
 - `web/`: Next.js app (App Router, TypeScript). `src/proxy.ts` sends `/api/*` to the API at request time and sends a visitor without a session to `/login`. `src/api` holds the typed client and the types generated from `server/api/openapi.yaml`. `src/engine` is the TypeScript port of the engine. Both engines pass the shared cases in `testdata/engine/`.
 - `e2e/`: Playwright tests that run against the Docker Compose stack.
 - `deploy/`: the Fly.io app (`fly/server.toml`) and the SQL script of the app role (`sql/roles.sql`). `.github/workflows/deploy.yml` deploys by hand. Nothing is deployed yet.
-- `docs/`: architecture, data sources, API, runbook and development guide. `docs/superpowers/` holds the design, the plan and the state of v1.
+- `docs/`: architecture, data sources, API, runbook and development guide. `docs/superpowers/specs/` holds the design of v1 and the decisions behind it.
 - `Makefile`: the only entry point for tools, lint, tests, builds, images and the local stack. CI calls only `make` targets. `make` lists them.
 - `docker-compose.yml` and `docker-compose.fixtures.yml`: the local stack, with or without a fixture server that answers in place of SEC and Massive. `.env.example` lists every variable.
 
@@ -138,7 +138,7 @@ Rules for the UI:
 
 Fundamentals come from SEC EDGAR. It is free, official and needs no key.
 
-- Ticker to CIK map: `https://www.sec.gov/files/company_tickers.json`.
+- Ticker to CIK map: `https://www.sec.gov/files/company_tickers_exchange.json` (ticker, CIK and exchange).
 - Financial facts: `https://data.sec.gov/api/xbrl/companyfacts/CIK##########.json`. Use diluted EPS, revenue, operating income, operating cash flow, capital spending and diluted share count.
 - Filing list and SIC industry code: `https://data.sec.gov/submissions/CIK##########.json`.
 - Nightly bulk files exist for the initial import. After that, fetch changes incrementally.
@@ -165,7 +165,7 @@ Stooq was the first choice. Since April 2026 its downloads need an API key that 
 - Massive serves daily bars for the last five years. The plan refuses older data.
 - `GET /v2/aggs/grouped/locale/us/market/stocks/{date}?adjusted=false` returns one daily bar for every US ticker (about 12,600) for one date.
 - `GET /v2/aggs/ticker/{ticker}/range/1/day/{from}/{to}?adjusted=false` returns the daily bars of one ticker.
-- `GET /v3/reference/splits` and `GET /v3/reference/dividends` give split events and cash dividends. `GET /v3/reference/tickers` gives the CIK of each ticker.
+- `GET /stocks/v1/splits` and `GET /stocks/v1/dividends` give split events and cash dividends. `GET /v3/reference/tickers` gives the CIK of each ticker.
 - Backfill: grouped daily bars for every trading day of the last five years. PricedIn needs at least 3 years, which is about 756 trading days.
 - Daily job: after the US close, a scheduled job (cron or a cloud scheduler) fetches the grouped daily bars for every missing trading day. The job must tolerate delays and missed days, and must fill gaps on its next run.
 - The page always shows the latest close, labeled "as of close" with its date. Live or delayed intraday quotes are out of scope, because the product compares growth over years and intraday prices change nothing that matters. Exchanges also charge extra for displaying them.
@@ -206,7 +206,7 @@ Data layout in Postgres:
 - `companies`: CIK, name, SIC code, fiscal year end.
 - `tickers`: symbol, CIK, valid-from and valid-to dates.
 - `facts`: one row per reported value, with CIK, XBRL concept, unit, period start, period end, value, form type, filing date and accession number. Never update or delete a row. Amended filings add new rows.
-- `prices_daily`: symbol, date, close, volume, split factor, source and load time.
+- `prices_daily`: symbol, date, raw close, volume, source and load time. The split factor and the split-adjusted close come from the stored split events (the view `prices_adjusted` and the API).
 - Derived quarterly series and TTM values: views or tables rebuilt from `facts`, with the filing date of each input.
 - Later: tables for screener runs and their results.
 

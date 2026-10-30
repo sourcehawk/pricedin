@@ -160,7 +160,7 @@ Never change a migration that is on `main`. Production has applied it.
 | `e2e/` | Playwright tests that run against the Compose stack |
 | `deploy/` | Fly.io settings and the SQL script of the app role |
 | `prototype/` | The prototype, the reference for behavior, calculations, copy and layout |
-| `docs/` | These pages, and the design, the plan and the state of v1 in `docs/superpowers/` |
+| `docs/` | These pages, and the design of v1 in `docs/superpowers/specs/` |
 | `scripts/` | Shell scripts that the Makefile and the workflows call |
 | `testdata/` | Test data that more than one part reads |
 | `tools/` | Programs that make test data |

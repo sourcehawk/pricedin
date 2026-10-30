@@ -13,7 +13,7 @@ PricedIn v1 is a private, cloud-hosted web application with an HTTP API. It show
 - Public access. One owner logs in. Nobody else gets an account.
 - The screener, sector context, MCP server and backtester. The schema and the API leave room for them (see "Room for extensions").
 - Intraday prices, analyst estimates, forward P/E.
-- Delisted companies. The price source covers current symbols only. The backtester needs a different source later.
+- Delisted companies. The dashboard does not need them. Massive keeps delisted tickers, but the Starter plan limits history to five years, so the backtester needs a source with a longer history later.
 - A deployment that the agent runs. The repository is deploy-ready, and the owner runs the first deploy.
 
 ## Repository layout
@@ -28,7 +28,7 @@ One repository holds every part. Each top-level directory has one owner concern.
 | `testdata/` | Data that more than one part reads: the shared engine cases, SEC fixtures, synthetic price fixtures. |
 | `prototype/` | The prototype, kept as the reference. |
 | `deploy/` | Fly.io configuration for the server and the scheduled jobs. |
-| `docs/` | Architecture, data sources, API, runbooks, ADRs. |
+| `docs/` | Architecture, data sources, API, runbook, development guide, and this design in `docs/superpowers/specs/`. |
 
 `server/` and `web/` each have their own `Dockerfile`. A pnpm workspace at the root holds `web` and `e2e`.
 
@@ -107,7 +107,7 @@ Raw downloads go to a blob store before any parsing: SEC JSON and archives, and 
 ### SEC ingestion
 
 - The client sends the configured `User-Agent` with a contact address, limits itself to 10 requests a second, and retries 429 and 5xx responses with backoff. A missing `User-Agent` is a startup error.
-- Sources: `company_tickers_exchange.json` (ticker, CIK and exchange), the submissions file for each company (filings, SIC code, fiscal year end), and company facts for each company. The bulk archives (`companyfacts.zip`, `submissions.zip`) serve the first full import.
+- Sources: `company_tickers_exchange.json` (ticker, CIK and exchange), the submissions file for each company (filings, SIC code, fiscal year end), and company facts for each company. The bulk archive `companyfacts.zip` serves the first full import of facts. Submissions come through the API for each covered company, because reading `submissions.zip` costs about 255 MB for its central directory alone.
 - Only the concepts that PricedIn uses are stored: diluted EPS, the revenue concepts, operating income, operating cash flow, capital spending, diluted weighted shares, dividends declared per share, and the stock split ratio.
 - The covered universe is every company with a current ticker on NYSE or Nasdaq. A single company can also load on demand, the first time the owner opens it.
 - The daily job reads the list of recent filings, then fetches company facts only for covered companies that filed.
