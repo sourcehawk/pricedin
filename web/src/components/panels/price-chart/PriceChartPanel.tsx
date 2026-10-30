@@ -1,10 +1,11 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { SourcedNumber } from "@/api/types";
 import { coefficient, factor, multiple, signedPct, times, usd } from "@/components/format";
 import { filingLink, Sourced } from "@/components/Sourced";
 import { InfoTip } from "@/components/tip/InfoTip";
+import { leaveDelay } from "@/components/tip/TipProvider";
 import { Walkthrough } from "@/components/walkthrough/Walkthrough";
 import { useWalkthrough } from "@/components/walkthrough/WalkthroughProvider";
 import type { Chart, ChartRange } from "@/engine";
@@ -46,6 +47,7 @@ function BandCaption({
   lifted,
   close,
   ttmEps,
+  onHold,
 }: {
   chart: Chart;
   lifted: number | null;
@@ -53,6 +55,8 @@ function BandCaption({
   close: SourcedNumber | null;
   /** The last day's TTM EPS with its source, when it has one. */
   ttmEps: SourcedNumber | null;
+  /** Gets true while the caption has the pointer or the focus, so the band stays and its sources stay reachable. */
+  onHold: (held: boolean) => void;
 }) {
   const bands = chart.bands.value;
   const last = chart.points.at(-1);
@@ -84,6 +88,20 @@ function BandCaption({
       data-testid="band-caption"
       data-walk="bandcap"
       aria-live="polite"
+      onPointerEnter={() => {
+        onHold(true);
+      }}
+      onPointerLeave={() => {
+        onHold(false);
+      }}
+      onFocus={() => {
+        onHold(true);
+      }}
+      onBlur={(e) => {
+        if (!(e.relatedTarget instanceof Node && e.currentTarget.contains(e.relatedTarget))) {
+          onHold(false);
+        }
+      }}
     >
       {text}
     </p>
@@ -104,6 +122,39 @@ export function PriceChartPanel() {
   const storedSet = useMemo(() => overlaySet(stored), [stored]);
   const shown = touring ? everyOverlay : storedSet;
   const [hoverBand, setHoverBand] = useState<number | null>(null);
+  // The band that the caption keeps while the user reaches for its sources.
+  const [captionBand, setCaptionBand] = useState<number | null>(null);
+  const leaving = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const stay = useCallback(() => {
+    if (leaving.current !== null) {
+      clearTimeout(leaving.current);
+      leaving.current = null;
+    }
+  }, []);
+  useEffect(() => stay, [stay]);
+  // A band that the pointer or the focus leaves drops after a short delay,
+  // in which the caption above the chart can take it.
+  const onBand = useCallback(
+    (m: number | null) => {
+      stay();
+      if (m !== null) {
+        setHoverBand(m);
+        return;
+      }
+      leaving.current = setTimeout(() => {
+        leaving.current = null;
+        setHoverBand(null);
+      }, leaveDelay);
+    },
+    [stay],
+  );
+  const onHold = (held: boolean) => {
+    stay();
+    setCaptionBand(held ? (captionBand ?? hoverBand) : null);
+    if (!held) {
+      setHoverBand(null);
+    }
+  };
   const [hover] = useState(createHoverStore);
   const { active } = useWalkthrough();
   const steps = useMemo(() => priceSteps(ticker), [ticker]);
@@ -185,7 +236,7 @@ export function PriceChartPanel() {
       ? (chart.bands.value?.nearest.value ?? null)
       : null;
   // The bands step explains the nearest band, so a hover does not replace it.
-  const lifted = bandsOn ? (tourBand ?? hoverBand) : null;
+  const lifted = bandsOn ? (tourBand ?? captionBand ?? hoverBand) : null;
   const last = chart.points.at(-1);
   const link = chart.link.value;
   const period = spanLabel(chart.start, chart.end, chart.range);
@@ -254,6 +305,7 @@ export function PriceChartPanel() {
           lifted={lifted}
           close={lastClose}
           ttmEps={last === undefined ? null : ttmSourced(last, history.quarters)}
+          onHold={onHold}
         />
       )}
       <div className={["px", styles.plot, lifted === null ? "" : "band-hover"].join(" ").trim()}>
@@ -262,7 +314,7 @@ export function PriceChartPanel() {
           ticker={ticker}
           shown={shown}
           lifted={lifted}
-          onBand={setHoverBand}
+          onBand={onBand}
           hover={hover}
           markers={markers}
           feed={history.prices?.provider ?? null}

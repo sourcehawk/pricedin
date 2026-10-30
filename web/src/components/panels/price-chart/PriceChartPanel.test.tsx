@@ -409,8 +409,38 @@ describe("PriceChartPanel", () => {
       expect(chart().querySelector('[data-bm="20"].bline')).not.toHaveClass("bh");
       expect(screen.queryByRole("tooltip")).toBeNull();
       fireEvent.pointerOut(line as Element, { pointerType: "mouse" });
-      expect(caption()).toHaveTextContent("Hover a dotted line");
+      await waitFor(() => {
+        expect(caption()).toHaveTextContent("Hover a dotted line");
+      });
       expect(chart().querySelector('[data-bm="25"].bline')).not.toHaveClass("bh");
+    });
+
+    it("keeps the band in the caption while the pointer moves onto its sources", async () => {
+      await withBands();
+      const line = chart().querySelector('[data-bm="25"].bhit') as Element;
+      await userEvent.hover(line);
+      expect(caption()).toHaveTextContent("25× band:");
+      // The pointer leaves the chart for the caption above it.
+      await userEvent.hover(within(caption()).getByRole("link", { name: "$10.80" }));
+      await new Promise((r) => setTimeout(r, 300));
+      expect(caption()).toHaveTextContent("25× band:");
+      expect(chart().querySelector('[data-bm="25"].bline')).toHaveClass("bh");
+      await userEvent.unhover(caption());
+      await waitFor(() => {
+        expect(caption()).toHaveTextContent("Hover a dotted line");
+      });
+    });
+
+    it("keeps the band in the caption while the focus moves onto its sources", async () => {
+      await withBands();
+      act(() => {
+        label("25×").focus();
+      });
+      act(() => {
+        within(caption()).getByRole("link", { name: "$10.80" }).focus();
+      });
+      await new Promise((r) => setTimeout(r, 300));
+      expect(caption()).toHaveTextContent("25× band:");
     });
 
     it("sources the TTM EPS and the close in the caption", async () => {
@@ -423,7 +453,6 @@ describe("PriceChartPanel", () => {
       const tip = screen.getByRole("tooltip");
       expect(tip).toHaveTextContent("Sum of the last four quarters");
       expect(tip.querySelectorAll(":scope > ul > li")).toHaveLength(4);
-      await userEvent.unhover(eps);
       const close = within(caption()).getAllByText("$270.00").at(-1) as HTMLElement;
       await userEvent.hover(close);
       expect(screen.getByRole("tooltip")).toHaveTextContent("Close on 2026-09-30 from Massive");
@@ -458,7 +487,9 @@ describe("PriceChartPanel", () => {
       pointer(line, "pointerout", "touch");
       expect(caption()).toHaveTextContent("20× band:");
       pointer(document.body, "pointerdown", "touch");
-      expect(caption()).toHaveTextContent("Hover a dotted line");
+      await waitFor(() => {
+        expect(caption()).toHaveTextContent("Hover a dotted line");
+      });
     });
 
     it("puts the band hit areas above the layer that follows the pointer", async () => {

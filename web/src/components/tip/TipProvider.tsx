@@ -40,8 +40,8 @@ export interface Tip {
 
 const TipContext = createContext<Tip | null>(null);
 
-/** leaveDelay gives the pointer time to move from an element onto its tooltip. */
-const leaveDelay = 150;
+/** leaveDelay gives the pointer time to move from an element onto its tooltip, in milliseconds. */
+export const leaveDelay = 150;
 
 /** TipProvider renders the tooltip layer. */
 export function TipProvider({ children }: { children: ReactNode }) {
