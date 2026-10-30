@@ -2,8 +2,8 @@ import { isDate } from "./dates";
 
 /**
  * Quarter is one fiscal quarter of a stock's history. Per-share values and
- * the close are split-adjusted; amounts are US dollars. Null was not
- * reported.
+ * the close are split-adjusted; amounts are US dollars. Null or absent was
+ * not reported.
  */
 export interface Quarter {
   /** "Q3 FY26"; the earnings paths name future quarters only after labels of this form. */
@@ -11,33 +11,59 @@ export interface Quarter {
   /** YYYY-MM-DD. */
   periodEnd: string;
   /** Diluted EPS of the quarter. */
-  eps: number | null;
+  eps?: number | null;
   /** Close on or before periodEnd. */
-  close: number | null;
+  close?: number | null;
   /** Weighted average, whole shares. */
-  dilutedShares: number | null;
-  revenue: number | null;
-  operatingIncome: number | null;
-  operatingCosts: number | null;
-  freeCashFlow: number | null;
+  dilutedShares?: number | null;
+  revenue?: number | null;
+  operatingIncome?: number | null;
+  operatingCosts?: number | null;
+  freeCashFlow?: number | null;
 }
 
-/** PricePoint is one daily close with the TTM EPS that was known on that day. */
+/** PricePoint is one daily close with the TTM EPS that was known on that day; null or absent was not known. */
 export interface PricePoint {
   /** YYYY-MM-DD. */
   date: string;
   close: number;
-  ttmEps: number | null;
+  ttmEps?: number | null;
 }
 
 /**
  * History is everything the engine knows about a stock: consecutive
- * quarters and trading days, oldest first. Null is an empty list.
+ * quarters and trading days, oldest first. Null or absent is an empty list.
  */
 export interface History {
   // Go marshals a nil slice as null.
-  quarters: readonly Quarter[] | null;
-  daily: readonly PricePoint[] | null;
+  quarters?: readonly Quarter[] | null;
+  daily?: readonly PricePoint[] | null;
+}
+
+/** QuarterRow is a Quarter with each field present: null where it was not reported. */
+export type QuarterRow = { readonly [K in keyof Quarter]-?: Exclude<Quarter[K], undefined> };
+
+/** DayRow is a PricePoint with a TTM EPS that is a number or null. */
+export type DayRow = { readonly [K in keyof PricePoint]-?: Exclude<PricePoint[K], undefined> };
+
+/** quarterRows returns the quarters with each absent field as null, as Go decodes them. */
+export function quarterRows(quarters: readonly Quarter[] | null | undefined): QuarterRow[] {
+  return (quarters ?? []).map((q) => ({
+    label: q.label,
+    periodEnd: q.periodEnd,
+    eps: q.eps ?? null,
+    close: q.close ?? null,
+    dilutedShares: q.dilutedShares ?? null,
+    revenue: q.revenue ?? null,
+    operatingIncome: q.operatingIncome ?? null,
+    operatingCosts: q.operatingCosts ?? null,
+    freeCashFlow: q.freeCashFlow ?? null,
+  }));
+}
+
+/** dayRows returns the days with an absent TTM EPS as null, as Go decodes them. */
+export function dayRows(daily: readonly PricePoint[] | null | undefined): DayRow[] {
+  return (daily ?? []).map((d) => ({ date: d.date, close: d.close, ttmEps: d.ttmEps ?? null }));
 }
 
 /** ExitPeMode selects how the exit P/E is set. */
@@ -60,7 +86,7 @@ export interface CustomGrowth {
   yearly: boolean;
   rate: number;
   /** Years without a rate repeat the last rate, or rate when there is none. */
-  rates: readonly number[] | null;
+  rates?: readonly number[] | null;
 }
 
 /** BaselineLever is the growth-baseline lever. */
@@ -86,17 +112,17 @@ export type ChartRange = "6M" | "1Y" | "3Y";
 export interface Levers {
   price: number;
   ttmEps: number;
-  /** Yearly, per share, counted as cash and not reinvested. */
-  dividend: number;
+  /** Yearly, per share, counted as cash and not reinvested. Absent is 0. */
+  dividend?: number;
   targetReturn: number;
   /** Whole years, 1 to 10. */
   holdingYears: number;
   exitPe: ExitPeLever;
   baseline: BaselineLever;
-  /** The user's bear, base and bull cases; empty or null means the defaults around the weighted trend. */
-  scenarios: readonly ScenarioCase[] | null;
-  /** Empty means 3Y. */
-  chartRange: ChartRange | "";
+  /** The user's bear, base and bull cases; empty, null or absent means the defaults around the weighted trend. */
+  scenarios?: readonly ScenarioCase[] | null;
+  /** Empty or absent means 3Y. */
+  chartRange?: ChartRange | "";
 }
 
 /** Investment is a purchase at price, held for years, that pays dividend per share each year in cash. */
@@ -189,8 +215,9 @@ function validMonths(name: string, m: number | undefined): void {
 export function validateLevers(l: Levers): void {
   validPerShare("price", l.price, false);
   validPerShare("ttmEps", l.ttmEps, true);
-  if (!Number.isFinite(l.dividend) || l.dividend < 0 || l.dividend > maxPerShare) {
-    fail(`dividend must be 0 to ${String(maxPerShare)}, got ${String(l.dividend)}`);
+  const dividend = l.dividend ?? 0;
+  if (!Number.isFinite(dividend) || dividend < 0 || dividend > maxPerShare) {
+    fail(`dividend must be 0 to ${String(maxPerShare)}, got ${String(dividend)}`);
   }
   if (!Number.isFinite(l.targetReturn) || l.targetReturn < 0 || l.targetReturn > maxTargetReturn) {
     fail(`targetReturn must be 0 to ${String(maxTargetReturn)}, got ${String(l.targetReturn)}`);
@@ -252,6 +279,7 @@ export function validateLevers(l: Levers): void {
     }
   });
   switch (l.chartRange) {
+    case undefined:
     case "":
     case "6M":
     case "1Y":
@@ -271,7 +299,12 @@ export function validateLevers(l: Levers): void {
  * before it.
  */
 export function validateHistory(h: History): void {
-  (h.quarters ?? []).forEach((q, i) => {
+  validateRows(quarterRows(h.quarters), dayRows(h.daily));
+}
+
+/** validateRows is validateHistory for a history whose absent fields are null. */
+export function validateRows(quarters: readonly QuarterRow[], daily: readonly DayRow[]): void {
+  quarters.forEach((q, i) => {
     const at = `quarters[${String(i)}]`;
     if (!isDate(q.periodEnd)) {
       fail(`${at}.periodEnd must be a YYYY-MM-DD date, got ${JSON.stringify(q.periodEnd)}`);
@@ -296,7 +329,7 @@ export function validateHistory(h: History): void {
     }
   });
   let prev: string | undefined;
-  (h.daily ?? []).forEach((d, i) => {
+  daily.forEach((d, i) => {
     const at = `daily[${String(i)}]`;
     if (!isDate(d.date)) {
       fail(`${at}.date must be a YYYY-MM-DD date, got ${JSON.stringify(d.date)}`);

@@ -1,4 +1,10 @@
-import { maxCustomGrowth, minCustomGrowth, type CustomGrowth, type Quarter } from "./inputs";
+import {
+  maxCustomGrowth,
+  minCustomGrowth,
+  quarterRows,
+  type CustomGrowth,
+  type Quarter,
+} from "./inputs";
 import { niceStep } from "./core";
 import { Series } from "./series";
 import { at, newAxis, none, some, type Axis, type Maybe, type MaybeNumber } from "./value";
@@ -23,7 +29,7 @@ const defaultTrailingMonths = 12;
 
 /** trailingGrowth returns trailing growth over the requested months; zero months means 12. */
 export function trailingGrowth(quarters: readonly Quarter[], months: number): Trailing {
-  return trailing(new Series(quarters), months);
+  return trailing(new Series(quarterRows(quarters)), months);
 }
 
 export function trailing(s: Series, requested: number): Trailing {
@@ -70,7 +76,7 @@ export interface Trajectory {
 
 /** trajectoryFill returns the trajectory over years. It is missing when the history has no weighted trend. */
 export function trajectoryFill(quarters: readonly Quarter[], years: number): Maybe<Trajectory> {
-  return trajectory(new Series(quarters), years);
+  return trajectory(new Series(quarterRows(quarters)), years);
 }
 
 export function trajectory(s: Series, years: number): Maybe<Trajectory> {

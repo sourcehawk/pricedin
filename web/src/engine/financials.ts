@@ -1,5 +1,5 @@
 import { niceStep } from "./core";
-import type { Quarter } from "./inputs";
+import { quarterRows, type Quarter, type QuarterRow } from "./inputs";
 import { constant } from "./pricechart";
 import {
   at,
@@ -117,7 +117,7 @@ export interface PairCorrelationV {
   class: "strongSame" | "moderateSame" | "weak" | "moderateOpposite" | "strongOpposite";
 }
 
-function valueOf(m: Metric, q: Quarter): number | null {
+function valueOf(m: Metric, q: QuarterRow): number | null {
   return q[m];
 }
 
@@ -157,7 +157,8 @@ function perMetric<T>(f: (m: Metric) => T): Record<Metric, T> {
 }
 
 /** financials returns the financials panel for the last eight quarters. */
-export function financials(quarters: readonly Quarter[]): FinancialsView {
+export function financials(input: readonly Quarter[]): FinancialsView {
+  const quarters = quarterRows(input);
   const w = quarters.slice(Math.max(0, quarters.length - financialQuarters));
   const values = (m: Metric): (number | null)[] => w.map((q) => valueOf(m, q));
   const yoyOf = (d: readonly (number | null)[]): MaybeNumber[] =>
@@ -304,7 +305,7 @@ function pairCorrelation(
 }
 
 function tiles(
-  w: readonly Quarter[],
+  w: readonly QuarterRow[],
   rev: readonly (number | null)[],
   values: (m: Metric) => (number | null)[],
   margin: readonly MaybeNumber[],

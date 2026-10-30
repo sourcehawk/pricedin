@@ -1,6 +1,6 @@
 import { baselinePath } from "./baselines";
 import { growthInRange, niceStep, requiredGrowth } from "./core";
-import type { Investment, Quarter } from "./inputs";
+import { quarterRows, type Investment, type Quarter } from "./inputs";
 import { Series } from "./series";
 import {
   at,
@@ -30,8 +30,8 @@ export interface PathsInput {
   years: number;
   /** The baseline growth. */
   baseline: MaybeNumber;
-  /** When not null, the baseline path follows one rate per year (the custom year-by-year baseline). */
-  yearlyRates: readonly number[] | null;
+  /** When not null or absent, the baseline path follows one rate per year (the custom year-by-year baseline). */
+  yearlyRates?: readonly number[] | null;
   /** The EPS needed at the exit; the required path runs to it. */
   requiredEps: MaybeNumber;
 }
@@ -71,10 +71,11 @@ export function earningsPaths(input: PathsInput): Maybe<Paths> {
   if (!(input.eps > 0)) {
     return none("needs_positive_eps");
   }
-  const s = new Series(input.quarters);
+  const rows = quarterRows(input.quarters);
+  const s = new Series(rows);
   const history: HistoryPoint[] = [];
   for (let i = windowStart(s); i <= s.last; i++) {
-    const q = at(input.quarters, i);
+    const q = at(rows, i);
     history.push({
       label: q.label,
       periodEnd: q.periodEnd,
@@ -86,12 +87,12 @@ export function earningsPaths(input: PathsInput): Maybe<Paths> {
   const req = input.requiredEps;
   const gv = g.value !== null && growthInRange(g.value) ? g.value : null;
   const gMissing = g.value === null ? g : none("growth_out_of_range");
-  const last = s.last >= 0 ? at(input.quarters, s.last).label : "";
+  const last = s.last >= 0 ? at(rows, s.last).label : "";
   const steps = 4 * input.years;
   const future: FuturePoint[] = [];
   for (let k = 0; k <= steps; k++) {
     const baseline: MaybeNumber =
-      gv === null ? gMissing : some(baselinePath(input.eps, gv, k, input.yearlyRates));
+      gv === null ? gMissing : some(baselinePath(input.eps, gv, k, input.yearlyRates ?? null));
     const required: MaybeNumber =
       req.value === null ? req : some(input.eps * Math.pow(req.value / input.eps, k / steps));
     const gap: MaybeNumber =
@@ -204,10 +205,11 @@ export function howDemanding(
   inv: Investment,
   exitPe: MaybeNumber,
 ): Demanding {
-  const s = new Series(quarters);
+  const rows = quarterRows(quarters);
+  const s = new Series(rows);
   const points: DemandingPoint[] = [];
   for (let i = windowStart(s); i <= s.last; i++) {
-    const q = at(quarters, i);
+    const q = at(rows, i);
     const today = i === s.last;
     let price: MaybeNumber = some(inv.price);
     let ttmEps: MaybeNumber = some(inv.eps);

@@ -25,9 +25,11 @@ import { exitPeView, type ExitPeView } from "./exitpe";
 import { financials, type FinancialsView } from "./financials";
 import { returnGrid, type Grid } from "./grid";
 import {
+  dayRows,
   minCustomExitPe,
-  validateHistory,
+  quarterRows,
   validateLevers,
+  validateRows,
   type BaselineMode,
   type History,
   type Investment,
@@ -164,9 +166,9 @@ const marketReturn = 0.1;
  */
 export function evaluate(h: History, l: Levers): Evaluation {
   validateLevers(l);
-  validateHistory(h);
-  const quarters = h.quarters ?? [];
-  const daily = h.daily ?? [];
+  const quarters = quarterRows(h.quarters);
+  const daily = dayRows(h.daily);
+  validateRows(quarters, daily);
   const s = new Series(quarters);
   const n = l.holdingYears;
   const inv: Investment = {
@@ -174,7 +176,7 @@ export function evaluate(h: History, l: Levers): Evaluation {
     eps: l.ttmEps,
     targetReturn: l.targetReturn,
     years: n,
-    dividend: l.dividend,
+    dividend: l.dividend ?? 0,
   };
   const peNow: MaybeNumber = l.ttmEps > 0 ? some(l.price / l.ttmEps) : none("needs_positive_eps");
 
@@ -309,7 +311,7 @@ export function evaluate(h: History, l: Levers): Evaluation {
     howDemanding: howDemanding(quarters, inv, pe),
     scenarios: evaluatedScenarios(inv, l, weighted, pe),
     shareCountEvents: shareCountEvents(quarters),
-    priceChart: priceChart(daily, quarters, l.chartRange),
+    priceChart: priceChart(daily, quarters, l.chartRange ?? ""),
     financials: financials(quarters),
   };
   return ev;

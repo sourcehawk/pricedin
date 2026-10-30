@@ -1,7 +1,14 @@
 import { niceStep } from "./core";
 import { addDays, addMonths } from "./dates";
 import { nearest } from "./grid";
-import type { ChartRange, PricePoint, Quarter } from "./inputs";
+import {
+  dayRows,
+  quarterRows,
+  type ChartRange,
+  type DayRow,
+  type PricePoint,
+  type Quarter,
+} from "./inputs";
 import {
   at,
   finite,
@@ -32,7 +39,8 @@ export interface ShareEvent {
 const shareEventMin = 0.02;
 
 /** shareCountEvents returns the share-count events, oldest first. Quarters without a count on either side are skipped. */
-export function shareCountEvents(quarters: readonly Quarter[]): ShareEvent[] {
+export function shareCountEvents(input: readonly Quarter[]): ShareEvent[] {
+  const quarters = quarterRows(input);
   const out: ShareEvent[] = [];
   for (let i = 1; i < quarters.length; i++) {
     const a = at(quarters, i - 1).dilutedShares;
@@ -159,7 +167,8 @@ export interface BandPair {
  * bandPrice gives the line of a band on each day. The bands are missing
  * when no point has a positive TTM EPS.
  */
-export function peBands(points: readonly PricePoint[]): Maybe<Bands> {
+export function peBands(input: readonly PricePoint[]): Maybe<Bands> {
+  const points = dayRows(input);
   let lo = Infinity;
   let hi = -Infinity;
   for (const d of points) {
@@ -274,10 +283,10 @@ export function peBands(points: readonly PricePoint[]): Maybe<Bands> {
 /**
  * bandPrice returns the price on the line of a P/E band on one day: the
  * day's TTM EPS times the band's multiple. It is missing when the TTM EPS
- * is null (missing_data) or not positive (needs_positive_eps).
+ * is null or undefined (missing_data) or not positive (needs_positive_eps).
  */
-export function bandPrice(ttmEps: number | null, multiple: number): MaybeNumber {
-  if (ttmEps === null) {
+export function bandPrice(ttmEps: number | null | undefined, multiple: number): MaybeNumber {
+  if (ttmEps === null || ttmEps === undefined) {
     return none("missing_data");
   }
   if (!(ttmEps > 0)) {
@@ -286,7 +295,7 @@ export function bandPrice(ttmEps: number | null, multiple: number): MaybeNumber 
   return some(ttmEps * multiple);
 }
 
-function pointPe(d: PricePoint): MaybeNumber {
+function pointPe(d: DayRow): MaybeNumber {
   if (d.ttmEps === null) {
     return none("missing_data");
   }
@@ -365,10 +374,11 @@ const rangeMonths: Record<ChartRange, number> = { "6M": 6, "1Y": 12, "3Y": 36 };
  * without daily data.
  */
 export function priceChart(
-  daily: readonly PricePoint[],
+  days: readonly PricePoint[],
   quarters: readonly Quarter[],
   chartRange: ChartRange | "",
 ): Maybe<Chart> {
+  const daily = dayRows(days);
   if (daily.length === 0) {
     return none("insufficient_history");
   }
@@ -482,7 +492,7 @@ export function priceChart(
 }
 
 /** enrich adds the P/E and the 12-month changes to every daily point. */
-function enrich(daily: readonly PricePoint[]): ChartPoint[] {
+function enrich(daily: readonly DayRow[]): ChartPoint[] {
   const first = at(daily, 0);
   let j = 0;
   return daily.map((d): ChartPoint => {

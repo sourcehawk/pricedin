@@ -1,5 +1,6 @@
 // @vitest-environment node
 import {
+  bandPrice,
   evaluate,
   InvalidInputError,
   type BaselineMode,
@@ -228,7 +229,67 @@ describe("evaluate", () => {
     });
     expect(toJson(implicit)).toEqual(toJson(explicit));
   });
+
+  // Go decodes an absent key as its zero value or nil, so the levers and the
+  // history can leave out each key whose zero value is valid.
+  it("reads absent keys as Go's zero values", () => {
+    const explicit = evaluate(
+      { quarters: history.quarters, daily: history.daily },
+      { ...levers, dividend: 0, scenarios: null, chartRange: "" },
+    );
+    const rest: Levers = {
+      price: levers.price,
+      ttmEps: levers.ttmEps,
+      targetReturn: levers.targetReturn,
+      holdingYears: levers.holdingYears,
+      exitPe: levers.exitPe,
+      baseline: levers.baseline,
+    };
+    const quarters = history.quarters.map((q) => ({
+      label: q.label,
+      periodEnd: q.periodEnd,
+      eps: q.eps ?? null,
+    }));
+    const sparse = evaluate(
+      {
+        quarters: quarters.map((q, i) =>
+          i % 3 === 0 ? { label: q.label, periodEnd: q.periodEnd } : q,
+        ),
+        daily: history.daily.map((d, i) => (i % 2 === 0 ? { date: d.date, close: d.close } : d)),
+      },
+      rest,
+    );
+    const nulls = evaluate(
+      {
+        quarters: quarters.map((q, i) => ({
+          ...q,
+          eps: i % 3 === 0 ? null : q.eps,
+          close: null,
+          dilutedShares: null,
+          revenue: null,
+          operatingIncome: null,
+          operatingCosts: null,
+          freeCashFlow: null,
+        })),
+        daily: history.daily.map((d, i) => (i % 2 === 0 ? { ...d, ttmEps: null } : d)),
+      },
+      { ...levers, dividend: 0, scenarios: null, chartRange: "" },
+    );
+    expect(toJson(sparse)).toEqual(toJson(nulls));
+    expect(toJson(evaluate({}, rest))).toEqual(
+      toJson(evaluate({ quarters: [], daily: [] }, explicitLevers())),
+    );
+    expect(toJson(explicit)).toEqual(toJson(evaluate(history, { ...levers, chartRange: "3Y" })));
+  });
+
+  it("reads an absent TTM EPS of a band line as missing data", () => {
+    expect(bandPrice(undefined, 20)).toEqual({ value: null, reason: "missing_data" });
+  });
 });
+
+function explicitLevers(): Levers {
+  return { ...levers, dividend: 0, scenarios: null, chartRange: "" };
+}
 
 /** mulberry32 is a small seeded generator, so a failing run can be repeated. */
 function mulberry32(seed: number): () => number {

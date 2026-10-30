@@ -1,4 +1,4 @@
-import type { ExitPeMode, Levers, Quarter } from "./inputs";
+import { quarterRows, type ExitPeMode, type Levers, type Quarter } from "./inputs";
 import { Series } from "./series";
 import { at, median, none, roundHalf, some, type Maybe, type MaybeNumber } from "./value";
 
@@ -24,7 +24,7 @@ export function typicalPe(
   eps: number,
   months: number,
 ): Typical {
-  return typical(new Series(quarters), price, eps, months);
+  return typical(new Series(quarterRows(quarters)), price, eps, months);
 }
 
 export function typical(s: Series, price: number, eps: number, requested: number): Typical {

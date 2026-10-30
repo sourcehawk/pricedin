@@ -1,4 +1,4 @@
-import type { Quarter } from "./inputs";
+import { quarterRows, type Quarter, type QuarterRow } from "./inputs";
 import { at, none, some, type MaybeNumber } from "./value";
 
 /** QuarterPoint holds the derived values of one quarter. */
@@ -22,7 +22,7 @@ export class Series {
   readonly ttmYoy: MaybeNumber[];
   readonly wtd: MaybeNumber[];
 
-  constructor(readonly q: readonly Quarter[]) {
+  constructor(readonly q: readonly QuarterRow[]) {
     const n = q.length;
     this.last = n - 1;
     this.ttm = new Array<MaybeNumber>(n);
@@ -136,7 +136,7 @@ export class Series {
 
 /** quarterSeries returns the derived values of each quarter, in the order of quarters. */
 export function quarterSeries(quarters: readonly Quarter[]): QuarterPoint[] {
-  const s = new Series(quarters);
+  const s = new Series(quarterRows(quarters));
   return quarters.map((_, i) => s.point(i));
 }
 
@@ -145,5 +145,5 @@ export function weightedTrend(quarters: readonly Quarter[], index: number): Mayb
   if (index < 0 || index >= quarters.length) {
     return none("insufficient_history");
   }
-  return at(new Series(quarters).wtd, index);
+  return at(new Series(quarterRows(quarters)).wtd, index);
 }
