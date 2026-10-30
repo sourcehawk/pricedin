@@ -2,7 +2,8 @@ name: pricedin
 
 # Local stack: Postgres, the API server and the web app. Host ports come from
 # variables, so that two stacks on one machine can avoid each other. Every
-# service also reads .env when it exists; values under `environment` win.
+# port binds to 127.0.0.1 only, because the default credentials are public.
+# Every service also reads .env when it exists; values under `environment` win.
 
 services:
   db:
@@ -15,7 +16,7 @@ services:
       - path: .env
         required: false
     ports:
-      - "${PRICEDIN_DB_PORT:-5432}:5432"
+      - "127.0.0.1:${PRICEDIN_DB_PORT:-5432}:5432"
     volumes:
       # Postgres 18 keeps its data in a versioned folder below this path.
       - db-data:/var/lib/postgresql
@@ -49,8 +50,8 @@ services:
       db:
         condition: service_healthy
     ports:
-      - "${PRICEDIN_API_PORT:-8080}:8080"
-      - "${PRICEDIN_METRICS_PORT:-9090}:9090"
+      - "127.0.0.1:${PRICEDIN_API_PORT:-8080}:8080"
+      - "127.0.0.1:${PRICEDIN_METRICS_PORT:-9090}:9090"
     healthcheck:
       test: ["CMD", "/pricedin", "healthcheck"]
       interval: 5s
@@ -72,7 +73,7 @@ services:
       server:
         condition: service_healthy
     ports:
-      - "${PRICEDIN_WEB_PORT:-3000}:3000"
+      - "127.0.0.1:${PRICEDIN_WEB_PORT:-3000}:3000"
     healthcheck:
       test:
         [
