@@ -136,6 +136,13 @@ describe("the priced-in panel", () => {
     expect(within(panel).getByText("Custom 12.0%")).toBeInTheDocument();
   });
 
+  it("names the custom rate in the growth scale's accessible name", async () => {
+    const panel = await renderPanel({ type: "setBaselineMode", mode: "custom" });
+    expect(within(panel).getByRole("img", { name: /^Growth scale/ })).toHaveAccessibleName(
+      /and your custom growth 12\.0%$/,
+    );
+  });
+
   it("explains a missing requirement instead of showing a number", async () => {
     const panel = await renderPanel({ type: "setStartingPoint", field: "ttmEps", value: -1 });
     expect(within(panel).getByTestId("required-growth")).toHaveTextContent("n/a");

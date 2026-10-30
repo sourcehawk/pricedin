@@ -191,6 +191,8 @@ export function GrowthRuler({ ev, targetReturn }: { ev: Evaluation; targetReturn
     ticks.push(v);
   }
   const req = ev.required.growth.value;
+  const b = ev.baselines;
+  const custom = b.active === "custom" ? b.custom.value : null;
 
   const { placed, height } = placeLabels(marksOf(ev, targetReturn), x);
   const marks = placed.map(({ mark: m, cx, lx, y }) => (
@@ -212,7 +214,7 @@ export function GrowthRuler({ ev, targetReturn }: { ev: Evaluation; targetReturn
       <svg
         viewBox={`0 0 ${String(width)} ${String(height)}`}
         role="img"
-        aria-label={`Growth scale: required growth ${pct(req)} against the weighted trend ${pct(ev.baselines.weighted.value)}, today ${pct(ev.baselines.today.value)} and trailing growth ${pct(ev.baselines.trailing.growth.value)}`}
+        aria-label={`Growth scale: required growth ${pct(req)} against the weighted trend ${pct(b.weighted.value)}, today ${pct(b.today.value)}${custom === null ? " and" : ","} trailing growth ${pct(b.trailing.growth.value)}${custom === null ? "" : ` and your custom growth ${pct(custom)}`}`}
       >
         <line
           x1={x0}
