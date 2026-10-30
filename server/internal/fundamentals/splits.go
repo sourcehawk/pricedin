@@ -17,10 +17,10 @@ import (
 // two splits of one company lie years apart.
 const sameSplitDays = 180
 
-// confirmSplits returns the confirmed splits, oldest first, and a conflict
-// for each SEC split that no provider event matches when provider events
-// were passed. ratios are the split-ratio facts filed by AsOf.
-func confirmSplits(cik domain.CIK, ratios []domain.Fact, opts Options) ([]domain.Split, []Conflict) {
+// confirmSplits returns the confirmed splits, oldest first, and the
+// conflicts of their evidence. ratios are the split-ratio facts filed by
+// AsOf, and periods the reported values that date an SEC split.
+func confirmSplits(cik domain.CIK, ratios []domain.Fact, opts Options, periods map[periodKey][]observation) ([]domain.Split, []Conflict) {
 	var splits []domain.Split
 	for _, s := range opts.Splits {
 		if (opts.AsOf == nil || !s.Date.After(*opts.AsOf)) && s.Ratio() != 1 {
@@ -32,10 +32,7 @@ func confirmSplits(cik domain.CIK, ratios []domain.Fact, opts Options) ([]domain
 	var conflicts []Conflict
 	for _, group := range groupRatios(ratios) {
 		r := group[0].Value
-		var date domain.Date
-		for i := range group {
-			date = latestDate(date, group[i].PeriodEnd)
-		}
+		date, open := dateSplit(group, r, periods)
 		evidence := firstReport(ratios, group)
 		if opts.AsOf != nil && date.After(*opts.AsOf) {
 			continue
@@ -54,6 +51,17 @@ func confirmSplits(cik domain.CIK, ratios []domain.Fact, opts Options) ([]domain
 		}
 		if !slices.ContainsFunc(splits[:provider], near) {
 			splits = append(splits, split)
+			if open != nil {
+				start := window(group).start
+				conflicts = append(conflicts, Conflict{
+					Kind:        ConflictSplitDate,
+					Concept:     open.Concept,
+					PeriodStart: &start,
+					PeriodEnd:   window(group).end,
+					Restated:    observation{fact: *open, value: open.Value, ratio: 1}.ref(),
+					Split:       &split,
+				})
+			}
 		}
 		if len(opts.Splits) > 0 || opts.ProviderChecked {
 			conflicts = append(conflicts, Conflict{
@@ -116,6 +124,87 @@ func latestByPeriod(ratios []domain.Fact) []domain.Fact {
 		}
 	}
 	return slices.Collect(maps.Values(latest))
+}
+
+// window returns the span that the split-ratio facts of one split cover:
+// from the earliest start, or instant, to the latest end.
+func window(group []domain.Fact) span {
+	w := span{group[0].PeriodEnd, group[0].PeriodEnd}
+	for i := range group {
+		f := &group[i]
+		start := f.PeriodEnd
+		if f.PeriodStart != nil {
+			start = *f.PeriodStart
+		}
+		if start.Before(w.start) {
+			w.start = start
+		}
+		w.end = latestDate(w.end, f.PeriodEnd)
+	}
+	return w
+}
+
+// dateSplit dates an SEC split of ratio r within the window of its facts.
+// A filing inside the window that repeats an earlier per-share value came
+// before the split, and one that restates it at r came after. The split is
+// dated on the day after the last filing that repeats a value, or at the
+// start of the window. It also returns the first filing on or after that
+// date whose basis is unknown, or nil.
+func dateSplit(group []domain.Fact, r float64, periods map[periodKey][]observation) (domain.Date, *domain.Fact) {
+	w := window(group)
+	votes := map[string]int{} // by accession: > 0 after the split, < 0 before
+	filings := map[string]*domain.Fact{}
+	for k, obs := range periods {
+		if kindOf(k.concept) != kindPerShare {
+			continue
+		}
+		for i := range obs {
+			f := &obs[i].fact
+			if f.Filed.Before(w.start) || f.Filed.After(w.end) {
+				continue
+			}
+			if _, ok := filings[f.Accession]; !ok {
+				filings[f.Accession] = f
+				votes[f.Accession] += 0
+			}
+			prior, ok := latestBefore(obs, w.start)
+			if !ok || prior.Value == 0 {
+				continue
+			}
+			switch {
+			case restatedAt(kindPerShare, prior.Value, f.Value, 1, 0):
+				votes[f.Accession]--
+			case restatedAt(kindPerShare, prior.Value, f.Value, r, splitSlack):
+				votes[f.Accession]++
+			}
+		}
+	}
+	date := w.start
+	for accn, f := range filings {
+		if votes[accn] < 0 && !f.Filed.Before(date) {
+			date = f.Filed.AddDays(1)
+		}
+	}
+	var open *domain.Fact
+	for accn, f := range filings {
+		if votes[accn] == 0 && !f.Filed.Before(date) && (open == nil || f.Filed.Before(open.Filed)) {
+			open = f
+		}
+	}
+	return date, open
+}
+
+// latestBefore returns the latest fact of obs filed before day.
+func latestBefore(obs []observation, day domain.Date) (domain.Fact, bool) {
+	var found domain.Fact
+	ok := false
+	for i := range obs {
+		f := &obs[i].fact
+		if f.Filed.Before(day) && (!ok || f.Filed.After(found.Filed)) {
+			found, ok = *f, true
+		}
+	}
+	return found, ok
 }
 
 // firstReport returns the earliest filing among ratios that reports the

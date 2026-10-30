@@ -387,3 +387,45 @@ func TestDeriveTakesBothInputsOfADifferenceOnOneSplitBasis(t *testing.T) {
 		t.Errorf("Q4 FY24 EPS = %v from %v, want 0.555 from k-2024 and q3-2024", v.V, accessions(v))
 	}
 }
+
+// windowSplit gives a 2-for-1 split that the SEC ratio fact dates only to
+// the quarter from 2025-04-01 to 2025-06-30. It took effect on 2025-04-10,
+// so the Q1 10-Q, filed 2025-04-25, already restates Q1 2024 from 2.00 to
+// 1.00 and reports Q1 2025 as 1.10 on the new basis.
+func windowSplit(t *testing.T, facts *[]domain.Fact) {
+	t.Helper()
+	newCalYear(t, facts, 2024).q1.add(sec.EarningsPerShareDiluted, "2024-01-01", "2024-03-31", 2.00)
+	y25 := newCalYear(t, facts, 2025)
+	y25.q1.add(sec.EarningsPerShareDiluted, "2025-01-01", "2025-03-31", 1.10)
+	y25.q1.add(sec.EarningsPerShareDiluted, "2024-01-01", "2024-03-31", 1.00)
+	y25.q2.add(sec.StockholdersEquityNoteStockSplitConversionRatio1, "2025-04-01", "2025-06-30", 2)
+}
+
+func TestDeriveDatesAnSECSplitByTheRestatementsInItsWindow(t *testing.T) {
+	var facts []domain.Fact
+	windowSplit(t, &facts)
+
+	s := derive(t, facts, fundamentals.Options{})
+	if len(s.Splits) != 1 || s.Splits[0].Date.String() != "2025-04-01" {
+		t.Errorf("Splits = %+v, want one dated 2025-04-01", s.Splits)
+	}
+	if v := value(t, s, "Q1 FY25", fundamentals.EPSDiluted); v.V != 1.10 || v.Inputs[0].SplitRatio != 1 {
+		t.Errorf("Q1 FY25 EPS = %v with ratio %v, want 1.10 as filed", v.V, v.Inputs[0].SplitRatio)
+	}
+	if len(s.Conflicts) != 0 {
+		t.Errorf("Conflicts = %+v, want none", s.Conflicts)
+	}
+}
+
+func TestDeriveFlagsAnSECSplitDateThatAFilingLeavesOpen(t *testing.T) {
+	// A 10-Q/A filed inside the window reports only a new period, so its
+	// basis is unknown.
+	var facts []domain.Fact
+	windowSplit(t, &facts)
+	newFiling(t, &facts, "q1a-2025", "10-Q/A", "2025-05-15", 2025, "Q1").add(sec.EarningsPerShareDiluted, "2025-01-01", "2025-03-31", 1.10)
+
+	s := derive(t, facts, fundamentals.Options{})
+	if n := countConflicts(s, fundamentals.ConflictSplitDate); n != 1 {
+		t.Errorf("%d split_date conflicts, want 1: %+v", n, s.Conflicts)
+	}
+}

@@ -268,7 +268,7 @@ func TestDeriveConfirmsNVIDIASplitsFromItsFilingsAlone(t *testing.T) {
 		}
 		dates = append(dates, s.Date.String()+" ×"+strconv.FormatFloat(s.Ratio(), 'f', -1, 64))
 	}
-	if want := "2021-07-19 ×4, 2024-06-30 ×10"; strings.Join(dates, ", ") != want {
+	if want := "2021-06-03 ×4, 2024-05-30 ×10"; strings.Join(dates, ", ") != want {
 		t.Errorf("SEC splits = %s, want %s", strings.Join(dates, ", "), want)
 	}
 	if len(withProvider.Quarters) != len(secOnly.Quarters) {

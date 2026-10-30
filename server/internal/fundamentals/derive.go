@@ -56,7 +56,7 @@ func Derive(cik domain.CIK, facts []domain.Fact, opts Options) (Series, error) {
 
 	years := cal.build()
 	d.snap(years)
-	d.splits, d.conflicts = confirmSplits(cik, ratios, opts)
+	d.splits, d.conflicts = confirmSplits(cik, ratios, opts, d.periods)
 	d.settle()
 
 	series := Series{Splits: d.splits, Conflicts: d.conflicts}

@@ -138,6 +138,12 @@ const (
 	// provider event of another ratio lies near its date, only the provider
 	// event is applied. Otherwise the SEC split is applied too.
 	ConflictSplitEvidence ConflictKind = "split_evidence"
+	// ConflictSplitDate is an SEC split that the filings date only to a
+	// window, with a filing inside the window that neither repeats nor
+	// restates an earlier per-share value. The split is dated before that
+	// filing, so its values are used as filed. PeriodStart and PeriodEnd
+	// give the window, Restated the filing, and Split the split.
+	ConflictSplitDate ConflictKind = "split_date"
 )
 
 // Conflict is one reconciliation problem.
