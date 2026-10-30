@@ -349,23 +349,48 @@ This also ends your own session, so log in again after it. API tokens stay valid
 
 ## Restore the database
 
+A restore brings back the database as it was at an earlier point, with its schema, its sessions and its API tokens. Thus the steps below also bring the schema up to date, and end the sessions and the tokens that the restore can bring back.
+
 Neon keeps the history of each branch for a time that depends on the plan. To go back to an earlier point:
 
-1. In the Neon console, restore the branch to a time before the fault. Or make a new branch from that time, if you want to keep the current state.
-2. If you made a new branch, its host is new: set the three database URLs again. A restore in place keeps the host.
-3. Run `psql "$OWNER_URL" -f deploy/sql/roles.sql`. It changes nothing when the grants are already there.
-4. Run `flyctl ssh console --app pricedin-api -C '/pricedin jobs run --wait daily'`. The jobs reload what the restore removed: the daily cursors are from the restored point, and each job adds only missing rows.
-5. If the restored point is older than the newest login, end the sessions with `auth sessions revoke-all`.
+1. Stop both machines, so that no request and no job uses the database during the restore:
 
-From another Postgres, use a dump. Make it as the owner, and restore it as the owner into an empty database:
+   ```sh
+   flyctl scale count app=0 scheduler=0 --app pricedin-api
+   ```
+
+2. In the Neon console, restore the branch to a time before the fault. Or make a new branch from that time, if you want to keep the current state. A new branch has a new host: set the three database URLs again, with `--stage`. A restore in place keeps the host.
+3. Apply the migrations that came after the restored point, with the image of the version that runs now:
+
+   ```sh
+   docker run --rm -e PRICEDIN_DATABASE_MIGRATE_URL="$OWNER_URL" pricedin-server:dev migrate up
+   ```
+
+   A change of secrets does not run the release command, so this step is necessary.
+4. Run `psql "$OWNER_URL" -f deploy/sql/roles.sql`. It changes nothing when the grants are already there.
+5. Start the machines again with `flyctl scale count app=1 scheduler=1 --app pricedin-api`.
+6. End every session, because the restore can bring back sessions that ended after the restored point:
+
+   ```sh
+   flyctl ssh console --app pricedin-api -C '/pricedin auth sessions revoke-all'
+   ```
+
+7. Revoke again each API token that you revoked after the restored point. `/pricedin auth token list` shows each token as active or revoked. If you do not know which tokens to revoke, revoke all of them and make new ones.
+8. Run `flyctl ssh console --app pricedin-api -C '/pricedin jobs run --wait daily'`. The jobs reload what the restore removed: the daily cursors are from the restored point, and each job adds only missing rows.
+
+From another Postgres, use a dump. Make it as the owner, and restore it as the owner into an empty database. Stop both machines first (step 1 above):
 
 ```sh
 pg_dump "$OWNER_URL" --format=custom --file=pricedin.dump
 pg_restore --dbname="$NEW_OWNER_URL" --no-owner --no-acl pricedin.dump
+docker run --rm -e PRICEDIN_DATABASE_MIGRATE_URL="$NEW_OWNER_URL" pricedin-server:dev migrate up
 psql "$NEW_OWNER_URL" -f deploy/sql/roles.sql
+psql "$NEW_OWNER_URL" -c '\password pricedin_app'
 ```
 
-`pg_restore` makes the tables and adds the rows. `--no-owner` makes the role of `$NEW_OWNER_URL` the owner of each table, so use the owner role there, never the app role. `--no-acl` leaves out the grants of the dump, because they name `pricedin_app`, which a new server does not have yet. `roles.sql` then makes the role and its grants. The trigger of `facts` rejects `UPDATE`, `DELETE` and `TRUNCATE`, but not the rows that the restore adds.
+`pg_restore` makes the tables and adds the rows. `--no-owner` makes the role of `$NEW_OWNER_URL` the owner of each table, so use the owner role there, never the app role. `--no-acl` leaves out the grants of the dump, because they name `pricedin_app`, which a new server does not have yet. `roles.sql` then makes the role and its grants, and `\password` gives the role a password: a dump holds no passwords. The trigger of `facts` rejects `UPDATE`, `DELETE` and `TRUNCATE`, but not the rows that the restore adds.
+
+Then set the three database URLs to the new server, start the machines, and do steps 6 to 8 above.
 
 ## Troubleshooting
 
