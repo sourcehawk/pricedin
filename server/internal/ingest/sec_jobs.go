@@ -32,6 +32,7 @@ const (
 	JobFundamentalsRebuild = "fundamentals-rebuild"
 	JobCompany             = "company"
 	JobDaily               = "daily"
+	JobReprocess           = "reprocess"
 )
 
 // secLock is the advisory lock that every SEC request holds, so that the
@@ -95,6 +96,12 @@ func (r *Runner) syncSECTickers(ctx context.Context) (SECTickersResult, error) {
 	if err != nil {
 		return SECTickersResult{}, err
 	}
+	return r.storeSECTickers(ctx, entries, r.today())
+}
+
+// storeSECTickers adds the companies of the SEC ticker map entries that
+// are new, and syncs the symbols of the "sec" source as of day.
+func (r *Runner) storeSECTickers(ctx context.Context, entries []sec.TickerEntry, day domain.Date) (SECTickersResult, error) {
 	companies := make([]domain.Company, 0, len(entries))
 	tickers := make([]domain.Ticker, 0, len(entries))
 	for _, e := range entries {
@@ -102,12 +109,12 @@ func (r *Runner) syncSECTickers(ctx context.Context) (SECTickersResult, error) {
 		tickers = append(tickers, e.Ticker)
 	}
 	res := SECTickersResult{Tickers: int64(len(entries))}
-	err = r.store.WithTx(ctx, func(tx *store.Store) error {
+	err := r.store.WithTx(ctx, func(tx *store.Store) error {
 		var err error
 		if res.CompaniesAdded, err = tx.AddCompanies(ctx, companies); err != nil {
 			return err
 		}
-		changes, err := tx.SyncTickers(ctx, store.TickerSourceSEC, r.today(), tickers)
+		changes, err := tx.SyncTickers(ctx, store.TickerSourceSEC, day, tickers)
 		res.Opened, res.Closed, res.Updated = changes.Opened, changes.Closed, changes.Updated
 		return err
 	})
@@ -433,14 +440,7 @@ func (r *Runner) loadFactsArchive(ctx context.Context, ciks []domain.CIK, res *S
 		if !want[cik] {
 			return nil
 		}
-		var n int64
-		err := r.store.WithTx(ctx, func(tx *store.Store) error {
-			var err error
-			if n, err = tx.InsertFacts(ctx, facts); err != nil || n == 0 {
-				return err
-			}
-			return tx.MarkFundamentalsPending(ctx, []domain.CIK{cik})
-		})
+		n, err := r.storeFacts(ctx, cik, facts)
 		if err != nil {
 			return err
 		}
@@ -453,6 +453,21 @@ func (r *Runner) loadFactsArchive(ctx context.Context, ciks []domain.CIK, res *S
 		return size, fmt.Errorf("ingest: %w", err)
 	}
 	return size, nil
+}
+
+// storeFacts adds the facts of the company cik that are not stored yet,
+// and marks its quarters pending when it added any. It returns the number
+// of facts added.
+func (r *Runner) storeFacts(ctx context.Context, cik domain.CIK, facts []domain.Fact) (int64, error) {
+	var n int64
+	err := r.store.WithTx(ctx, func(tx *store.Store) error {
+		var err error
+		if n, err = tx.InsertFacts(ctx, facts); err != nil || n == 0 {
+			return err
+		}
+		return tx.MarkFundamentalsPending(ctx, []domain.CIK{cik})
+	})
+	return n, err
 }
 
 // SECDailyResult counts what sec-daily read and wrote.

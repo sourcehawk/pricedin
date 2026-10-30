@@ -4,6 +4,7 @@ package store_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -301,5 +302,24 @@ func TestSyncTickersRejectsADateBeforeTheLastSync(t *testing.T) {
 				t.Error("SyncTickers() with a date before the last sync error = nil, want an error")
 			}
 		})
+	}
+}
+
+func TestGetTickerSyncDateIsTheDayOfTheLastSyncOfTheSource(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	s, _ := newStore(t)
+	mustUpsertCompanies(t, s, acme)
+	if _, err := s.GetTickerSyncDate(ctx, store.TickerSourceSEC); !errors.Is(err, store.ErrNotFound) {
+		t.Fatalf("GetTickerSyncDate() before a sync error = %v, want ErrNotFound", err)
+	}
+	ticker := domain.Ticker{Symbol: "ACME", CIK: acme.CIK, Exchange: "NYSE"}
+	mustSyncTickers(t, s, store.TickerSourceSEC, date(t, "2026-01-02"), ticker)
+	mustSyncTickers(t, s, store.TickerSourceSEC, date(t, "2026-01-05"), ticker)
+	mustSyncTickers(t, s, "massive", date(t, "2026-01-03"), ticker)
+
+	got, err := s.GetTickerSyncDate(ctx, store.TickerSourceSEC)
+	if err != nil || got != date(t, "2026-01-05") {
+		t.Errorf("GetTickerSyncDate(sec) = %s, %v, want 2026-01-05", got, err)
 	}
 }

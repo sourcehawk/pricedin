@@ -82,19 +82,44 @@ func versionedKey(base string, day domain.Date, sha16 string) (string, error) {
 	if err := blob.ValidateKey(base); err != nil {
 		return "", fmt.Errorf("ingest: record: %w", err)
 	}
-	dir, file, ok := cutLast(base, "/")
+	dir, file, ok := cutLastSlash(base)
 	if !ok {
 		return "", fmt.Errorf("ingest: record: key %q has no folder", base)
 	}
 	return dir + "/" + day.String() + "/" + sha16 + "-" + file, nil
 }
 
-func cutLast(s, sep string) (before, after string, found bool) {
-	i := strings.LastIndex(s, sep)
+// SplitVersionedKey is the inverse of VersionedKey: it returns the base key,
+// the retrieval day and the 16 hex digits of the hash of key. It returns
+// an error for a key that VersionedKey does not make.
+func SplitVersionedKey(key string) (base string, day domain.Date, sha16 string, err error) {
+	fail := func() (string, domain.Date, string, error) {
+		return "", domain.Date{}, "", fmt.Errorf("ingest: %q is not a versioned key", key)
+	}
+	rest, file, ok := cutLastSlash(key)
+	if !ok {
+		return fail()
+	}
+	dir, dayText, ok := cutLastSlash(rest)
+	if !ok {
+		return fail()
+	}
+	sha16, file, ok = strings.Cut(file, "-")
+	if !ok || file == "" || len(sha16) != 16 || strings.Trim(sha16, "0123456789abcdef") != "" {
+		return fail()
+	}
+	if day, err = domain.ParseDate(dayText); err != nil {
+		return fail()
+	}
+	return dir + "/" + file, day, sha16, nil
+}
+
+func cutLastSlash(s string) (before, after string, found bool) {
+	i := strings.LastIndex(s, "/")
 	if i < 0 {
 		return "", s, false
 	}
-	return s[:i], s[i+len(sep):], true
+	return s[:i], s[i+1:], true
 }
 
 // putOnce calls put unless key already holds an object.

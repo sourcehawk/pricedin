@@ -16,7 +16,9 @@ type Job struct {
 	Summary string
 	// SEC and Prices say which clients the job calls.
 	SEC, Prices bool
-	run         func(ctx context.Context, r *Runner, args []string) (Result, error)
+	// check, when set, rejects arguments that run would reject.
+	check func(args []string) error
+	run   func(ctx context.Context, r *Runner, args []string) (Result, error)
 }
 
 // Jobs returns every job, in the order of a first full import.
@@ -93,6 +95,21 @@ func Jobs() []Job {
 			},
 		},
 		{
+			Name: JobReprocess, Args: "[--prefix sec|prices] [--since YYYY-MM-DD] [--cik N]", MaxArgs: 6,
+			Summary: "Load the raw files of the blob store into the database again, with no request to SEC or the price provider",
+			check: func(args []string) error {
+				_, err := ParseReprocessArgs(args)
+				return err
+			},
+			run: func(ctx context.Context, r *Runner, args []string) (Result, error) {
+				opts, err := ParseReprocessArgs(args)
+				if err != nil {
+					return nil, err
+				}
+				return r.Reprocess(ctx, opts)
+			},
+		},
+		{
 			Name: JobDaily, SEC: true, Prices: true,
 			Summary: "Run sec-tickers, sec-daily, price-reference, prices-daily and fundamentals-rebuild pending",
 			run: func(ctx context.Context, r *Runner, _ []string) (Result, error) {
@@ -112,15 +129,28 @@ func LookupJob(name string) (Job, bool) {
 	return Job{}, false
 }
 
-// Run runs the job with args. It returns an error when the number of
-// arguments does not fit the job.
-func (r *Runner) Run(ctx context.Context, job Job, args []string) (Result, error) {
-	if len(args) < job.MinArgs || len(args) > job.MaxArgs {
-		usage := job.Name
-		if job.Args != "" {
-			usage += " " + job.Args
+// CheckArgs returns an error when the job would reject args, such as
+// when their number does not fit the job. It needs no database, so a
+// command can check the arguments before it connects.
+func (j Job) CheckArgs(args []string) error {
+	if len(args) < j.MinArgs || len(args) > j.MaxArgs {
+		usage := j.Name
+		if j.Args != "" {
+			usage += " " + j.Args
 		}
-		return nil, fmt.Errorf("ingest: usage: %s", usage)
+		return fmt.Errorf("ingest: usage: %s", usage)
+	}
+	if j.check != nil {
+		return j.check(args)
+	}
+	return nil
+}
+
+// Run runs the job with args. It returns the error of CheckArgs for
+// arguments that do not fit the job.
+func (r *Runner) Run(ctx context.Context, job Job, args []string) (Result, error) {
+	if err := job.CheckArgs(args); err != nil {
+		return nil, err
 	}
 	return job.run(ctx, r, args)
 }

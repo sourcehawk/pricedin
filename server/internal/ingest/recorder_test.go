@@ -182,3 +182,38 @@ func TestRecordHashesAnSECResponseAsReceived(t *testing.T) {
 		t.Errorf("puts = %d, want 2: only Massive responses leave out request_id", store.puts)
 	}
 }
+
+func TestSplitVersionedKeyReturnsTheBaseKeyTheDayAndTheHash(t *testing.T) {
+	day := domain.NewDate(2026, time.October, 30)
+	for _, base := range []string{
+		"sec/companyfacts/CIK0001045810.json",
+		"sec/archives/companyfacts.zip",
+		"prices/massive/aggs/BRK.B/2021-11-01_2026-10-29/page-2.json",
+	} {
+		key, err := ingest.VersionedKey(base, day, []byte("hello"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		gotBase, gotDay, gotHash, err := ingest.SplitVersionedKey(key)
+		if err != nil || gotBase != base || gotDay != day || gotHash != "2cf24dba5fb0a30e" {
+			t.Errorf("SplitVersionedKey(%q) = %q, %s, %q, %v; want %q, %s and the hash", key, gotBase, gotDay, gotHash, err, base, day)
+		}
+	}
+}
+
+func TestSplitVersionedKeyRejectsAKeyThatVersionedKeyNeverMakes(t *testing.T) {
+	for _, key := range []string{
+		"",
+		"sec/companyfacts.json",
+		"sec/companyfacts/CIK0001045810.json",
+		"sec/companyfacts/2026-13-30/2cf24dba5fb0a30e-CIK0001045810.json",
+		"sec/companyfacts/2026-10-30/2cf24dba5fb0a30e.json",
+		"sec/companyfacts/2026-10-30/2cf24dba5fb0a30-CIK0001045810.json",
+		"sec/companyfacts/2026-10-30/2CF24DBA5FB0A30E-CIK0001045810.json",
+		"2026-10-30/2cf24dba5fb0a30e-CIK0001045810.json",
+	} {
+		if _, _, _, err := ingest.SplitVersionedKey(key); err == nil {
+			t.Errorf("SplitVersionedKey(%q) error = nil, want an error", key)
+		}
+	}
+}

@@ -132,6 +132,21 @@ func (s *Store) SyncTickers(ctx context.Context, source string, asOf domain.Date
 	return changes, nil
 }
 
+// GetTickerSyncDate returns the asOf of the last SyncTickers of source, or
+// ErrNotFound when the source never synced. SyncTickers rejects an earlier
+// asOf.
+func (s *Store) GetTickerSyncDate(ctx context.Context, source string) (domain.Date, error) {
+	var day pgtype.Date
+	err := s.db.QueryRow(ctx, `SELECT synced_on FROM ticker_syncs WHERE source = $1`, source).Scan(&day)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.Date{}, notFound("ticker sync of %s", source)
+	}
+	if err != nil {
+		return domain.Date{}, fmt.Errorf("ticker sync of %s: %w", source, err)
+	}
+	return fromPgDate(day), nil
+}
+
 // currentTickers selects one current row per symbol, preferring the SEC
 // source.
 const currentTickers = `
