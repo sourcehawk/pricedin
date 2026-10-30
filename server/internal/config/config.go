@@ -18,6 +18,7 @@ type Config struct {
 	Database Database
 	Log      Log
 	SEC      SEC
+	Blob     Blob
 }
 
 // Load reads the configuration through getenv, which is os.Getenv outside
@@ -30,11 +31,12 @@ func Load(getenv func(string) string) (Config, error) {
 	db, dbErrs := loadDatabase(getenv)
 	logCfg, logErrs := loadLog(getenv)
 	secCfg, secErrs := loadSEC(getenv)
+	blob, blobErrs := loadBlob(getenv)
 
-	if errs := concat(httpErrs, dbErrs, logErrs, secErrs); len(errs) > 0 {
+	if errs := concat(httpErrs, dbErrs, logErrs, secErrs, blobErrs); len(errs) > 0 {
 		return Config{}, errors.Join(errs...)
 	}
-	return Config{HTTP: httpCfg, Database: db, Log: logCfg, SEC: secCfg}, nil
+	return Config{HTTP: httpCfg, Database: db, Log: logCfg, SEC: secCfg, Blob: blob}, nil
 }
 
 // VarError reports an environment variable that is missing or invalid.
