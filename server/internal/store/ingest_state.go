@@ -222,11 +222,34 @@ func (s *Store) ListPendingFundamentals(ctx context.Context) ([]domain.CIK, erro
 }
 
 // LockCompanyFundamentals takes a transaction lock on the derived quarters
-// of the CIK, so that two rebuilds of one company run one after the other.
-// It must run in WithTx; the lock ends with the transaction.
+// of the CIK, so that two rebuilds of one company run one after the other,
+// and then the shared side of the lock that LockPriceBarWrites takes, so
+// that no bar write runs during the rebuild. It must run in WithTx; the
+// locks end with the transaction.
 func (s *Store) LockCompanyFundamentals(ctx context.Context, cik domain.CIK) error {
 	if _, err := s.db.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended('fundamentals:' || $1::bigint::text, 0))`, int64(cik)); err != nil {
 		return fmt.Errorf("lock fundamentals of %s: %w", cik, err)
+	}
+	if _, err := s.db.Exec(ctx, `SELECT pg_advisory_xact_lock_shared(hashtextextended($1, 0))`, priceBarWritesLock); err != nil {
+		return fmt.Errorf("lock fundamentals of %s: %w", cik, err)
+	}
+	return nil
+}
+
+// priceBarWritesLock names the advisory lock between bar writes and
+// rebuilds.
+const priceBarWritesLock = "price-bar-writes"
+
+// LockPriceBarWrites takes the transaction lock that a bar write holds
+// while it marks pending the companies whose split its bars reach and
+// stores the bars. A rebuild holds its shared side from before it reads the
+// newest bar to its commit, so a bar write never lands between those
+// points: one lock for all companies, because a grouped day writes bars of
+// thousands of symbols. It must run in WithTx; the lock ends with the
+// transaction.
+func (s *Store) LockPriceBarWrites(ctx context.Context) error {
+	if _, err := s.db.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`, priceBarWritesLock); err != nil {
+		return fmt.Errorf("lock price bar writes: %w", err)
 	}
 	return nil
 }

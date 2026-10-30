@@ -341,6 +341,9 @@ func (r *Runner) loadGroupedDay(ctx context.Context, d domain.Date, keep map[str
 // storeBars stores bars, and in the same transaction marks pending the
 // companies whose split the bars reach, which a rebuild then applies.
 func storeBars(ctx context.Context, tx *store.Store, bars []domain.PriceBar) (int64, error) {
+	if err := tx.LockPriceBarWrites(ctx); err != nil {
+		return 0, err
+	}
 	if err := tx.MarkFundamentalsPendingForSplitsReached(ctx, bars); err != nil {
 		return 0, err
 	}

@@ -5,6 +5,7 @@ package store_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 
@@ -368,5 +369,78 @@ func TestGetEarliestGroupedPriceDate(t *testing.T) {
 	}
 	if got, err := s.GetEarliestGroupedPriceDate(ctx); err != nil || got != date(t, "2026-10-26") {
 		t.Errorf("GetEarliestGroupedPriceDate() = %v, %v; want 2026-10-26", got, err)
+	}
+}
+
+// A bar write waits for a rebuild that holds its company lock, so the
+// rebuild cannot read the newest bar, store a split, and clear the mark
+// around the write.
+func TestABarWriteWaitsForARunningRebuild(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	s, _ := newStore(t)
+	mustUpsertCompanies(t, s, acme)
+
+	locked := make(chan struct{})
+	release := make(chan struct{})
+	rebuildDone := make(chan error, 1)
+	go func() {
+		rebuildDone <- s.WithTx(ctx, func(tx *store.Store) error {
+			if err := tx.LockCompanyFundamentals(ctx, acme.CIK); err != nil {
+				return err
+			}
+			close(locked)
+			<-release
+			return nil
+		})
+	}()
+	<-locked
+
+	written := make(chan error, 1)
+	go func() {
+		written <- s.WithTx(ctx, func(tx *store.Store) error { return tx.LockPriceBarWrites(ctx) })
+	}()
+	select {
+	case err := <-written:
+		t.Fatalf("the bar write ran during the rebuild (error %v)", err)
+	case <-time.After(300 * time.Millisecond):
+	}
+	close(release)
+	if err := <-rebuildDone; err != nil {
+		t.Fatal(err)
+	}
+	if err := <-written; err != nil {
+		t.Errorf("bar write after the rebuild: %v", err)
+	}
+
+	// Rebuilds of two companies hold their locks at the same time.
+	got := make(chan struct{}, 2)
+	hold := make(chan struct{})
+	done := make(chan error, 2)
+	for _, cik := range []domain.CIK{acme.CIK, acme.CIK + 1} {
+		go func() {
+			done <- s.WithTx(ctx, func(tx *store.Store) error {
+				if err := tx.LockCompanyFundamentals(ctx, cik); err != nil {
+					return err
+				}
+				got <- struct{}{}
+				<-hold
+				return nil
+			})
+		}()
+	}
+	for range 2 {
+		select {
+		case <-got:
+		case <-time.After(5 * time.Second):
+			close(hold)
+			t.Fatal("two rebuilds of different companies blocked each other")
+		}
+	}
+	close(hold)
+	for range 2 {
+		if err := <-done; err != nil {
+			t.Error(err)
+		}
 	}
 }

@@ -79,7 +79,10 @@ func (s *Store) ListPriceBars(ctx context.Context, symbol string, from, to domai
 
 // ListAdjustedPriceBars returns the split-adjusted bars of symbol from from
 // to to, both included, oldest first. It reads the view prices_adjusted, so
-// a split stored later changes the result without rewriting any bar.
+// a split stored later changes the result without rewriting any bar. It
+// applies the provider's splits only, not the SEC-confirmed splits of
+// stock_splits, so its closes can disagree with per-share values that a
+// split from SEC evidence alone adjusted.
 func (s *Store) ListAdjustedPriceBars(ctx context.Context, symbol string, from, to domain.Date) ([]AdjustedBar, error) {
 	rows, err := s.db.Query(ctx, `
 		SELECT symbol, date, open, high, low, close, volume, source, raw_close, split_factor
