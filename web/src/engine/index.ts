@@ -1,0 +1,143 @@
+// PricedIn's calculation engine in the browser: a port of the Go engine in
+// server/internal/engine with the same functions in camelCase and the same
+// JSON shapes. The Go package doc describes the units, the missing values,
+// the input and the output. Both engines must pass testdata/engine/cases.json.
+
+export {
+  baselinePath,
+  growthScale,
+  trailingGrowth,
+  trajectoryFill,
+  yearlyAverage,
+  yearRates,
+  type Trailing,
+  type Trajectory,
+} from "./baselines";
+export {
+  exitPeNeeded,
+  niceStep,
+  project,
+  requiredGrowth,
+  requirement,
+  tone,
+  verdict,
+  type Projection,
+  type RequirementResult,
+  type Verdict,
+} from "./core";
+export {
+  evaluate,
+  type AtBaseline,
+  type Baselines,
+  type EvaluatedScenarios,
+  type Evaluation,
+  type LeverSensitivity,
+  type QuarterView,
+  type SensitivityAt,
+  type YearByYear,
+} from "./evaluate";
+export {
+  estimatedExitPe,
+  typicalPe,
+  type Estimate,
+  type ExitPe,
+  type ExitPeRule,
+  type ExitPeView,
+  type Typical,
+} from "./exitpe";
+export {
+  allMetrics,
+  compareScale,
+  financials,
+  type Compare,
+  type FinancialsView,
+  type MarginTile,
+  type Metric,
+  type MetricSeries,
+  type PairCorrelation,
+  type PairCorrelationV,
+  type QuarterRef,
+  type Tile,
+  type Tiles,
+} from "./financials";
+export {
+  returnGrid,
+  type ActiveBaseline,
+  type Grid,
+  type GridCell,
+  type GridColumn,
+  type GridInput,
+  type GridOutcome,
+  type GridRow,
+  type GridTag,
+  type Sensitivity,
+} from "./grid";
+export {
+  InvalidInputError,
+  maxCustomExitPe,
+  maxCustomGrowth,
+  maxHoldingYears,
+  maxMonths,
+  maxTargetReturn,
+  minCustomExitPe,
+  minCustomGrowth,
+  minHoldingYears,
+  validateHistory,
+  validateLevers,
+  type BaselineLever,
+  type BaselineMode,
+  type ChartRange,
+  type CustomGrowth,
+  type ExitPeLever,
+  type ExitPeMode,
+  type History,
+  type Investment,
+  type Levers,
+  type PricePoint,
+  type Quarter,
+  type ScenarioCase,
+} from "./inputs";
+export {
+  earningsPaths,
+  howDemanding,
+  type Demanding,
+  type DemandingPoint,
+  type FuturePoint,
+  type HistoryPoint,
+  type Paths,
+  type PathsInput,
+  type Peak,
+} from "./paths";
+export {
+  bandPrice,
+  correlation,
+  peBands,
+  priceChart,
+  shareCountEvents,
+  type Band,
+  type BandPair,
+  type Bands,
+  type Chart,
+  type ChartPoint,
+  type Last12Months,
+  type Link,
+  type ShareEvent,
+} from "./pricechart";
+export {
+  defaultScenarios,
+  scenarios,
+  type ScenarioOutcome,
+  type ScenarioResult,
+  type ScenarioSet,
+} from "./scenarios";
+export { quarterSeries, weightedTrend, type QuarterPoint } from "./series";
+export {
+  isSome,
+  type Axis,
+  type Maybe,
+  type MaybeNumber,
+  type Missing,
+  type Range,
+  type Reason,
+  type Tone,
+} from "./value";
