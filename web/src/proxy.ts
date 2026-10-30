@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { sessionCookie } from "@/api/session";
-import { route } from "./routing";
+import { apiRequestHeaders, route } from "./routing";
 
 // The API's base URL comes from the environment at run time, not at build
 // time: one image serves Compose and production. A rewrite in next.config
@@ -19,7 +19,13 @@ export function proxy(request: NextRequest) {
   );
   switch (d.kind) {
     case "rewrite":
-      return NextResponse.rewrite(new URL(d.url));
+      // The secret goes to the API server only; Next keeps request headers
+      // of a rewrite out of the response.
+      return NextResponse.rewrite(new URL(d.url), {
+        request: {
+          headers: apiRequestHeaders(request.headers, process.env.PRICEDIN_PROXY_SECRET),
+        },
+      });
     case "redirect":
       return NextResponse.redirect(new URL(d.url, request.url));
     case "next":

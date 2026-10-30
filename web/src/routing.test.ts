@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { route } from "./routing";
+import { apiRequestHeaders, route } from "./routing";
 
 const api = "http://server:8080";
 
@@ -32,5 +32,59 @@ describe("route", () => {
     expect(route({ pathname: "/login", search: "?next=/", hasSession: false }, api)).toEqual({
       kind: "next",
     });
+  });
+});
+
+describe("apiRequestHeaders", () => {
+  const secret = "0123456789abcdef0123456789abcdef";
+
+  it("adds the secret and the address that the edge gives", () => {
+    const got = apiRequestHeaders(
+      new Headers({ "x-real-ip": "203.0.113.9", accept: "*/*" }),
+      secret,
+    );
+    expect(got.get("x-pricedin-proxy")).toBe(secret);
+    expect(got.get("x-pricedin-client-ip")).toBe("203.0.113.9");
+    expect(got.get("accept")).toBe("*/*");
+  });
+
+  it("replaces the copies that the browser sent", () => {
+    const got = apiRequestHeaders(
+      new Headers({
+        "x-real-ip": "203.0.113.9",
+        "x-pricedin-proxy": "forged",
+        "x-pricedin-client-ip": "198.51.100.7",
+      }),
+      secret,
+    );
+    expect(got.get("x-pricedin-proxy")).toBe(secret);
+    expect(got.get("x-pricedin-client-ip")).toBe("203.0.113.9");
+  });
+
+  it("removes the browser's copies and adds nothing without a secret", () => {
+    for (const s of [undefined, ""]) {
+      const got = apiRequestHeaders(
+        new Headers({
+          "x-real-ip": "203.0.113.9",
+          "x-pricedin-proxy": "forged",
+          "x-pricedin-client-ip": "198.51.100.7",
+        }),
+        s,
+      );
+      expect(got.has("x-pricedin-proxy")).toBe(false);
+      expect(got.has("x-pricedin-client-ip")).toBe(false);
+    }
+  });
+
+  it("sends no address when the edge gave none", () => {
+    const got = apiRequestHeaders(new Headers({ "x-pricedin-client-ip": "198.51.100.7" }), secret);
+    expect(got.get("x-pricedin-proxy")).toBe(secret);
+    expect(got.has("x-pricedin-client-ip")).toBe(false);
+  });
+
+  it("leaves the incoming headers as they were", () => {
+    const incoming = new Headers({ "x-real-ip": "203.0.113.9", "x-pricedin-proxy": "forged" });
+    apiRequestHeaders(incoming, secret);
+    expect(incoming.get("x-pricedin-proxy")).toBe("forged");
   });
 });

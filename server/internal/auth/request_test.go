@@ -155,3 +155,42 @@ func TestAFullLimiterForgetsTheOldestAddress(t *testing.T) {
 		t.Error("the forgotten oldest address was refused, want a new bucket")
 	}
 }
+
+func TestProxyClientIP(t *testing.T) {
+	const secret = "0123456789abcdef0123456789abcdef"
+	tests := []struct {
+		name          string
+		secret        string
+		sentSecret    []string
+		sentClient    []string
+		want          string
+		wantFromProxy bool
+	}{
+		{"the right secret and an address", secret, []string{secret}, []string{"203.0.113.9"}, "203.0.113.9", true},
+		{"an IPv4-mapped IPv6 address", secret, []string{secret}, []string{"::ffff:203.0.113.9"}, "203.0.113.9", true},
+		{"an address without the secret", secret, nil, []string{"203.0.113.9"}, "", false},
+		{"a wrong secret", secret, []string{"fedcba9876543210fedcba9876543210"}, []string{"203.0.113.9"}, "", false},
+		{"a prefix of the secret", secret, []string{secret[:31]}, []string{"203.0.113.9"}, "", false},
+		{"two copies of the secret", secret, []string{secret, secret}, []string{"203.0.113.9"}, "", false},
+		{"no secret configured", "", []string{""}, []string{"203.0.113.9"}, "", false},
+		{"the secret without an address", secret, []string{secret}, nil, "", false},
+		{"an address that is not an IP", secret, []string{secret}, []string{"not-an-ip"}, "", false},
+		{"two addresses", secret, []string{secret}, []string{"203.0.113.9", "198.51.100.7"}, "", false},
+		{"a list of addresses", secret, []string{secret}, []string{"203.0.113.9, 198.51.100.7"}, "", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
+			for _, v := range tt.sentSecret {
+				r.Header.Add(auth.ProxySecretHeader, v)
+			}
+			for _, v := range tt.sentClient {
+				r.Header.Add(auth.ProxyClientIPHeader, v)
+			}
+			got, ok := auth.ProxyClientIP(r, tt.secret)
+			if got != tt.want || ok != tt.wantFromProxy {
+				t.Errorf("ProxyClientIP() = %q, %v, want %q, %v", got, ok, tt.want, tt.wantFromProxy)
+			}
+		})
+	}
+}
