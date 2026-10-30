@@ -24,10 +24,10 @@ function ends(c: Chart) {
 }
 
 const linkMeaning: Record<string, string> = {
-  strong: "earnings news has moved this stock.",
-  moderate: "earnings explain part of the moves.",
-  weak: "other things moved the price more than earnings.",
-  negative: "the price tended to move against earnings.",
+  strong: "the price change closely tracked earnings growth.",
+  moderate: "the price change tracked earnings growth in part.",
+  weak: "the price change hardly tracked earnings growth.",
+  negative: "the price change tended to move against earnings growth.",
 };
 
 const usual: Record<string, string> = {
@@ -239,11 +239,11 @@ export function priceSteps(ticker: string): WalkthroughStep[] {
             today&apos;s P/E. Over {c.range} the P/E went from <b>{a.toFixed(0)}×</b> to{" "}
             <b>{z.toFixed(0)}×</b>.{" "}
             {b.crossed.length === 0 ? (
-              "The price stayed within one band, so it mostly followed earnings."
+              "The P/E ended the range close to where it started, so from start to end the price mostly followed earnings."
             ) : (
               <>
-                The price {rose ? "climbed" : "fell"} across the <b>{crossed}</b>{" "}
-                {b.crossed.length > 1 ? "lines" : "line"}, so investors now pay{" "}
+                Between the first and the last day it moved {rose ? "up" : "down"} past the{" "}
+                <b>{crossed}</b> {b.crossed.length > 1 ? "lines" : "line"}, so investors now pay{" "}
                 {rose ? "more" : "less"} for each dollar of earnings.
                 {rose && !priceUp ? " The price itself fell, but earnings fell faster." : ""}
                 {!rose && priceUp ? " The price itself rose, but earnings rose faster." : ""}
@@ -257,11 +257,12 @@ export function priceSteps(ticker: string): WalkthroughStep[] {
       title: "Check the share change markers",
       body: (
         <p>
-          A marker shows a quarter in which the share count changed by 2% or more.{" "}
-          {sq("var(--bad)")}
-          This marker means the company issued new shares that quarter. {sq("var(--good)")}This one
-          means it bought shares back. After a dilution, EPS grows slower than total profit, because
-          the profit is split over more shares.
+          A marker shows a quarter in which the diluted share count changed by 2% or more against
+          the quarter before. {sq("var(--bad)")}This marker means the count rose: dilution, such as
+          new shares or more options. {sq("var(--good)")}This one means it fell, usually through
+          buybacks. The count is a quarterly average, so a marker shows the change, not one
+          transaction. After a dilution, EPS grows slower than total profit, because the profit is
+          split over more shares.
         </p>
       ),
       highlight: ["events", "eps"],
@@ -286,8 +287,9 @@ export function priceSteps(ticker: string): WalkthroughStep[] {
           They are hidden by default, so turn them on with their chips when you want to see where
           price and earnings went separate ways. They share one scale, so you can compare their
           heights. When {lg("var(--accent)", true)} price change sits above {lg("var(--ink)", true)}{" "}
-          EPS growth, the P/E went up over that year. When it sits below, the P/E went down. The
-          faint line marked 0% (12M) is where there was no change.
+          EPS growth, the P/E went up over that year. When it sits below, the P/E went down. This
+          holds while TTM EPS stays positive, because the P/E needs a positive TTM EPS. The faint
+          line marked 0% (12M) is where there was no change.
         </p>
       ),
       highlight: ["r12", "g12"],
@@ -298,7 +300,7 @@ export function priceSteps(ticker: string): WalkthroughStep[] {
         }
         return (
           <>
-            The gap between the two lines is the change in P/E. Over the last 12 months the price{" "}
+            Which line is on top gives the direction of the P/E. Over the last 12 months the price{" "}
             {d >= 0 ? "outran" : "lagged"} earnings, so the P/E {d >= 0 ? "rose" : "fell"}{" "}
             <b>{pct(Math.abs(d))}</b>.
           </>
@@ -314,17 +316,18 @@ export function priceSteps(ticker: string): WalkthroughStep[] {
           it compares the two 12-month lines: when earnings growth sped up or slowed down, did the
           price change follow?
           <span className="vl">
-            {sq("var(--good)")}Strong, 0.6 or more: earnings news moves this stock.
+            {sq("var(--good)")}Strong, 0.6 or more: the price change closely tracked earnings
+            growth.
           </span>
           <span className="vl">
-            {sq("var(--warn)")}Moderate, 0.3 to 0.6: earnings explain part of the moves.
+            {sq("var(--warn)")}Moderate, 0.3 to 0.6: it tracked earnings growth in part.
           </span>
           <span className="vl">
-            {sq("var(--muted)")}Weak, below 0.3: other things moved the price, such as market mood,
-            interest rates or hopes for the future.
+            {sq("var(--muted)")}Weak, below 0.3: it hardly tracked earnings growth, so look for
+            other drivers, such as market mood, interest rates or hopes for the future.
           </span>
           <span className="vl">
-            {sq("var(--bad)")}Negative: the price tended to move against earnings growth.
+            {sq("var(--bad)")}Negative: the price change tended to move against earnings growth.
           </span>
         </p>
       ),

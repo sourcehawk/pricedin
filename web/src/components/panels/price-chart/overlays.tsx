@@ -56,7 +56,7 @@ export const overlays: readonly (Overlay & { key: OverlayKey })[] = [
     color: "var(--ink)",
     dash: true,
     value: (p) => signedPct(p.epsGrowth12m.value, 0),
-    tip: "How much TTM EPS grew compared with one year earlier. It shares a scale with Price change, 12M. When the price change runs above it, the P/E went up.",
+    tip: "How much TTM EPS grew compared with one year earlier. It shares a scale with Price change, 12M. When the price change runs above it, the P/E went up, as long as TTM EPS stayed positive.",
   },
   {
     key: "sh",
@@ -64,10 +64,10 @@ export const overlays: readonly (Overlay & { key: OverlayKey })[] = [
     color: "var(--bad)",
     tip: (
       <>
-        Markers on quarters where the share count changed by 2% or more.{" "}
-        <Swatch color="var(--bad)" /> New shares were issued (dilution), so each share owns a
-        smaller part of the company. <Swatch color="var(--good)" /> Shares were bought back. Hover a
-        marker for details.
+        Markers on quarters where the diluted share count changed by 2% or more.{" "}
+        <Swatch color="var(--bad)" /> The count rose (dilution), so each share owns a smaller part
+        of the company. <Swatch color="var(--good)" /> The count fell, usually through buybacks.
+        Hover a marker for details.
       </>
     ),
   },
