@@ -39,8 +39,8 @@ primary_region = "iad"
   # The Fly proxy sets Fly-Client-IP to the address that it accepted the
   # connection from. For a browser, that address is Vercel's, because the
   # browser reaches the API through the /api rewrite of the web app. The web
-  # app then sends the browser's address together with the Fly secret
-  # PRICEDIN_PROXY_SECRET (runbook).
+  # app sends the browser's address together with its PRICEDIN_PROXY_SECRET
+  # (runbook).
   PRICEDIN_TRUSTED_PROXY_HEADER = "Fly-Client-IP"
   PRICEDIN_TRUSTED_PROXY_HOPS = "1"
   # Raw downloads go to a Tigris bucket. The bucket name and its keys are
