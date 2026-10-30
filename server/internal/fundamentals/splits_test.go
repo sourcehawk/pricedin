@@ -532,3 +532,45 @@ func TestDeriveKeepsACorrectionThatCameWithTheSplitRestatement(t *testing.T) {
 		t.Errorf("Q4 FY24 EPS = %v from %v, want 1.00 from k-2025 and q3-2024", v.V, accessions(v))
 	}
 }
+
+func TestDeriveLeavesOutSplitsAfterSplitsAsOfButKeepsLaterFacts(t *testing.T) {
+	// A 10-Q filed on 2025-05-20 reports a split that takes effect on
+	// 2025-06-10; the prices end on 2025-06-01.
+	var facts []domain.Fact
+	splitYears(t, &facts, 0)
+	newFiling(t, &facts, "q1b-2025", "10-Q", "2025-05-20", 2025, "Q1").add(sec.StockholdersEquityNoteStockSplitConversionRatio1, "", "2025-06-10", 2)
+	cutoff := day(t, "2025-06-01")
+
+	s := derive(t, facts, fundamentals.Options{SplitsAsOf: &cutoff})
+	if len(s.Splits) != 0 || len(s.Conflicts) != 0 {
+		t.Errorf("Splits = %+v, Conflicts = %+v; want none", s.Splits, s.Conflicts)
+	}
+	want := []domain.Split{{CIK: testCIK, Date: day(t, "2025-06-10"), From: 1, To: 2, Source: "sec", Evidence: "q1b-2025"}}
+	if diff := cmp.Diff(want, s.Deferred); diff != "" {
+		t.Errorf("Deferred (-want +got):\n%s", diff)
+	}
+	if v := value(t, s, "Q1 FY24", fundamentals.EPSDiluted); v.V != 2.00 {
+		t.Errorf("Q1 FY24 EPS = %v, want 2.00 as filed", v.V)
+	}
+	// Facts filed after the cutoff still count.
+	if v := value(t, s, "Q2 FY25", fundamentals.EPSDiluted); v.V != 1.15 {
+		t.Errorf("Q2 FY25 EPS = %v, want 1.15", v.V)
+	}
+}
+
+func TestDeriveLeavesOutSECEvidenceOfAProviderSplitAfterSplitsAsOf(t *testing.T) {
+	// The filing dates the split a week before the provider's first
+	// trading day on the new basis; the cutoff lies between them.
+	var facts []domain.Fact
+	splitYears(t, &facts, 0)
+	newFiling(t, &facts, "q1b-2025", "10-Q", "2025-05-20", 2025, "Q1").add(sec.StockholdersEquityNoteStockSplitConversionRatio1, "", "2025-06-03", 2)
+	cutoff := day(t, "2025-06-05")
+
+	s := derive(t, facts, fundamentals.Options{Splits: []domain.Split{providerSplit(t, "2025-06-10", 2)}, SplitsAsOf: &cutoff})
+	if len(s.Splits) != 0 {
+		t.Errorf("Splits = %+v, want none before the provider's date", s.Splits)
+	}
+	if v := value(t, s, "Q1 FY24", fundamentals.EPSDiluted); v.V != 2.00 {
+		t.Errorf("Q1 FY24 EPS = %v, want 2.00 as filed", v.V)
+	}
+}

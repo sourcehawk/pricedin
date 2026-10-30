@@ -29,6 +29,14 @@ PRICE_FIXTURES_DIR := tools/price-fixtures
 IMAGE_TAG  ?= dev
 SERVER_IMAGE ?= pricedin-server:$(IMAGE_TAG)
 WEB_IMAGE    ?= pricedin-web:$(IMAGE_TAG)
+FIXTURES_IMAGE ?= pricedin-fixtures:$(IMAGE_TAG)
+
+# The stack against the fixture server, which answers at the SEC and Massive
+# paths from testdata, so it never calls the real services.
+COMPOSE_FIXTURES = $(COMPOSE) -f docker-compose.yml -f docker-compose.fixtures.yml --profile fixtures
+# The jobs that load the fixture companies, in order. --wait makes each one
+# wait for the same job of the scheduler instead of skipping it.
+SEED_JOBS := sec-tickers sec-bulk price-reference prices-backfill "fundamentals-rebuild all"
 # Extra flags for `docker buildx build`, such as the cache flags CI passes.
 DOCKER_BUILD_FLAGS ?=
 # Extra flags for `playwright install`; CI adds --with-deps.
@@ -84,8 +92,14 @@ browsers: ## Install the Playwright browser (chromium)
 generate: generate-price-fixtures generate-engine-cases ## Regenerate every generated file
 
 .PHONY: generate-price-fixtures
-generate-price-fixtures: ## Regenerate the synthetic Massive fixtures in testdata/prices/massive
+generate-price-fixtures: generate-price-anchors ## Regenerate the synthetic Massive fixtures in testdata/prices/massive
 	cd $(PRICE_FIXTURES_DIR) && $(GO) run .
+
+# The anchors tie the synthetic closes to the earnings in the SEC fixtures,
+# through the server's quarter derivation.
+.PHONY: generate-price-anchors
+generate-price-anchors: ## Write the price anchors of tools/price-fixtures from the SEC fixtures
+	cd $(SERVER_DIR) && $(GO) run ./cmd/price-anchors
 
 # The oracle runs the prototype's own math and writes the expected values
 # that both engines test against.
@@ -158,10 +172,11 @@ test-web: ## Run the web unit tests
 	$(PNPM) --filter @pricedin/web test
 
 .PHONY: test-e2e
-test-e2e: images ## Start a separate Compose stack, run Playwright, remove that stack
-	COMPOSE='$(COMPOSE)' PNPM='$(PNPM)' \
+test-e2e: images ## Start a separate Compose stack against the fixture server, run Playwright, remove that stack
+	COMPOSE='$(COMPOSE_FIXTURES)' PNPM='$(PNPM)' \
 	PRICEDIN_E2E_PROJECT='$(PRICEDIN_E2E_PROJECT)' \
 	PRICEDIN_SERVER_IMAGE='$(SERVER_IMAGE)' PRICEDIN_WEB_IMAGE='$(WEB_IMAGE)' \
+	PRICEDIN_FIXTURES_IMAGE='$(FIXTURES_IMAGE)' \
 	PRICEDIN_WEB_PORT='$(PRICEDIN_E2E_WEB_PORT)' PRICEDIN_API_PORT='$(PRICEDIN_E2E_API_PORT)' \
 	PRICEDIN_METRICS_PORT='$(PRICEDIN_E2E_METRICS_PORT)' PRICEDIN_DB_PORT='$(PRICEDIN_E2E_DB_PORT)' \
 	PRICEDIN_E2E_BASE_URL='$(PRICEDIN_E2E_BASE_URL)' PRICEDIN_E2E_API_URL='$(PRICEDIN_E2E_API_URL)' \
@@ -174,8 +189,9 @@ build: ## Build the Go binary and the Next.js app
 	$(PNPM) --filter @pricedin/web build
 
 .PHONY: images
-images: ## Build the server and web Docker images
+images: ## Build the server, fixture server and web Docker images
 	$(DOCKER) buildx build --load $(DOCKER_BUILD_FLAGS) --tag $(SERVER_IMAGE) $(SERVER_DIR)
+	$(DOCKER) buildx build --load $(DOCKER_BUILD_FLAGS) --tag $(FIXTURES_IMAGE) --target fixtureserver $(SERVER_DIR)
 	$(DOCKER) buildx build --load $(DOCKER_BUILD_FLAGS) --tag $(WEB_IMAGE) --file web/Dockerfile .
 
 # --- Local stack --------------------------------------------------------------
@@ -184,9 +200,25 @@ up: ## Build and start the Compose stack in the background
 	PRICEDIN_SERVER_IMAGE='$(SERVER_IMAGE)' PRICEDIN_WEB_IMAGE='$(WEB_IMAGE)' \
 	$(COMPOSE) up --detach --build --wait
 
+.PHONY: up-fixtures
+up-fixtures: ## Build and start the Compose stack against the fixture server, with the scheduler
+	PRICEDIN_SERVER_IMAGE='$(SERVER_IMAGE)' PRICEDIN_WEB_IMAGE='$(WEB_IMAGE)' PRICEDIN_FIXTURES_IMAGE='$(FIXTURES_IMAGE)' \
+	$(COMPOSE_FIXTURES) up --detach --build --wait
+
+.PHONY: seed
+seed: ## Load the fixture companies into the stack of make up-fixtures
+	@for job in $(SEED_JOBS); do \
+		echo "+ $(COMPOSE_FIXTURES) exec server /pricedin jobs run --wait $$job"; \
+		$(COMPOSE_FIXTURES) exec -T server /pricedin jobs run --wait $$job || exit 1; \
+	done
+
 .PHONY: down
 down: ## Stop the Compose stack (keeps the database volume)
 	$(COMPOSE) down
+
+.PHONY: down-fixtures
+down-fixtures: ## Stop the stack of make up-fixtures (keeps the database volume)
+	$(COMPOSE_FIXTURES) down
 
 .PHONY: logs
 logs: ## Follow the logs of the Compose stack

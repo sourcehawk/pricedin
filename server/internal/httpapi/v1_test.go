@@ -473,8 +473,8 @@ func TestStoredDataOutsideTheEngineBoundsAnswers200(t *testing.T) {
 		Evaluation engine.Evaluation `json:"evaluation"`
 	}
 	res.json(t, &got)
-	if got.Levers.TTMEPS != 0 || got.Levers.Price != 81.38 || got.Evaluation.Required.Growth.Reason != engine.ReasonNeedsPositiveEPS {
-		t.Errorf("ttmEps %v, price %v, required %+v; want 0, 81.38 and needs_positive_eps", got.Levers.TTMEPS, got.Levers.Price, got.Evaluation.Required.Growth)
+	if got.Levers.TTMEPS != 0 || got.Levers.Price != 82.14 || got.Evaluation.Required.Growth.Reason != engine.ReasonNeedsPositiveEPS {
+		t.Errorf("ttmEps %v, price %v, required %+v; want 0, 82.14 and needs_positive_eps", got.Levers.TTMEPS, got.Levers.Price, got.Evaluation.Required.Growth)
 	}
 }
 

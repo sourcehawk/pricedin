@@ -56,12 +56,13 @@ func Derive(cik domain.CIK, facts []domain.Fact, opts Options) (Series, error) {
 
 	years := cal.build()
 	d.snap(years)
-	d.splits, d.conflicts = confirmSplits(cik, ratios, opts, d.periods)
+	var deferred []domain.Split
+	d.splits, d.conflicts, deferred = confirmSplits(cik, ratios, opts, d.periods)
 	d.settle()
 
 	d.rescaleShares()
 
-	series := Series{Splits: d.splits}
+	series := Series{Splits: d.splits, Deferred: deferred}
 	for _, y := range years {
 		start := y.start
 		var earlier []span
@@ -181,8 +182,12 @@ func (d *deriver) settle() {
 	d.winners = make(map[periodKey]winner, len(keys))
 	for _, k := range keys {
 		obs := d.periods[k]
-		slices.SortStableFunc(obs, func(a, b observation) int {
-			return cmp.Or(compareDates(a.fact.Filed, b.fact.Filed), cmp.Compare(a.fact.Accession, b.fact.Accession))
+		// snap merges periods in map order, so the reported period and the
+		// value break the ties of one filing.
+		slices.SortFunc(obs, func(a, b observation) int {
+			return cmp.Or(compareDates(a.fact.Filed, b.fact.Filed), cmp.Compare(a.fact.Accession, b.fact.Accession),
+				compareStarts(a.fact.PeriodStart, b.fact.PeriodStart), compareDates(a.fact.PeriodEnd, b.fact.PeriodEnd),
+				cmp.Compare(a.fact.Value, b.fact.Value))
 		})
 		for i := range obs {
 			adjust(&obs[i], d.splits)
@@ -199,6 +204,20 @@ func (d *deriver) settle() {
 
 func compareDates(a, b domain.Date) int {
 	return a.Time().Compare(b.Time())
+}
+
+// compareStarts orders a nil start, of an instant fact, first.
+func compareStarts(a, b *domain.Date) int {
+	switch {
+	case a == nil && b == nil:
+		return 0
+	case a == nil:
+		return -1
+	case b == nil:
+		return 1
+	default:
+		return compareDates(*a, *b)
+	}
 }
 
 // quarterSpan is one fiscal quarter: the n-th of the fiscal year that

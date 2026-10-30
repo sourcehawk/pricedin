@@ -43,8 +43,8 @@ func TestProfileOfALoadedStock(t *testing.T) {
 		t.Errorf("Profile().Company = %+v, want NVIDIA's CIK, name and fiscal year end", p.Company)
 	}
 	c := p.LatestClose
-	if c == nil || c.Value != 161.36 || c.AsOf != date(t, "2026-10-29") || c.AsOfLabel != "as of close" {
-		t.Fatalf("LatestClose = %+v, want 161.36 as of close 2026-10-29", c)
+	if c == nil || c.Value != 309.11 || c.AsOf != date(t, "2026-10-29") || c.AsOfLabel != "as of close" {
+		t.Fatalf("LatestClose = %+v, want 309.11 as of close 2026-10-29", c)
 	}
 	if src, ok := c.Source.(stocks.PriceSource); !ok || src.Provider != "massive" || src.CloseDate != c.AsOf || src.Symbol != "NVDA" {
 		t.Errorf("LatestClose.Source = %#v, want the massive close of 2026-10-29", c.Source)
@@ -134,7 +134,7 @@ func TestHistorySplitAdjustsNVIDIAClosesAndEPS(t *testing.T) {
 	for _, d := range h.History.Daily {
 		closes[d.Date] = d.Close
 	}
-	for day, want := range map[string]float64{"2024-06-07": 73.13, "2024-06-10": 73.98, "2021-11-01": 28, "2026-10-29": 161.36} {
+	for day, want := range map[string]float64{"2024-06-07": 76.76, "2024-06-10": 78.23, "2021-11-01": 15.498, "2026-10-29": 309.11} {
 		if got := closes[date(t, day)]; !near(got, want) {
 			t.Errorf("close on %s = %v, want %v (split-adjusted)", day, got, want)
 		}
@@ -757,8 +757,8 @@ func TestStoredDataOutsideTheEngineBoundsStillEvaluates(t *testing.T) {
 				}
 			},
 			check: func(t *testing.T, ev stocks.Evaluation, h stocks.History) {
-				if ev.Levers.Price != 81.38 {
-					t.Errorf("price = %v, want the last close within bounds, 81.38", ev.Levers.Price)
+				if ev.Levers.Price != 82.14 {
+					t.Errorf("price = %v, want the last close within bounds, 82.14", ev.Levers.Price)
 				}
 				for _, d := range h.History.Daily {
 					if d.Close > 1e6 {

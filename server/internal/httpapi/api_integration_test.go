@@ -43,8 +43,8 @@ func TestTheOwnersFlowOverPostgres(t *testing.T) {
 	}
 	get("/api/v1/stocks/NVDA/history?range=3Y").json(t, &nvda)
 	for _, d := range nvda.History.Daily {
-		if d.Date == "2024-06-07" && d.Close != 73.13 {
-			t.Errorf("NVDA close on 2024-06-07 = %v, want 73.13 after the 10-for-1 split", d.Close)
+		if d.Date == "2024-06-07" && d.Close != 76.76 {
+			t.Errorf("NVDA close on 2024-06-07 = %v, want 76.76 after the 10-for-1 split", d.Close)
 		}
 	}
 	get("/api/v1/stocks/NVDA/fundamentals")

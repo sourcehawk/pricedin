@@ -66,8 +66,8 @@ func TestNVIDIAAcrossItsSplitOverPostgres(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, d := range h.History.Daily {
-		if d.Date == date(t, "2024-06-07") && !near(d.Close, 73.13) {
-			t.Errorf("close on 2024-06-07 = %v, want 731.30 / 10", d.Close)
+		if d.Date == date(t, "2024-06-07") && !near(d.Close, 76.76) {
+			t.Errorf("close on 2024-06-07 = %v, want 767.60 / 10", d.Close)
 		}
 	}
 	for i, q := range h.History.Quarters {

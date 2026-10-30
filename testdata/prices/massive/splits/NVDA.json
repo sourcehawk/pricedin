@@ -3,6 +3,15 @@
   "request_id": "32dda120f86811e0a16d334464a27d6a",
   "results": [
     {
+      "id": "E98b71c7729271e8972f6108198207a4a93808989cb576fa93ad5580b46d4c479",
+      "execution_date": "2021-07-20",
+      "split_from": 1,
+      "split_to": 4,
+      "ticker": "NVDA",
+      "adjustment_type": "forward_split",
+      "historical_adjustment_factor": 0.025
+    },
+    {
       "id": "E74a3c7e2e339870c1d1ed668d8fc427948339ccb24edb2b4ffdbea11ca7fa515",
       "execution_date": "2024-06-10",
       "split_from": 1,

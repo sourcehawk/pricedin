@@ -27,6 +27,7 @@ func TestLoadDefaults(t *testing.T) {
 		SEC:     config.SEC{BaseURL: "https://www.sec.gov", DataBaseURL: "https://data.sec.gov"},
 		Massive: config.Massive{BaseURL: "https://api.massive.com", RateLimit: 20},
 		Blob:    config.Blob{Backend: config.BlobBackendFS},
+		Ingest:  config.Ingest{PricesBackfillDays: 1260, DailyAt: 90 * time.Minute},
 		Auth:    config.Auth{SessionTTL: 30 * 24 * time.Hour, CookieSecure: true, TrustedProxyHops: 1},
 	}
 	if diff := cmp.Diff(want, got); diff != "" {
@@ -36,25 +37,32 @@ func TestLoadDefaults(t *testing.T) {
 
 func TestLoadReadsEveryVariable(t *testing.T) {
 	got, err := config.Load(env(map[string]string{
-		"PRICEDIN_HTTP_ADDR":          "127.0.0.1:8181",
-		"PRICEDIN_METRICS_ADDR":       "127.0.0.1:9191",
-		"PRICEDIN_DATABASE_URL":       "postgres://u:p@db:5432/pricedin?sslmode=disable",
-		"PRICEDIN_LOG_LEVEL":          "debug",
-		"PRICEDIN_LOG_FORMAT":         "text",
-		"PRICEDIN_SEC_USER_AGENT":     "PricedIn owner@example.com",
-		"PRICEDIN_SEC_BASE_URL":       "http://fixtures:8081",
-		"PRICEDIN_SEC_DATA_BASE_URL":  "http://fixtures:8082/",
-		"PRICEDIN_MASSIVE_BASE_URL":   "http://fixtures:8090",
-		"PRICEDIN_MASSIVE_API_KEY":    "test-key",
-		"PRICEDIN_MASSIVE_RATE_LIMIT": "2.5",
+		"PRICEDIN_HTTP_ADDR":            "127.0.0.1:8181",
+		"PRICEDIN_METRICS_ADDR":         "127.0.0.1:9191",
+		"PRICEDIN_DATABASE_URL":         "postgres://u:p@db:5432/pricedin?sslmode=disable",
+		"PRICEDIN_DATABASE_LOCK_URL":    "postgres://u:p@db-direct:5432/pricedin?sslmode=disable",
+		"PRICEDIN_LOG_LEVEL":            "debug",
+		"PRICEDIN_LOG_FORMAT":           "text",
+		"PRICEDIN_SEC_USER_AGENT":       "PricedIn owner@example.com",
+		"PRICEDIN_SEC_BASE_URL":         "http://fixtures:8081",
+		"PRICEDIN_SEC_DATA_BASE_URL":    "http://fixtures:8082/",
+		"PRICEDIN_MASSIVE_BASE_URL":     "http://fixtures:8090",
+		"PRICEDIN_MASSIVE_API_KEY":      "test-key",
+		"PRICEDIN_MASSIVE_RATE_LIMIT":   "2.5",
+		"PRICEDIN_UNIVERSE":             " nvda, brk-b,,NVDA ",
+		"PRICEDIN_PRICES_BACKFILL_DAYS": "15",
+		"PRICEDIN_SCHEDULE_DAILY":       "23:05",
 	}))
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
 	}
 	want := config.Config{
-		HTTP:     config.HTTP{Addr: "127.0.0.1:8181", MetricsAddr: "127.0.0.1:9191"},
-		Database: config.Database{URL: "postgres://u:p@db:5432/pricedin?sslmode=disable"},
-		Log:      config.Log{Level: slog.LevelDebug, Format: config.LogFormatText},
+		HTTP: config.HTTP{Addr: "127.0.0.1:8181", MetricsAddr: "127.0.0.1:9191"},
+		Database: config.Database{
+			URL:     "postgres://u:p@db:5432/pricedin?sslmode=disable",
+			LockURL: "postgres://u:p@db-direct:5432/pricedin?sslmode=disable",
+		},
+		Log: config.Log{Level: slog.LevelDebug, Format: config.LogFormatText},
 		SEC: config.SEC{
 			UserAgent:   "PricedIn owner@example.com",
 			BaseURL:     "http://fixtures:8081",
@@ -62,7 +70,11 @@ func TestLoadReadsEveryVariable(t *testing.T) {
 		},
 		Massive: config.Massive{BaseURL: "http://fixtures:8090", APIKey: "test-key", RateLimit: 2.5},
 		Blob:    config.Blob{Backend: config.BlobBackendFS},
-		Auth:    config.Auth{SessionTTL: 30 * 24 * time.Hour, CookieSecure: true, TrustedProxyHops: 1},
+		Ingest: config.Ingest{
+			Universe: []string{"NVDA", "BRK-B"}, PricesBackfillDays: 15,
+			DailyAt: 23*time.Hour + 5*time.Minute,
+		},
+		Auth: config.Auth{SessionTTL: 30 * 24 * time.Hour, CookieSecure: true, TrustedProxyHops: 1},
 	}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("Load() mismatch (-want +got):\n%s", diff)
@@ -123,6 +135,14 @@ func TestLoadRejectsInvalidValues(t *testing.T) {
 		{"massive rate limit of zero", map[string]string{"PRICEDIN_MASSIVE_RATE_LIMIT": "0"}, "PRICEDIN_MASSIVE_RATE_LIMIT"},
 		{"negative massive rate limit", map[string]string{"PRICEDIN_MASSIVE_RATE_LIMIT": "-1"}, "PRICEDIN_MASSIVE_RATE_LIMIT"},
 		{"infinite massive rate limit", map[string]string{"PRICEDIN_MASSIVE_RATE_LIMIT": "Inf"}, "PRICEDIN_MASSIVE_RATE_LIMIT"},
+		{"lock url with other scheme", map[string]string{"PRICEDIN_DATABASE_LOCK_URL": "mysql://db/pricedin"}, "PRICEDIN_DATABASE_LOCK_URL"},
+		{"universe symbol with a space", map[string]string{"PRICEDIN_UNIVERSE": "NVDA,BRK B"}, "PRICEDIN_UNIVERSE"},
+		{"universe symbol with a slash", map[string]string{"PRICEDIN_UNIVERSE": "../KO"}, "PRICEDIN_UNIVERSE"},
+		{"backfill days of zero", map[string]string{"PRICEDIN_PRICES_BACKFILL_DAYS": "0"}, "PRICEDIN_PRICES_BACKFILL_DAYS"},
+		{"backfill days that are not a number", map[string]string{"PRICEDIN_PRICES_BACKFILL_DAYS": "5y"}, "PRICEDIN_PRICES_BACKFILL_DAYS"},
+		{"schedule hour out of range", map[string]string{"PRICEDIN_SCHEDULE_DAILY": "24:00"}, "PRICEDIN_SCHEDULE_DAILY"},
+		{"schedule without minutes", map[string]string{"PRICEDIN_SCHEDULE_DAILY": "1"}, "PRICEDIN_SCHEDULE_DAILY"},
+		{"schedule with seconds", map[string]string{"PRICEDIN_SCHEDULE_DAILY": "01:30:00"}, "PRICEDIN_SCHEDULE_DAILY"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -241,4 +261,14 @@ func unwrapAll(err error) []error {
 		return joined.Unwrap()
 	}
 	return []error{err}
+}
+
+func TestDatabaseLockURLDefaultsToTheDatabaseURL(t *testing.T) {
+	got, err := config.Load(env(map[string]string{"PRICEDIN_DATABASE_URL": "postgres://db/pricedin"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Database.LockURL != "postgres://db/pricedin" {
+		t.Errorf("LockURL = %q, want the database URL", got.Database.LockURL)
+	}
 }

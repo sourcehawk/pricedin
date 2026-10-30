@@ -6,6 +6,10 @@
 //
 //	go run . [-config config.json] [-out ../../testdata/prices/massive] [-grouped-days 10]
 //
+// The anchors files under anchors/ come from the SEC fixtures: `make
+// generate-price-fixtures` writes them with server/cmd/price-anchors first,
+// so the prices agree with the companies' reported earnings.
+//
 // It replaces these folders of the output, one file per request:
 //
 //	grouped/<YYYY-MM-DD>.json  /v2/aggs/grouped/locale/us/market/stocks/<date>, only for trading days, the last -grouped-days of them when it is more than 0
@@ -61,10 +65,12 @@ func run(configPath, out string, groupedDays int) error {
 	}
 	for path, data := range files {
 		full := filepath.Join(out, filepath.FromSlash(path))
-		if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
+		// The files are public test data; a container user other than the
+		// owner reads them.
+		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil { //nolint:gosec // see above
 			return fmt.Errorf("write %s: %w", path, err)
 		}
-		if err := os.WriteFile(full, data, 0o600); err != nil {
+		if err := os.WriteFile(full, data, 0o644); err != nil { //nolint:gosec // see above
 			return fmt.Errorf("write %s: %w", path, err)
 		}
 	}

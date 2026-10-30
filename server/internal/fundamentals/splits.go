@@ -17,11 +17,11 @@ import (
 // two splits of one company lie years apart.
 const sameSplitDays = 180
 
-// confirmSplits returns the confirmed splits, oldest first, and the
-// conflicts of their evidence. ratios are the split-ratio facts filed by
-// AsOf, and periods the reported values that date an SEC split.
-func confirmSplits(cik domain.CIK, ratios []domain.Fact, opts Options, periods map[periodKey][]observation) ([]domain.Split, []Conflict) {
-	var splits []domain.Split
+// confirmSplits returns the confirmed splits, oldest first, the conflicts
+// of their evidence, and the confirmed splits that opts.SplitsAsOf left
+// out. ratios are the split-ratio facts filed by AsOf, and periods the
+// reported values that date an SEC split.
+func confirmSplits(cik domain.CIK, ratios []domain.Fact, opts Options, periods map[periodKey][]observation) (splits []domain.Split, conflicts []Conflict, deferred []domain.Split) {
 	for _, s := range opts.Splits {
 		if (opts.AsOf == nil || !s.Date.After(*opts.AsOf)) && s.Ratio() != 1 {
 			splits = append(splits, s)
@@ -29,7 +29,6 @@ func confirmSplits(cik domain.CIK, ratios []domain.Fact, opts Options, periods m
 	}
 	provider := len(splits)
 
-	var conflicts []Conflict
 	for _, group := range groupRatios(ratios) {
 		r := group[0].Value
 		date, open := dateSplit(group, r, periods)
@@ -74,8 +73,21 @@ func confirmSplits(cik domain.CIK, ratios []domain.Fact, opts Options, periods m
 			})
 		}
 	}
+	if cut := opts.SplitsAsOf; cut != nil {
+		// After the matching, so that SEC evidence dated before the cutoff
+		// does not stand in for a provider event after it.
+		splits = slices.DeleteFunc(splits, func(s domain.Split) bool {
+			if s.Date.After(*cut) {
+				deferred = append(deferred, s)
+				return true
+			}
+			return false
+		})
+		slices.SortStableFunc(deferred, func(a, b domain.Split) int { return compareDates(a.Date, b.Date) })
+		conflicts = slices.DeleteFunc(conflicts, func(c Conflict) bool { return c.Split != nil && c.Split.Date.After(*cut) })
+	}
 	slices.SortStableFunc(splits, func(a, b domain.Split) int { return compareDates(a.Date, b.Date) })
-	return splits, conflicts
+	return splits, conflicts, deferred
 }
 
 // groupRatios groups split-ratio facts by split: the same ratio with
