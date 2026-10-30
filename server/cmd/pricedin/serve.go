@@ -14,9 +14,13 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
 
+	"github.com/sourcehawk/pricedin/server/internal/auth"
 	"github.com/sourcehawk/pricedin/server/internal/config"
 	"github.com/sourcehawk/pricedin/server/internal/health"
+	"github.com/sourcehawk/pricedin/server/internal/httpapi"
 	"github.com/sourcehawk/pricedin/server/internal/httpserver"
+	"github.com/sourcehawk/pricedin/server/internal/stocks"
+	"github.com/sourcehawk/pricedin/server/internal/store"
 )
 
 const readinessTimeout = 2 * time.Second
@@ -56,9 +60,31 @@ func serve(ctx context.Context, getenv func(string) string, stdout io.Writer) er
 		collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
 	)
 
+	st := store.New(pool)
+	authSvc, err := auth.New(st, auth.Options{
+		OwnerEmail: cfg.Auth.OwnerEmail, OwnerPasswordHash: cfg.Auth.OwnerPasswordHash, SessionTTL: cfg.Auth.SessionTTL,
+	})
+	if err != nil {
+		return fmt.Errorf("serve: %w", err)
+	}
+	if !authSvc.LoginEnabled() {
+		logger.WarnContext(ctx, "no owner configured: login is disabled and only API tokens work")
+	}
+	if len(cfg.Auth.PublicOrigins) == 0 {
+		logger.WarnContext(ctx, "PRICEDIN_PUBLIC_ORIGIN is empty: no login from the web app is accepted")
+	}
+
 	api := http.NewServeMux()
 	api.Handle("GET /healthz", health.Liveness())
 	api.Handle("GET /readyz", health.Readiness(pool, readinessTimeout, logger))
+	api.Handle("/api/", httpapi.New(httpapi.Options{
+		Logger:             logger,
+		Auth:               authSvc,
+		Stocks:             stocks.New(st, stocks.Options{Loader: stocks.UnavailableLoader{}}),
+		Origins:            auth.NewOrigins(cfg.Auth.PublicOrigins),
+		CookieSecure:       cfg.Auth.CookieSecure,
+		TrustedProxyHeader: cfg.Auth.TrustedProxyHeader,
+	}))
 
 	metrics := http.NewServeMux()
 	metrics.Handle("GET /metrics", promhttp.HandlerFor(reg, promhttp.HandlerOpts{Registry: reg}))
@@ -75,7 +101,7 @@ func serve(ctx context.Context, getenv func(string) string, stdout io.Writer) er
 	}
 
 	return httpserver.Run(ctx, logger,
-		httpserver.Unit{Name: "api", Server: httpserver.NewServer(httpserver.Observe(logger, reg)(api)), Listener: apiListener},
+		httpserver.Unit{Name: "api", Server: httpserver.NewServer(httpserver.RequestID(httpserver.Observe(logger, reg)(api))), Listener: apiListener},
 		httpserver.Unit{Name: "metrics", Server: httpserver.NewServer(metrics), Listener: metricsListener},
 	)
 }

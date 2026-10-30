@@ -69,6 +69,8 @@ services:
       PRICEDIN_METRICS_ADDR: ":9090"
       PRICEDIN_BLOB_BACKEND: fs
       PRICEDIN_BLOB_DIR: /data/blob
+      # The browser sends this Origin through the web app's /api rewrite.
+      PRICEDIN_PUBLIC_ORIGIN: ${PRICEDIN_PUBLIC_ORIGIN:-http://localhost:${PRICEDIN_WEB_PORT:-3000}}
     env_file:
       - path: .env
         required: false

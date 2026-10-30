@@ -40,6 +40,7 @@ func newRootCmd(getenv func(string) string, stdout io.Writer) *cobra.Command {
 		newHealthcheckCmd(getenv),
 		newMigrateCmd(getenv),
 		newPricesCmd(getenv, stdout),
+		newAuthCmd(getenv),
 	)
 	return root
 }
