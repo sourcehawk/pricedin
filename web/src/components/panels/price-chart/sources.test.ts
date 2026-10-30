@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { PriceSource, QuarterSources } from "@/api/types";
+import type { PriceSource, QuarterSources, Source } from "@/api/types";
 import { historyFixture, priceSourced } from "@/api/testing/fixtures";
 import type { ChartPoint } from "@/engine";
 import { closeSourced, ttmSourced } from "./sources";
@@ -62,7 +62,33 @@ describe("ttmSourced", () => {
       estimate: false,
       inputs: last4.map((q) => q.eps),
     });
-    expect(s?.asOf).toBe(last4.at(-1)?.ttmEpsKnownOn);
+    // The example's quarters are filed on their last day, so the newest filing is the last quarter's.
+    expect(s?.asOf).toBe(last4.at(-1)?.periodEnd);
+  });
+
+  it("is as of the newest filing among the quarters, such as a restatement", () => {
+    const restated = quarters.map((q, i) =>
+      i === quarters.length - 3 && q.eps?.kind === "sec"
+        ? { ...q, eps: { ...q.eps, form: "10-Q/A", filed: "2026-10-15" } }
+        : q,
+    );
+    expect(ttmSourced(day(), restated)?.asOf).toBe("2026-10-15");
+  });
+
+  it("is an estimate when one of its quarters is", () => {
+    const estimated = quarters.map((q, i): QuarterSources => {
+      if (i !== quarters.length - 1 || q.eps === null) {
+        return q;
+      }
+      const eps: Source = {
+        kind: "derived",
+        method: "weighted_average_q4",
+        estimate: true,
+        inputs: [q.eps],
+      };
+      return { ...q, eps };
+    });
+    expect(ttmSourced(day(), estimated)?.source).toMatchObject({ estimate: true });
   });
 
   it("is null without a TTM EPS or named quarters", () => {

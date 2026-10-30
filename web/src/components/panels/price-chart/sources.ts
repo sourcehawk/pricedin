@@ -1,5 +1,5 @@
 import type { QuarterSources, Source, SourcedNumber } from "@/api/types";
-import { newestFiling } from "@/components/Sourced";
+import { isEstimate, newestFiling } from "@/components/Sourced";
 import type { ChartPoint } from "@/engine";
 
 // The history sends the daily closes split-adjusted, without the provider's
@@ -33,9 +33,10 @@ export function closeSourced(
 
 /**
  * ttmSourced returns the TTM EPS of a chart day with the sources of the
- * quarters that the engine names for it, as of the day that their TTM was
- * first known. It is null without a TTM EPS, or when a quarter lacks its
- * source.
+ * quarters that the engine names for it, as of the newest filing among
+ * them when they have one, as the profile dates its TTM EPS. It is an
+ * estimate when one of the quarters is. It is null without a TTM EPS, or
+ * when a quarter lacks its source.
  */
 export function ttmSourced(
   p: ChartPoint,
@@ -54,6 +55,11 @@ export function ttmSourced(
     inputs.push(q.eps);
     knownOn = q.ttmEpsKnownOn;
   }
-  const source: Source = { kind: "derived", method: "ttm", estimate: false, inputs };
-  return { value: p.ttmEps, source, asOf: knownOn ?? newestFiling(source)?.filed ?? p.date };
+  const source: Source = {
+    kind: "derived",
+    method: "ttm",
+    estimate: inputs.some(isEstimate),
+    inputs,
+  };
+  return { value: p.ttmEps, source, asOf: newestFiling(source)?.filed ?? knownOn ?? p.date };
 }
