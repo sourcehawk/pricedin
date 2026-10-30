@@ -154,6 +154,8 @@ export const minCustomExitPe = 0.5;
 export const maxCustomExitPe = 1000;
 /** maxMonths is the longest look-back of the typical P/E and of trailing growth. */
 export const maxMonths = 120;
+/** maxPrice is the largest price or close, far above any listed share. */
+export const maxPrice = 1e8;
 const maxScenario = 1e30;
 const maxPerShare = 1e6;
 const minPerShare = 1e-4;
@@ -164,15 +166,15 @@ function fail(message: string): never {
   throw new InvalidInputError(message);
 }
 
-function validPerShare(name: string, v: number, signed: boolean): void {
+function validPrice(name: string, v: number): void {
+  if (!Number.isFinite(v) || v < minPerShare || v > maxPrice) {
+    fail(`${name} must be ${String(minPerShare)} to ${String(maxPrice)}, got ${String(v)}`);
+  }
+}
+
+function validEps(name: string, v: number): void {
   const a = Math.abs(v);
-  if (!Number.isFinite(v)) {
-    fail(`${name} must be finite, got ${String(v)}`);
-  }
-  if (!signed && v <= 0) {
-    fail(`${name} must be positive, got ${String(v)}`);
-  }
-  if (v !== 0 && (a < minPerShare || a > maxPerShare)) {
+  if (!Number.isFinite(v) || (v !== 0 && (a < minPerShare || a > maxPerShare))) {
     fail(
       `${name} must be zero or ${String(minPerShare)} to ${String(maxPerShare)} in size, got ${String(v)}`,
     );
@@ -204,7 +206,7 @@ function validMonths(name: string, m: number | undefined): void {
 
 /**
  * validateLevers throws an InvalidInputError for the first lever that
- * evaluate cannot use. The price is 0.0001 to 1,000,000; EPS is zero or
+ * evaluate cannot use. The price is 0.0001 to 100,000,000; EPS is zero or
  * 0.0001 to 1,000,000 in size; the dividend is 0 to 1,000,000. The target
  * return is 0 to 50%, the holding period 1 to 10 whole years, a custom exit
  * P/E 0.5 to 1000, custom rates -50% to 200%, and look-backs 0 (the default)
@@ -213,8 +215,8 @@ function validMonths(name: string, m: number | undefined): void {
  * needs_positive_eps.
  */
 export function validateLevers(l: Levers): void {
-  validPerShare("price", l.price, false);
-  validPerShare("ttmEps", l.ttmEps, true);
+  validPrice("price", l.price);
+  validEps("ttmEps", l.ttmEps);
   const dividend = l.dividend ?? 0;
   if (!Number.isFinite(dividend) || dividend < 0 || dividend > maxPerShare) {
     fail(`dividend must be 0 to ${String(maxPerShare)}, got ${String(dividend)}`);
@@ -292,8 +294,8 @@ export function validateLevers(l: Levers): void {
 
 /**
  * validateHistory throws an InvalidInputError for a history that evaluate
- * cannot use: an EPS, close or TTM EPS outside the per-share bounds of
- * validateLevers, a close that is not positive, a share count or dollar
+ * cannot use: an EPS or TTM EPS outside the bounds of the EPS lever, a
+ * close outside the bounds of the price lever, a share count or dollar
  * amount that is not zero or 0.000001 to 10^15 in size, a date that is not
  * a YYYY-MM-DD day that exists, or a daily date that is not after the one
  * before it.
@@ -310,10 +312,10 @@ export function validateRows(quarters: readonly QuarterRow[], daily: readonly Da
       fail(`${at}.periodEnd must be a YYYY-MM-DD date, got ${JSON.stringify(q.periodEnd)}`);
     }
     if (q.eps !== null) {
-      validPerShare(`${at}.eps`, q.eps, true);
+      validEps(`${at}.eps`, q.eps);
     }
     if (q.close !== null) {
-      validPerShare(`${at}.close`, q.close, false);
+      validPrice(`${at}.close`, q.close);
     }
     const amounts = {
       dilutedShares: q.dilutedShares,
@@ -334,9 +336,9 @@ export function validateRows(quarters: readonly QuarterRow[], daily: readonly Da
     if (!isDate(d.date)) {
       fail(`${at}.date must be a YYYY-MM-DD date, got ${JSON.stringify(d.date)}`);
     }
-    validPerShare(`${at}.close`, d.close, false);
+    validPrice(`${at}.close`, d.close);
     if (d.ttmEps !== null) {
-      validPerShare(`${at}.ttmEps`, d.ttmEps, true);
+      validEps(`${at}.ttmEps`, d.ttmEps);
     }
     if (prev !== undefined && !(prev < d.date)) {
       fail(`${at}.date ${d.date} is not after ${prev}`);

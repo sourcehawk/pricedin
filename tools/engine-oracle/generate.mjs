@@ -1008,7 +1008,7 @@ add(
       quarters: short(gq, 6).map((q, i) => ({
         ...q,
         eps: cancel[i],
-        close: i === 3 || i === 4 ? 1e6 : null,
+        close: i === 3 || i === 4 ? 1e8 : null,
       })),
       daily: [],
     },
@@ -1021,6 +1021,60 @@ add(
   },
   [...evalNotes, N.requiredEndpoints],
 );
+// perShareTimes multiplies every price, close and EPS of a profile by k, so
+// that its P/Es and growth rates stay the same.
+const perShareTimes = (p, k) => {
+  const times = (v) => (v == null ? v : v * k);
+  return {
+    ...p,
+    price: p.price * k,
+    ttmEps: p.ttmEps * k,
+    history: {
+      quarters: p.history.quarters.map((q) => ({ ...q, eps: times(q.eps), close: times(q.close) })),
+      daily: p.history.daily.map((d) => ({ ...d, close: times(d.close), ttmEps: times(d.ttmEps) })),
+    },
+  };
+};
+const lastDays = (p, k) => ({ ...p, history: { ...p.history, daily: p.history.daily.slice(-k) } });
+add(
+  "evaluate a share price of 1,500,000",
+  "evaluate",
+  ev(lastDays(perShareTimes(GRMN, 1.5e6 / GRMN.price), 26), { price: 1.5e6, chartRange: "6M" }),
+  [...evalNotes, N.inputBounds],
+);
+// The edges of the price bound, at a close a little above GRMN's.
+const atPrice = (price, closes) => ({
+  history: {
+    quarters: gq.map((q, i) => (i === gq.length - 1 ? { ...q, close: closes.quarter } : q)),
+    daily: [{ date: "2026-01-02", close: closes.daily, ttmEps: GRMN.ttmEps }],
+  },
+  levers: defaultLevers(GRMN, { price }),
+});
+const edge = 1e8;
+const above = 1e8 + 1;
+for (const [name, input, accepted] of [
+  ["accepts a price and closes of 10^8", atPrice(edge, { quarter: edge, daily: edge }), true],
+  ["rejects a price above 10^8", atPrice(above, { quarter: 300, daily: 300 }), false],
+  ["rejects a quarter-end close above 10^8", atPrice(300, { quarter: above, daily: 300 }), false],
+  ["rejects a daily close above 10^8", atPrice(300, { quarter: 300, daily: above }), false],
+  [
+    "rejects a TTM EPS above 10^6",
+    {
+      ...atPrice(300, { quarter: 300, daily: 300 }),
+      levers: defaultLevers(GRMN, { ttmEps: 1e6 + 1 }),
+    },
+    false,
+  ],
+  [
+    "rejects a dividend above 10^6",
+    {
+      ...atPrice(300, { quarter: 300, daily: 300 }),
+      levers: defaultLevers(GRMN, { dividend: 1e6 + 1 }),
+    },
+    false,
+  ],
+])
+  hand(name, "evaluateAccepts", input, accepted, 0, N.inputBounds);
 add(
   "evaluate a baseline exactly 1.5 pp above the requirement",
   "evaluate",
@@ -1114,6 +1168,7 @@ for (const fn of [
   "financials",
   "compareScale",
   "evaluate",
+  "evaluateAccepts",
 ]) {
   assert.ok(fns.has(fn), `no case for ${fn}`);
 }

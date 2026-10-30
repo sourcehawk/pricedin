@@ -12,6 +12,7 @@ import {
   financials,
   growthScale,
   howDemanding,
+  InvalidInputError,
   niceStep,
   peBands,
   priceChart,
@@ -108,6 +109,16 @@ const customGrowth = object(leaves("yearly", "rate", "rates"));
 const investment = leaves("price", "eps", "targetReturn", "years", "dividend");
 const quarters = { quarters: array(quarter) };
 
+const evaluateInput = object({
+  history: object({ quarters: array(quarter), daily: array(pricePoint) }),
+  levers: object({
+    ...leaves("price", "ttmEps", "dividend", "targetReturn", "holdingYears", "chartRange"),
+    exitPe: object(leaves("mode", "custom", "trailingMonths")),
+    baseline: object({ mode: leaf, trailingMonths: leaf, custom: customGrowth }),
+    scenarios: array(scenarioCase),
+  }),
+});
+
 /**
  * inputs holds the exact JSON field names of each fn's input. A case key
  * that is not one of them fails the case, at any depth, as it does in the
@@ -156,15 +167,8 @@ const inputs: Record<string, Schema> = {
   priceChart: object({ daily: array(pricePoint), ...quarters, range: leaf }),
   financials: object(quarters),
   compareScale: object(leaves("values")),
-  evaluate: object({
-    history: object({ quarters: array(quarter), daily: array(pricePoint) }),
-    levers: object({
-      ...leaves("price", "ttmEps", "dividend", "targetReturn", "holdingYears", "chartRange"),
-      exitPe: object(leaves("mode", "custom", "trailingMonths")),
-      baseline: object({ mode: leaf, trailingMonths: leaf, custom: customGrowth }),
-      scenarios: array(scenarioCase),
-    }),
-  }),
+  evaluate: evaluateInput,
+  evaluateAccepts: evaluateInput,
 };
 
 /** runners maps each fn name of the case file to the TypeScript function. */
@@ -244,6 +248,19 @@ const runners: Record<string, (in_: Input) => unknown> = {
   financials: (i) => financials(i.get("quarters") as Quarter[]),
   compareScale: (i) => compareScale(i.get("values") as (number | null)[]),
   evaluate: (i) => evaluate(i.get("history") as History, i.get("levers") as Levers),
+  // false for input that evaluate rejects as invalid, so that a case can
+  // name a bound without the error text, which differs between the engines.
+  evaluateAccepts: (i) => {
+    try {
+      evaluate(i.get("history") as History, i.get("levers") as Levers);
+      return true;
+    } catch (e) {
+      if (e instanceof InvalidInputError) {
+        return false;
+      }
+      throw e;
+    }
+  },
 };
 
 const file = readJson("cases.json") as CaseFile;

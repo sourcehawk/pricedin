@@ -78,6 +78,7 @@ export {
   maxCustomGrowth,
   maxHoldingYears,
   maxMonths,
+  maxPrice,
   maxTargetReturn,
   minCustomExitPe,
   minCustomGrowth,
