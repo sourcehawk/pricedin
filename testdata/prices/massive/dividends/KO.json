@@ -13,7 +13,7 @@
       "cash_amount": 0.42,
       "currency": "USD",
       "distribution_type": "recurring",
-      "historical_adjustment_factor": 0.867081,
+      "historical_adjustment_factor": 0.856373,
       "split_adjusted_cash_amount": 0.42
     },
     {
@@ -27,7 +27,7 @@
       "cash_amount": 0.44,
       "currency": "USD",
       "distribution_type": "recurring",
-      "historical_adjustment_factor": 0.873317,
+      "historical_adjustment_factor": 0.863358,
       "split_adjusted_cash_amount": 0.44
     },
     {
@@ -41,7 +41,7 @@
       "cash_amount": 0.44,
       "currency": "USD",
       "distribution_type": "recurring",
-      "historical_adjustment_factor": 0.879671,
+      "historical_adjustment_factor": 0.870329,
       "split_adjusted_cash_amount": 0.44
     },
     {
@@ -55,7 +55,7 @@
       "cash_amount": 0.44,
       "currency": "USD",
       "distribution_type": "recurring",
-      "historical_adjustment_factor": 0.885633,
+      "historical_adjustment_factor": 0.876997,
       "split_adjusted_cash_amount": 0.44
     },
     {
@@ -69,7 +69,7 @@
       "cash_amount": 0.44,
       "currency": "USD",
       "distribution_type": "recurring",
-      "historical_adjustment_factor": 0.891411,
+      "historical_adjustment_factor": 0.884124,
       "split_adjusted_cash_amount": 0.44
     },
     {
@@ -83,7 +83,7 @@
       "cash_amount": 0.46,
       "currency": "USD",
       "distribution_type": "recurring",
-      "historical_adjustment_factor": 0.89693,
+      "historical_adjustment_factor": 0.891145,
       "split_adjusted_cash_amount": 0.46
     },
     {
@@ -97,7 +97,7 @@
       "cash_amount": 0.46,
       "currency": "USD",
       "distribution_type": "recurring",
-      "historical_adjustment_factor": 0.902993,
+      "historical_adjustment_factor": 0.898926,
       "split_adjusted_cash_amount": 0.46
     },
     {
@@ -111,7 +111,7 @@
       "cash_amount": 0.46,
       "currency": "USD",
       "distribution_type": "recurring",
-      "historical_adjustment_factor": 0.909105,
+      "historical_adjustment_factor": 0.906385,
       "split_adjusted_cash_amount": 0.46
     },
     {
@@ -125,7 +125,7 @@
       "cash_amount": 0.46,
       "currency": "USD",
       "distribution_type": "recurring",
-      "historical_adjustment_factor": 0.915244,
+      "historical_adjustment_factor": 0.913421,
       "split_adjusted_cash_amount": 0.46
     },
     {
@@ -139,7 +139,7 @@
       "cash_amount": 0.48,
       "currency": "USD",
       "distribution_type": "recurring",
-      "historical_adjustment_factor": 0.92173,
+      "historical_adjustment_factor": 0.920658,
       "split_adjusted_cash_amount": 0.48
     },
     {
@@ -153,7 +153,7 @@
       "cash_amount": 0.48,
       "currency": "USD",
       "distribution_type": "recurring",
-      "historical_adjustment_factor": 0.9285,
+      "historical_adjustment_factor": 0.928232,
       "split_adjusted_cash_amount": 0.48
     },
     {
@@ -167,7 +167,7 @@
       "cash_amount": 0.48,
       "currency": "USD",
       "distribution_type": "recurring",
-      "historical_adjustment_factor": 0.935315,
+      "historical_adjustment_factor": 0.935586,
       "split_adjusted_cash_amount": 0.48
     },
     {
@@ -181,7 +181,7 @@
       "cash_amount": 0.48,
       "currency": "USD",
       "distribution_type": "recurring",
-      "historical_adjustment_factor": 0.942432,
+      "historical_adjustment_factor": 0.942889,
       "split_adjusted_cash_amount": 0.48
     },
     {
@@ -195,7 +195,7 @@
       "cash_amount": 0.5,
       "currency": "USD",
       "distribution_type": "recurring",
-      "historical_adjustment_factor": 0.94997,
+      "historical_adjustment_factor": 0.950579,
       "split_adjusted_cash_amount": 0.5
     },
     {
@@ -209,7 +209,7 @@
       "cash_amount": 0.5,
       "currency": "USD",
       "distribution_type": "recurring",
-      "historical_adjustment_factor": 0.958181,
+      "historical_adjustment_factor": 0.958961,
       "split_adjusted_cash_amount": 0.5
     },
     {
@@ -223,7 +223,7 @@
       "cash_amount": 0.5,
       "currency": "USD",
       "distribution_type": "recurring",
-      "historical_adjustment_factor": 0.965435,
+      "historical_adjustment_factor": 0.966575,
       "split_adjusted_cash_amount": 0.5
     },
     {
@@ -237,7 +237,7 @@
       "cash_amount": 0.5,
       "currency": "USD",
       "distribution_type": "recurring",
-      "historical_adjustment_factor": 0.972281,
+      "historical_adjustment_factor": 0.973428,
       "split_adjusted_cash_amount": 0.5
     },
     {
@@ -251,7 +251,7 @@
       "cash_amount": 0.52,
       "currency": "USD",
       "distribution_type": "recurring",
-      "historical_adjustment_factor": 0.979079,
+      "historical_adjustment_factor": 0.980033,
       "split_adjusted_cash_amount": 0.52
     },
     {
@@ -265,7 +265,7 @@
       "cash_amount": 0.52,
       "currency": "USD",
       "distribution_type": "recurring",
-      "historical_adjustment_factor": 0.985953,
+      "historical_adjustment_factor": 0.986559,
       "split_adjusted_cash_amount": 0.52
     },
     {
@@ -279,7 +279,7 @@
       "cash_amount": 0.52,
       "currency": "USD",
       "distribution_type": "recurring",
-      "historical_adjustment_factor": 0.993294,
+      "historical_adjustment_factor": 0.993506,
       "split_adjusted_cash_amount": 0.52
     },
     {

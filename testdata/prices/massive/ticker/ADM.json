@@ -1,0 +1,18 @@
+{
+  "request_id": "17f321ae15b0e215e82f9889104d8ed5",
+  "results": {
+    "ticker": "ADM",
+    "name": "Archer-Daniels-Midland Co",
+    "market": "stocks",
+    "locale": "us",
+    "primary_exchange": "XNYS",
+    "type": "CS",
+    "active": true,
+    "currency_name": "usd",
+    "cik": "0000007084",
+    "composite_figi": "BBGFXE511147",
+    "share_class_figi": "BBGFXA8DA02E",
+    "last_updated_utc": "2026-10-29T06:00:00Z"
+  },
+  "status": "OK"
+}

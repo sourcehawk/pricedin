@@ -14,7 +14,20 @@
       "drift": 0.35,
       "volatility": 0.5,
       "volume": 400000000,
-      "splits": [{ "date": "2024-06-10", "from": 1, "to": 10 }]
+      "splits": [
+        {
+          "date": "2021-07-20",
+          "from": 1,
+          "to": 4
+        },
+        {
+          "date": "2024-06-10",
+          "from": 1,
+          "to": 10
+        }
+      ],
+      "anchors": "anchors/NVDA.json",
+      "anchor_pe": 45
     },
     {
       "symbol": "AAPL",
@@ -25,7 +38,21 @@
       "start_price": 150,
       "drift": 0.08,
       "volatility": 0.27,
-      "volume": 60000000
+      "volume": 60000000,
+      "splits": [
+        {
+          "date": "2014-06-09",
+          "from": 1,
+          "to": 7
+        },
+        {
+          "date": "2020-08-31",
+          "from": 1,
+          "to": 4
+        }
+      ],
+      "anchors": "anchors/AAPL.json",
+      "anchor_pe": 30
     },
     {
       "symbol": "KO",
@@ -40,10 +67,24 @@
       "dividends": {
         "first_amount": 0.42,
         "annual_raise": 0.045,
-        "ex_dates": ["03-14", "06-14", "09-14", "11-29"],
+        "ex_dates": [
+          "03-14",
+          "06-14",
+          "09-14",
+          "11-29"
+        ],
         "declared_days_before": 45,
         "pay_days_after": 16
-      }
+      },
+      "splits": [
+        {
+          "date": "2012-08-13",
+          "from": 1,
+          "to": 2
+        }
+      ],
+      "anchors": "anchors/KO.json",
+      "anchor_pe": 24
     },
     {
       "symbol": "GRMN",
@@ -58,10 +99,42 @@
       "dividends": {
         "first_amount": 0.73,
         "annual_raise": 0.05,
-        "ex_dates": ["03-14", "06-13", "09-13", "12-13"],
+        "ex_dates": [
+          "03-14",
+          "06-13",
+          "09-13",
+          "12-13"
+        ],
         "declared_yearly_on": "02-18",
         "pay_days_after": 14
-      }
+      },
+      "anchors": "anchors/GRMN.json",
+      "anchor_pe": 25
+    },
+    {
+      "symbol": "ADM",
+      "cik": 7084,
+      "name": "Archer-Daniels-Midland Co",
+      "exchange": "XNYS",
+      "type": "CS",
+      "start_price": 80,
+      "drift": 0.0,
+      "volatility": 0.25,
+      "volume": 3500000,
+      "dividends": {
+        "first_amount": 0.37,
+        "annual_raise": 0.07,
+        "ex_dates": [
+          "02-14",
+          "05-16",
+          "08-15",
+          "11-14"
+        ],
+        "declared_days_before": 40,
+        "pay_days_after": 25
+      },
+      "anchors": "anchors/ADM.json",
+      "anchor_pe": 14
     }
   ]
 }

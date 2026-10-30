@@ -15,17 +15,17 @@
       "last_updated_utc": "2026-10-29T06:00:00Z"
     },
     {
-      "ticker": "GRMN",
-      "name": "Garmin Ltd.",
+      "ticker": "ADM",
+      "name": "Archer-Daniels-Midland Co",
       "market": "stocks",
       "locale": "us",
       "primary_exchange": "XNYS",
       "type": "CS",
       "active": true,
       "currency_name": "usd",
-      "cik": "0001121788",
-      "composite_figi": "BBGFX1958561",
-      "share_class_figi": "BBGFX32837DC",
+      "cik": "0000007084",
+      "composite_figi": "BBGFXE511147",
+      "share_class_figi": "BBGFXA8DA02E",
       "last_updated_utc": "2026-10-29T06:00:00Z"
     }
   ],
