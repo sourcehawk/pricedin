@@ -132,7 +132,7 @@ type Levers struct {
 }
 
 // ErrInvalidInput wraps every validation error of Evaluate.
-var ErrInvalidInput = errors.New("invalid engine input")
+var ErrInvalidInput = errors.New("engine: invalid input")
 
 func invalid(format string, args ...any) error {
 	return fmt.Errorf("%w: %s", ErrInvalidInput, fmt.Sprintf(format, args...))
