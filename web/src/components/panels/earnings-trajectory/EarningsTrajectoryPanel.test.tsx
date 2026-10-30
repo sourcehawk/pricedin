@@ -7,9 +7,9 @@ import { apiServer, apiUrl, withApiServer } from "@/api/testing/server";
 import { pct, signedPct, usd } from "@/components/format";
 import type { Paths } from "@/engine";
 import { useLeverDispatch } from "@/state/StockProvider";
-import { renderReady } from "@/testing/render";
+import { columns, guide } from "@/testing/charts";
+import { evaluationProbe, leversWith, renderReady, WhenReady } from "@/testing/render";
 import { EarningsTrajectoryPanel } from "./EarningsTrajectoryPanel";
-import { evaluationProbe, leversWith, WhenReady } from "./testing";
 
 withApiServer();
 
@@ -73,18 +73,6 @@ async function show(levers = leversWith()) {
   }
   const paths: Paths = ev.earningsPaths.value;
   return { ev, paths, chart: screen.getByRole("img", { name: /TTM EPS/ }) };
-}
-
-function columns(chart: Element): SVGRectElement[] {
-  return [...chart.querySelectorAll<SVGRectElement>("rect.vcol")];
-}
-
-function guide(chart: Element): SVGLineElement {
-  const l = chart.querySelector<SVGLineElement>("line.vx");
-  if (l === null) {
-    throw new Error("no guide line");
-  }
-  return l;
 }
 
 describe("EarningsTrajectoryPanel", () => {

@@ -1,14 +1,17 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { pct, signedPct, times, usd, years } from "@/components/format";
-import { baselineName } from "@/components/rail/notes";
+import { pct, signedPct, signedUsd, times, usd, years } from "@/components/format";
+import { baselineLabel } from "@/components/copy";
 import { InfoTip } from "@/components/tip/InfoTip";
 import { Walkthrough, type WalkthroughStep } from "@/components/walkthrough/Walkthrough";
 import type { Evaluation, Paths } from "@/engine";
 import { useEvaluation } from "@/state/StockProvider";
 import { Panel } from "../Panel";
-import { endLabels, FromLevers, linePath, swatch, TipRow, useColumns, YAxis } from "./smallChart";
+import { endLabels, linePath, useColumns, YAxis } from "@/components/charts/smallChart";
+import { TipRow } from "@/components/tip/TipRow";
+import { FromLevers } from "@/components/Sourced";
+import { colorVar, LineSample, Swatch } from "@/components/Swatch";
 
 const W = 520;
 const H = 270;
@@ -36,10 +39,6 @@ function yearsOut(k: number): string {
   return `${String(k / 4)} ${k === 4 ? "year" : "years"} out`;
 }
 
-function signedUsd(v: number | null): string {
-  return v === null ? "n/a" : `${v >= 0 ? "+" : ""}${usd(v)}`;
-}
-
 /** EarningsTrajectoryPanel shows TTM EPS by quarter, then the baseline path and the path the price requires. */
 export function EarningsTrajectoryPanel() {
   const { evaluation: ev, levers, profile, provenance } = useEvaluation();
@@ -50,7 +49,7 @@ export function EarningsTrajectoryPanel() {
     {
       title: (
         <>
-          <span className="lg" style={swatch(ink)} /> The reported EPS line
+          <LineSample color={ink} /> The reported EPS line
         </>
       ),
       body: (
@@ -74,7 +73,7 @@ export function EarningsTrajectoryPanel() {
     {
       title: (
         <>
-          <span className="lg d" style={swatch(muted)} /> The baseline line
+          <LineSample color={muted} dash /> The baseline line
         </>
       ),
       body: (
@@ -87,7 +86,7 @@ export function EarningsTrajectoryPanel() {
       levers: ["baseline"],
       you: (e) => (
         <>
-          At your {baselineName(e)} of <b>{pct(e.baselines.growth.value)}</b>, EPS reaches{" "}
+          At your {baselineLabel(e)} of <b>{pct(e.baselines.growth.value)}</b>, EPS reaches{" "}
           <b>{usd(pathsOf(e).future.at(-1)?.baseline.value)}</b> in {years(n)}.
         </>
       ),
@@ -95,7 +94,7 @@ export function EarningsTrajectoryPanel() {
     {
       title: (
         <>
-          <span className="lg d" style={swatch(accent)} /> The required line
+          <LineSample color={accent} dash /> The required line
         </>
       ),
       body: (
@@ -144,11 +143,11 @@ export function EarningsTrajectoryPanel() {
         <p>
           The shaded area is the gap between the two dashed lines.
           <span className="vl">
-            <i className="sq" style={swatch("var(--bad)")} />
+            <Swatch color="var(--bad)" />
             The company grows too slowly for your target, so you would earn less than you want.
           </span>
           <span className="vl">
-            <i className="sq" style={swatch("var(--good)")} />
+            <Swatch color="var(--good)" />
             The company grows fast enough, so you would earn more than you want.
           </span>
           The wider the gap at the right edge, the bigger the difference.
@@ -210,7 +209,7 @@ export function EarningsTrajectoryPanel() {
         }
         return (
           <>
-            <strong>{ticker} in one line:</strong> at your {baselineName(e)}, EPS ends{" "}
+            <strong>{ticker} in one line:</strong> at your {baselineLabel(e)}, EPS ends{" "}
             {usd(Math.abs(gap))} per share {gap < 0 ? "short of" : "above"} what the price needs.
           </>
         );
@@ -228,20 +227,20 @@ export function EarningsTrajectoryPanel() {
           TTM EPS by quarter, then two paths: your baseline continuing, and the path the price
           requires.
           <InfoTip label="About shading">
-            <span className="sw" style={swatch("var(--bad)")} /> Shading: the required path ends
+            <span className="sw" style={colorVar("var(--bad)")} /> Shading: the required path ends
             above the baseline, so the price needs more growth than the trend gives.{" "}
-            <span className="sw" style={swatch("var(--good)")} /> Shading: the baseline beats it.
+            <span className="sw" style={colorVar("var(--good)")} /> Shading: the baseline beats it.
             Hover the chart for values.
           </InfoTip>
         </>
       }
     >
       <div className="keys">
-        <span style={swatch(ink)}>Reported TTM EPS</span>
-        <span className="dash" style={swatch(muted)}>
+        <span style={colorVar(ink)}>Reported TTM EPS</span>
+        <span className="dash" style={colorVar(muted)}>
           Baseline continues
         </span>
-        <span className="dash" style={swatch(accent)}>
+        <span className="dash" style={colorVar(accent)}>
           Required path
         </span>
       </div>
@@ -277,7 +276,7 @@ function shadingLine(e: Evaluation, ticker: string, targetReturn: number): React
   if (gap === null || at === null) {
     return null;
   }
-  const name = baselineName(e);
+  const name = baselineLabel(e);
   const g = pct(e.baselines.growth.value);
   if (gap < 0) {
     return (

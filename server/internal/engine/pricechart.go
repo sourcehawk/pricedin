@@ -296,12 +296,16 @@ type Chart struct {
 
 // ChartPoint is one day of the chart.
 type ChartPoint struct {
-	Date           domain.Date `json:"date"`
-	Close          float64     `json:"close"`
-	TTMEPS         *float64    `json:"ttmEps"`
-	PE             Number      `json:"pe"`
-	PriceChange12M Number      `json:"priceChange12m"` // against the last close at least 365 days earlier
-	EPSGrowth12M   Number      `json:"epsGrowth12m"`   // TTM EPS against the same day
+	Date   domain.Date `json:"date"`
+	Close  float64     `json:"close"`
+	TTMEPS *float64    `json:"ttmEps"`
+	// TTMQuarters are the labels of the quarters that TTMEPS adds up, oldest
+	// first. It is empty without a TTM EPS, or when the day's TTMQuarter
+	// names no quarter of the history.
+	TTMQuarters    []string `json:"ttmQuarters"`
+	PE             Number   `json:"pe"`
+	PriceChange12M Number   `json:"priceChange12m"` // against the last close at least 365 days earlier
+	EPSGrowth12M   Number   `json:"epsGrowth12m"`   // TTM EPS against the same day
 }
 
 // Last12Months are the 12-month changes on the last day.
@@ -320,7 +324,7 @@ func PriceChart(daily []PricePoint, quarters []Quarter, rng ChartRange) Maybe[Ch
 	if rng == "" {
 		rng = Range3Y
 	}
-	all := enrich(daily)
+	all := enrich(daily, quarters)
 	end := daily[len(daily)-1].Date
 	start := domain.DateOf(end.Time().AddDate(0, -rng.months(), 0))
 	from := slices.IndexFunc(daily, func(d PricePoint) bool { return !d.Date.Before(start) })
@@ -329,8 +333,8 @@ func PriceChart(daily []PricePoint, quarters []Quarter, rng ChartRange) Maybe[Ch
 
 	out := Chart{Range: rng, Start: pts[0].Date, End: end, Points: pts}
 	lo, hi := math.Inf(1), math.Inf(-1)
-	for _, p := range pts {
-		lo, hi = math.Min(lo, p.Close), math.Max(hi, p.Close)
+	for i := range pts {
+		lo, hi = math.Min(lo, pts[i].Close), math.Max(hi, pts[i].Close)
 	}
 	out.High, out.Low = hi, lo
 	mn, mx := lo*0.9, hi*1.06
@@ -338,7 +342,8 @@ func PriceChart(daily []PricePoint, quarters []Quarter, rng ChartRange) Maybe[Ch
 	out.PriceAxis = newAxis(math.Floor(mn/st)*st, math.Ceil(mx/st)*st, st)
 	var eps, pes []float64
 	changes := []float64{0}
-	for _, p := range pts {
+	for i := range pts {
+		p := &pts[i]
 		if p.TTMEPS != nil {
 			eps = append(eps, *p.TTMEPS)
 		}
@@ -392,7 +397,8 @@ func PriceChart(daily []PricePoint, quarters []Quarter, rng ChartRange) Maybe[Ch
 		out.Last12Months.PEChange = Some((1+r12.Get())/(1+g12.Get()) - 1)
 	}
 	var xs, ys []float64
-	for _, p := range pts {
+	for i := range pts {
+		p := &pts[i]
 		if p.PriceChange12M.Ok() && p.EPSGrowth12M.Ok() {
 			xs, ys = append(xs, p.PriceChange12M.Get()), append(ys, p.EPSGrowth12M.Get())
 		}
@@ -408,8 +414,13 @@ func PriceChart(daily []PricePoint, quarters []Quarter, rng ChartRange) Maybe[Ch
 	return Some(out)
 }
 
-// enrich adds the P/E and the 12-month changes to every daily point.
-func enrich(daily []PricePoint) []ChartPoint {
+// enrich adds the TTM quarters, the P/E and the 12-month changes to every
+// daily point.
+func enrich(daily []PricePoint, quarters []Quarter) []ChartPoint {
+	index := make(map[string]int, len(quarters))
+	for i, q := range quarters {
+		index[q.Label] = i
+	}
 	out := make([]ChartPoint, len(daily))
 	j := 0
 	for i, d := range daily {
@@ -417,7 +428,12 @@ func enrich(daily []PricePoint) []ChartPoint {
 		for j < len(daily)-1 && !daily[j+1].Date.After(back) {
 			j++
 		}
-		p := ChartPoint{Date: d.Date, Close: d.Close, TTMEPS: d.TTMEPS, PE: pointPE(d)}
+		p := ChartPoint{Date: d.Date, Close: d.Close, TTMEPS: d.TTMEPS, TTMQuarters: []string{}, PE: pointPE(d)}
+		if k, ok := ttmIndex(d, index); ok {
+			for _, q := range quarters[max(0, k-3) : k+1] {
+				p.TTMQuarters = append(p.TTMQuarters, q.Label)
+			}
+		}
 		ref := daily[j]
 		if daily[0].Date.After(back) {
 			p.PriceChange12M = None[float64](ReasonInsufficientHistory)
@@ -436,6 +452,15 @@ func enrich(daily []PricePoint) []ChartPoint {
 		out[i] = p
 	}
 	return out
+}
+
+// ttmIndex returns the index of the newest quarter of a day's TTM EPS.
+func ttmIndex(d PricePoint, index map[string]int) (int, bool) {
+	if d.TTMEPS == nil || d.TTMQuarter == nil {
+		return 0, false
+	}
+	k, ok := index[*d.TTMQuarter]
+	return k, ok
 }
 
 // fit returns a free scale that fills the plot with 8% padding; missing

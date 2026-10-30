@@ -1,13 +1,9 @@
-import type { CSSProperties, ReactNode } from "react";
-import { pct, signedPct, times, usd } from "@/components/format";
+import type { ReactNode } from "react";
+import { coefficient, multiple, pct, signedPct, times, usd } from "@/components/format";
+import { LineSample, Swatch } from "@/components/Swatch";
 import type { WalkthroughStep } from "@/components/walkthrough/Walkthrough";
 import type { Chart, Evaluation } from "@/engine";
-import { multipleLabel, spanLabel } from "./geometry";
-
-const lg = (color: string, dash = false) => (
-  <span className={dash ? "lg d" : "lg"} style={{ "--c": color } as CSSProperties} />
-);
-const sq = (color: string) => <i className="sq" style={{ "--c": color } as CSSProperties} />;
+import { spanLabel } from "./geometry";
 
 /** span names the period of the chart, such as "over 3Y". */
 function span(c: Chart): string {
@@ -73,7 +69,11 @@ export const bandsStep = 6;
 export function priceSteps(ticker: string): WalkthroughStep[] {
   return [
     {
-      title: <>{lg("var(--accent)")} The price line</>,
+      title: (
+        <>
+          <LineSample color="var(--accent)" /> The price line
+        </>
+      ),
       body: (
         <p>
           The share price at each day&apos;s close. It is the only line with an axis, so read its
@@ -93,7 +93,11 @@ export function priceSteps(ticker: string): WalkthroughStep[] {
       }),
     },
     {
-      title: <>{lg("var(--ink)")} The TTM EPS line</>,
+      title: (
+        <>
+          <LineSample color="var(--ink)" /> The TTM EPS line
+        </>
+      ),
       body: (
         <p>
           Earnings per share over the last 12 months (TTM EPS): the last four quarterly reports
@@ -113,7 +117,11 @@ export function priceSteps(ticker: string): WalkthroughStep[] {
       }),
     },
     {
-      title: <>{lg("var(--warn)")} The P/E line</>,
+      title: (
+        <>
+          <LineSample color="var(--warn)" /> The P/E line
+        </>
+      ),
       body: (
         <p>
           The price divided by TTM EPS (P/E): how many dollars investors pay for one dollar of
@@ -131,8 +139,8 @@ export function priceSteps(ticker: string): WalkthroughStep[] {
     {
       title: (
         <>
-          {lg("var(--accent)", true)}
-          {lg("var(--ink)", true)} The 12-month change lines
+          <LineSample color="var(--accent)" dash />
+          <LineSample color="var(--ink)" dash /> The 12-month change lines
         </>
       ),
       body: (
@@ -239,13 +247,13 @@ export function priceSteps(ticker: string): WalkthroughStep[] {
         if (b === null || near === null || a === null || z === null) {
           return null;
         }
-        const crossed = b.crossed.map(multipleLabel).join(", ");
+        const crossed = b.crossed.map((m) => multiple(m)).join(", ");
         const rose = z > a;
         const priceUp = c.priceChange >= 0;
         return (
           <>
-            The {lg("var(--s3)")} line is the <b>{multipleLabel(near)}</b> band, the one closest to
-            today&apos;s P/E. <Span c={c} /> the P/E went from <b>{times(a)}</b> to{" "}
+            The <LineSample color="var(--s3)" /> line is the <b>{multiple(near)}</b> band, the one
+            closest to today&apos;s P/E. <Span c={c} /> the P/E went from <b>{times(a)}</b> to{" "}
             <b>{times(z)}</b>.{" "}
             {b.crossed.length === 0 ? (
               "No band line lies between the first and the last P/E."
@@ -267,11 +275,12 @@ export function priceSteps(ticker: string): WalkthroughStep[] {
       body: (
         <p>
           A marker shows a quarter in which the diluted share count changed by 2% or more against
-          the quarter before. {sq("var(--bad)")}This marker means the count rose: dilution, such as
-          new shares or more options. {sq("var(--good)")}This one means it fell, usually through
-          buybacks. The count is a quarterly average, so a marker shows the change, not one
-          transaction. After a dilution, the profit or loss is split over more shares, so each share
-          owns a smaller part of it.
+          the quarter before. <Swatch color="var(--bad)" />
+          This marker means the count rose: dilution, such as new shares or more options.{" "}
+          <Swatch color="var(--good)" />
+          This one means it fell, usually through buybacks. The count is a quarterly average, so a
+          marker shows the change, not one transaction. After a dilution, the profit or loss is
+          split over more shares, so each share owns a smaller part of it.
         </p>
       ),
       highlight: ["events", "eps"],
@@ -295,10 +304,10 @@ export function priceSteps(ticker: string): WalkthroughStep[] {
         <p>
           They are hidden by default, so turn them on with their chips when you want to see where
           price and earnings went separate ways. They share one scale, so you can compare their
-          heights. When {lg("var(--accent)", true)} price change sits above {lg("var(--ink)", true)}{" "}
-          EPS growth, the P/E went up over that year. When it sits below, the P/E went down. This
-          holds while TTM EPS stays positive, because the P/E needs a positive TTM EPS. The faint
-          line marked 0% (12M) is where there was no change.
+          heights. When <LineSample color="var(--accent)" dash /> price change sits above{" "}
+          <LineSample color="var(--ink)" dash /> EPS growth, the P/E went up over that year. When it
+          sits below, the P/E went down. This holds while TTM EPS stays positive, because the P/E
+          needs a positive TTM EPS. The faint line marked 0% (12M) is where there was no change.
         </p>
       ),
       highlight: ["r12", "g12"],
@@ -325,18 +334,21 @@ export function priceSteps(ticker: string): WalkthroughStep[] {
           it compares the two 12-month lines: when earnings growth sped up or slowed down, did the
           price change follow?
           <span className="vl">
-            {sq("var(--good)")}Strong, 0.6 or more: the price change closely tracked earnings
-            growth.
+            <Swatch color="var(--good)" />
+            Strong, 0.6 or more: the price change closely tracked earnings growth.
           </span>
           <span className="vl">
-            {sq("var(--warn)")}Moderate, 0.3 to 0.6: it tracked earnings growth in part.
+            <Swatch color="var(--warn)" />
+            Moderate, 0.3 to 0.6: it tracked earnings growth in part.
           </span>
           <span className="vl">
-            {sq("var(--muted)")}Weak, below 0.3: it hardly tracked earnings growth, so look for
-            other drivers, such as market mood, interest rates or hopes for the future.
+            <Swatch color="var(--muted)" />
+            Weak, below 0.3: it hardly tracked earnings growth, so look for other drivers, such as
+            market mood, interest rates or hopes for the future.
           </span>
           <span className="vl">
-            {sq("var(--bad)")}Negative: the price change tended to move against earnings growth.
+            <Swatch color="var(--bad)" />
+            Negative: the price change tended to move against earnings growth.
           </span>
         </p>
       ),
@@ -350,7 +362,7 @@ export function priceSteps(ticker: string): WalkthroughStep[] {
         }
         return (
           <>
-            <Span c={c} /> the correlation is <b>{link.correlation.toFixed(2)}</b>, {link.class}:{" "}
+            <Span c={c} /> the correlation is <b>{coefficient(link.correlation)}</b>, {link.class}:{" "}
             {linkMeaning[link.class]}
           </>
         );

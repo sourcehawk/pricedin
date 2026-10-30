@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { linePath } from "./smallChart";
+import { linePath, shortLabel } from "./smallChart";
 
 describe("linePath", () => {
   it("joins points into one path", () => {
@@ -28,5 +28,15 @@ describe("linePath", () => {
 
   it("is empty without points", () => {
     expect(linePath([null, null])).toBe("");
+  });
+});
+
+describe("shortLabel", () => {
+  it("shortens a quarter's fiscal year to two digits after an apostrophe", () => {
+    expect(shortLabel("Q3 FY26")).toBe("Q3'26");
+  });
+
+  it("keeps a label that is not a quarter label", () => {
+    expect(shortLabel("FY26")).toBe("FY26");
   });
 });

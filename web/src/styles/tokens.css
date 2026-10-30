@@ -15,7 +15,8 @@
   --good: #1d9a5a;
   --warn: #d48a10;
   --bad: #cf4339;
-  --s3: #0e8a86;
+  /* Darker than the prototype's #0e8a86, so text on it and in it reaches 4.5:1. */
+  --s3: #0c7c78;
   --s4: #7c4ddb;
   --s6: #c2367a;
   --hl: #ffe45c;

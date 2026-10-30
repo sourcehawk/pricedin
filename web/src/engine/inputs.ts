@@ -28,6 +28,8 @@ export interface PricePoint {
   date: string;
   close: number;
   ttmEps?: number | null;
+  /** The label of the newest of the four quarters that ttmEps adds up; null or absent when the source does not say. */
+  ttmQuarter?: string | null;
 }
 
 /**
@@ -43,7 +45,7 @@ export interface History {
 /** QuarterRow is a Quarter with each field present: null where it was not reported. */
 export type QuarterRow = { readonly [K in keyof Quarter]-?: Exclude<Quarter[K], undefined> };
 
-/** DayRow is a PricePoint with a TTM EPS that is a number or null. */
+/** DayRow is a PricePoint with each field present: null where it is not known. */
 export type DayRow = { readonly [K in keyof PricePoint]-?: Exclude<PricePoint[K], undefined> };
 
 /** quarterRows returns the quarters with each absent field as null, as Go decodes them. */
@@ -61,9 +63,14 @@ export function quarterRows(quarters: readonly Quarter[] | null | undefined): Qu
   }));
 }
 
-/** dayRows returns the days with an absent TTM EPS as null, as Go decodes them. */
+/** dayRows returns the days with each absent field as null, as Go decodes them. */
 export function dayRows(daily: readonly PricePoint[] | null | undefined): DayRow[] {
-  return (daily ?? []).map((d) => ({ date: d.date, close: d.close, ttmEps: d.ttmEps ?? null }));
+  return (daily ?? []).map((d) => ({
+    date: d.date,
+    close: d.close,
+    ttmEps: d.ttmEps ?? null,
+    ttmQuarter: d.ttmQuarter ?? null,
+  }));
 }
 
 /** ExitPeMode selects how the exit P/E is set. */

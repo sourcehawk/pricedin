@@ -1,15 +1,9 @@
-import { act, fireEvent, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
-import { withApiServer } from "@/api/testing/server";
-import {
-  filedOn,
-  filingUrl,
-  financialsHistory,
-  serveHistory,
-  renderPanel,
-  type HistoryQuarter,
-} from "./testing";
+import { serveHistory, withApiServer } from "@/api/testing/server";
+import { column, columns, guide } from "@/testing/charts";
+import { filedOn, filingUrl, financialsHistory, renderPanel, type HistoryQuarter } from "./testing";
 
 withApiServer();
 
@@ -37,6 +31,11 @@ async function pick(name: string) {
   await userEvent.click(
     within(screen.getByRole("group", { name: "Financial metric" })).getByRole("button", { name }),
   );
+}
+
+/** chart returns the metric chart. */
+function chart(): HTMLElement {
+  return screen.getByRole("group", { name: /^Quarterly / });
 }
 
 describe("FinancialsPanel metric chart", () => {
@@ -122,34 +121,65 @@ describe("FinancialsPanel metric chart", () => {
 
   it("snaps the tooltip to the hovered quarter and draws a guide line there", async () => {
     const { container } = await renderPanel();
-    const columns = container.querySelectorAll("rect.cmpcol");
-    expect(columns).toHaveLength(8);
-    fireEvent.pointerEnter(columns[7] as Element, { pointerType: "mouse", clientX: 5, clientY: 5 });
+    expect(columns(container)).toHaveLength(8);
+    const col = column(container, 7);
+    fireEvent.pointerEnter(col, { pointerType: "mouse", clientX: 5, clientY: 5 });
     const tip = screen.getByRole("tooltip");
     expect(tip).toHaveTextContent("Q3 FY26 Revenue");
     expect(tip).toHaveTextContent("vs Q3 FY25+12.0%");
-    expect(container.querySelector("line.col-guide")).toBeInTheDocument();
-    fireEvent.pointerLeave(columns[7] as Element, { pointerType: "mouse" });
-    expect(container.querySelector("line.col-guide")).not.toBeInTheDocument();
+    expect(guide(container)).toHaveAttribute("visibility", "visible");
+    expect(guide(container)).toHaveAttribute("x1", col.dataset.x);
+    fireEvent.pointerLeave(chart(), { pointerType: "mouse" });
+    expect(guide(container)).toHaveAttribute("visibility", "hidden");
   });
 
   it("keeps the guide line on a quarter while its value has the pointer or the focus", async () => {
     const { container } = await renderPanel();
     const link = screen.getByRole("link", { name: /^Q3 FY26 Revenue/ });
     fireEvent.pointerEnter(link, { pointerType: "mouse", clientX: 5, clientY: 5 });
-    expect(container.querySelector("line.col-guide")).toBeInTheDocument();
+    expect(guide(container)).toHaveAttribute("visibility", "visible");
+    expect(guide(container)).toHaveAttribute("x1", column(container, 7).dataset.x);
     fireEvent.pointerLeave(link, { pointerType: "mouse" });
-    expect(container.querySelector("line.col-guide")).not.toBeInTheDocument();
+    expect(guide(container)).toHaveAttribute("visibility", "hidden");
     act(() => {
       link.focus();
     });
-    expect(container.querySelector("line.col-guide")).toBeInTheDocument();
+    expect(guide(container)).toHaveAttribute("visibility", "visible");
+  });
+
+  it("names each quarter's column for a screen reader", async () => {
+    const { container } = await renderPanel();
+    expect(within(chart()).getByRole("img", { name: "Q3 FY26 Revenue: $2.0B" })).toBe(
+      column(container, 7),
+    );
+  });
+
+  it("moves between quarters with the arrow keys", async () => {
+    const { container } = await renderPanel();
+    act(() => {
+      chart().focus();
+    });
+    expect(screen.getByRole("tooltip")).toHaveTextContent("Q3 FY26 Revenue");
+    await userEvent.keyboard("{ArrowLeft}");
+    expect(screen.getByRole("tooltip")).toHaveTextContent("Q2 FY26 Revenue");
+    expect(guide(container)).toHaveAttribute("x1", column(container, 6).dataset.x);
+  });
+
+  it("leaves the arrow keys to a focused value link instead of moving the chart", async () => {
+    const { container } = await renderPanel();
+    const link = screen.getByRole("link", { name: /^Q3 FY26 Revenue/ });
+    act(() => {
+      link.focus();
+    });
+    fireEvent.keyDown(link, { key: "ArrowLeft" });
+    expect(guide(container)).toHaveAttribute("x1", column(container, 7).dataset.x);
+    expect(screen.getByRole("tooltip")).toHaveTextContent("Q3 FY26 Revenue");
   });
 
   it("shows the operating margin of a quarter in the operating income tooltip", async () => {
     const { container } = await renderPanel();
     await pick("Op. income");
-    const col = container.querySelectorAll("rect.cmpcol")[7] as Element;
+    const col = column(container, 7);
     fireEvent.pointerEnter(col, { pointerType: "mouse", clientX: 5, clientY: 5 });
     expect(screen.getByRole("tooltip")).toHaveTextContent("Margin30.8%");
   });
@@ -176,6 +206,63 @@ describe("FinancialsPanel tiles", () => {
   it("names buybacks when the share count fell", async () => {
     await renderPanel();
     expect(within(tile("Diluted shares")).getByText("-2.0% YoY (buybacks)")).toHaveClass("up");
+  });
+
+  it("says when the latest share count is an estimate", async () => {
+    await renderPanel();
+    expect(within(tile("Diluted shares")).queryByText(/estimate/)).toBeNull();
+    const h = financialsHistory();
+    const last = h.quarters.at(-1);
+    if (last?.dilutedShares == null) {
+      throw new Error("the test data has a share count");
+    }
+    last.dilutedShares = {
+      kind: "derived",
+      method: "weighted_average_q4",
+      estimate: true,
+      inputs: [last.dilutedShares],
+    };
+    serveHistory(h);
+    cleanup();
+    await renderPanel();
+    expect(within(tile("Diluted shares")).getByText("(estimate)")).toBeInTheDocument();
+  });
+
+  it("shows a share change that rounds to zero as neutral, with no dilution or buybacks", async () => {
+    serveHistory(
+      financialsHistory((qs) =>
+        qs.map((q, i) =>
+          i === qs.length - 1
+            ? { ...q, dilutedShares: Math.round((qs.at(-5)?.dilutedShares ?? 0) * 1.0003) }
+            : q,
+        ),
+      ),
+    );
+    await renderPanel();
+    const change = within(tile("Diluted shares")).getByText(/YoY/);
+    expect(change).toHaveTextContent(/^0\.0% YoY$/);
+    expect(change).toHaveClass("muted");
+    expect(change).not.toHaveClass("up");
+  });
+
+  it("keeps the operating-cost warning when costs show 0% but revenue fell", async () => {
+    serveHistory(
+      financialsHistory((qs) =>
+        qs.map((q, i) => {
+          const base = qs.at(-5);
+          if (i !== qs.length - 1 || base?.revenue == null || base.operatingCosts == null) {
+            return q;
+          }
+          const revenue = base.revenue * 0.9;
+          const operatingCosts = base.operatingCosts * 1.003;
+          return { ...q, revenue, operatingCosts, operatingIncome: revenue - operatingCosts };
+        }),
+      ),
+    );
+    await renderPanel();
+    const change = within(tile("Operating costs")).getByText(/YoY/);
+    expect(change).toHaveTextContent(/^0% YoY/);
+    expect(change).toHaveClass("warnc");
   });
 
   it("names dilution in red when the share count rose", async () => {

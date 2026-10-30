@@ -1085,11 +1085,12 @@ components:
     PricePoint:
       type: object
       additionalProperties: false
-      required: [date, close, ttmEps]
+      required: [date, close, ttmEps, ttmQuarter]
       properties:
         date: { $ref: "#/components/schemas/Date" }
         close: { type: number, exclusiveMinimum: 0 }
         ttmEps: { type: [number, "null"], description: "The TTM EPS known on that day." }
+        ttmQuarter: { type: [string, "null"], description: "The label of the newest of the four quarters that ttmEps adds up; null without a TTM EPS." }
     History:
       type: object
       description: The engine input of a stock. Both lists are oldest first.
@@ -1672,11 +1673,15 @@ components:
     ChartPoint:
       type: object
       additionalProperties: false
-      required: [date, close, ttmEps, pe, priceChange12m, epsGrowth12m]
+      required: [date, close, ttmEps, ttmQuarters, pe, priceChange12m, epsGrowth12m]
       properties:
         date: { $ref: "#/components/schemas/Date" }
         close: { type: number }
         ttmEps: { type: [number, "null"] }
+        ttmQuarters:
+          type: array
+          items: { type: string }
+          description: The labels of the quarters that ttmEps adds up, oldest first; empty without a TTM EPS.
         pe: { $ref: "#/components/schemas/MaybeNumber" }
         priceChange12m: { $ref: "#/components/schemas/MaybeNumber" }
         epsGrowth12m: { $ref: "#/components/schemas/MaybeNumber" }

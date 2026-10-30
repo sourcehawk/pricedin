@@ -103,7 +103,7 @@ const quarter = object(
     "freeCashFlow",
   ),
 );
-const pricePoint = object(leaves("date", "close", "ttmEps"));
+const pricePoint = object(leaves("date", "close", "ttmEps", "ttmQuarter"));
 const scenarioCase = object(leaves("name", "growth", "exitPe"));
 const customGrowth = object(leaves("yearly", "rate", "rates"));
 const investment = leaves("price", "eps", "targetReturn", "years", "dividend");

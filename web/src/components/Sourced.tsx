@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import type { SecSource, Source, SourcedNumber } from "@/api/types";
+import type { Provenance } from "@/state/StockProvider";
 import { useTipHandlers } from "./tip/TipProvider";
 
 // Names of the derivation methods that the API reports for a derived value.
@@ -74,20 +75,57 @@ function SourceLine({ s }: { s: Source }) {
   }
 }
 
-/** SourceTip is the tooltip content of a sourced value: its source and its as-of date. */
+/** isEstimate reports whether a source is an estimate, such as a fourth-quarter share count from the yearly average. */
+export function isEstimate(s: Source | null | undefined): boolean {
+  return s?.kind === "derived" && s.estimate;
+}
+
+/** estimateNote is the text after a value whose source is an estimate: " (estimate)", and "" otherwise. */
+export function estimateNote(s: Source | null | undefined): string {
+  return isEstimate(s) ? " (estimate)" : "";
+}
+
+/** EstimateTag marks a shown value whose source is an estimate; it renders nothing otherwise. */
+export function EstimateTag({ source }: { source: Source | null | undefined }) {
+  return isEstimate(source) ? <span className="est">{estimateNote(source)}</span> : null;
+}
+
+function Inputs({ s }: { s: Source }) {
+  if (s.kind !== "derived" || s.inputs.length === 0) {
+    return null;
+  }
+  return (
+    <ul className="tip-list">
+      {s.inputs.map((i, k) => (
+        <li key={k}>
+          <SourceLine s={i} />
+          {estimateNote(i)}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/**
+ * SourceTip is the tooltip content of a sourced value: its source, the
+ * inputs of a derived value with the inputs of each derived input, and its
+ * as-of date.
+ */
 export function SourceTip({ value }: { value: SourcedNumber }) {
   const s = value.source;
   return (
     <>
       <b>
         <SourceLine s={s} />
-        {s.kind === "derived" && s.estimate ? " (estimate)" : ""}
+        {estimateNote(s)}
       </b>
       {s.kind === "derived" && s.inputs.length > 0 && (
         <ul className="tip-list">
           {s.inputs.map((i, k) => (
             <li key={k}>
               <SourceLine s={i} />
+              {estimateNote(i)}
+              <Inputs s={i} />
             </li>
           ))}
         </ul>
@@ -137,5 +175,23 @@ export function Sourced({
     <span className="sourced" tabIndex={0} {...handlers}>
       {children}
     </span>
+  );
+}
+
+/** FromLevers shows a starting-point value with its provenance: the source of the stock's value, or a mark that the user typed it. */
+export function FromLevers({
+  provenance,
+  children,
+}: {
+  provenance: Provenance;
+  children: ReactNode;
+}) {
+  return (
+    <Sourced
+      value={provenance?.kind === "stock" ? provenance.sourced : null}
+      user={provenance?.kind === "user"}
+    >
+      {children}
+    </Sourced>
   );
 }

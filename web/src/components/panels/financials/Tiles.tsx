@@ -3,12 +3,19 @@
 import type { ReactNode } from "react";
 import type { SourcedNumber } from "@/api/types";
 import { pct, pp, signedPct } from "@/components/format";
-import { Sourced } from "@/components/Sourced";
+import { EstimateTag, Sourced } from "@/components/Sourced";
 import { InfoTip } from "@/components/tip/InfoTip";
 import type { FinancialsView, MaybeNumber, Metric, Tile as EngineTile, Tone } from "@/engine";
 import styles from "./Financials.module.css";
-import { metricValue } from "./metricFormat";
-import { cls, marginTip, metricInfo, missingText, toneClass } from "./metrics";
+import {
+  cls,
+  marginTip,
+  metricInfo,
+  metricValue,
+  missingText,
+  showsAsZero,
+  toneClass,
+} from "./metrics";
 
 function Tile({
   walk,
@@ -41,6 +48,7 @@ function Tile({
       </span>
       <b>
         <Sourced value={sourced}>{value}</Sourced>
+        <EstimateTag source={sourced?.source} />
       </b>
       <span className={`small ${toneClass(change.tone)}`} data-walk="tile-change">
         {change.text}
@@ -90,6 +98,10 @@ export function Tiles({
   ) => {
     const e = t[m];
     const digits = m === "dilutedShares" ? 1 : 0;
+    const c = e.change.value;
+    // A share change is judged against zero; other tones, such as costs against revenue, are not.
+    const neutral = m === "dilutedShares" && c !== null && showsAsZero(c, digits);
+    const tone = { value: neutral ? null : e.tone.value };
     return (
       <Tile
         walk={`tile-${m}`}
@@ -98,7 +110,7 @@ export function Tiles({
         tip={metricInfo[m].tip}
         value={metricValue(m, e.latest.value, 2)}
         sourced={latest[m]}
-        change={changeLine(e.change, e.tone, (c) => `${signedPct(c, digits)} YoY${more(c, e)}`)}
+        change={changeLine(e.change, tone, (c) => `${signedPct(c, digits)} YoY${more(c, e)}`)}
       />
     );
   };
@@ -130,7 +142,7 @@ export function Tiles({
       {tile("eps", "Diluted EPS")}
       {tile("freeCashFlow", "Free cash flow")}
       {tile("dilutedShares", "Diluted shares", (c) =>
-        c > 0 ? " (dilution)" : c < 0 ? " (buybacks)" : "",
+        showsAsZero(c, 1) ? "" : c > 0 ? " (dilution)" : " (buybacks)",
       )}
     </div>
   );

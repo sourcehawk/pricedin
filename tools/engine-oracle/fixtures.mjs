@@ -92,7 +92,7 @@ export function profile(sym, { weekly = false } = {}) {
       freeCashFlow: has ? fin.fcf[f] * M : null,
     };
   });
-  let daily = genDaily(sym, Q, L, ttm).map((d) => ({ date: iso(d.t), close: +d.p.toFixed(4), ttmEps: +d.e.toFixed(4) }));
+  let daily = genDaily(sym, Q, L, ttm).map((d) => ({ date: iso(d.t), close: +d.p.toFixed(4), ttmEps: +d.e.toFixed(4), ttmQuarter: label(d.q) }));
   if (weekly) daily = daily.filter((_, i) => i % 5 === 0 || i === daily.length - 1);
   const price = Q[L][2];
   const ttmEps = +Q.slice(N - 4).reduce((a, q) => a + q[1], 0).toFixed(2);

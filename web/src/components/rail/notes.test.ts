@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { exampleEvaluation, exampleHistory, exampleLevers } from "@/api/testing/fixtures";
 import { evaluate, type Levers } from "@/engine";
-import { baselineName, baselineNote, exitPeNote, trajectoryText, typicalText } from "./notes";
+import { baselineNote, exitPeNote, trajectoryText, typicalText } from "./notes";
 
 function ev(change: Partial<Levers> = {}) {
   return evaluate(exampleHistory, { ...exampleLevers, ...change });
@@ -80,15 +80,6 @@ describe("baselineNote", () => {
     };
     expect(baselineNote(evaluate(exampleHistory, l), l)).toMatch(
       /^Your own growth rate for each year/,
-    );
-  });
-});
-
-describe("baselineName", () => {
-  it("names each baseline as the copy does", () => {
-    expect(baselineName(exampleEvaluation)).toBe("weighted trend");
-    expect(baselineName(ev({ baseline: { mode: "trailing", trailingMonths: 24 } }))).toBe(
-      "trailing 24-month growth",
     );
   });
 });

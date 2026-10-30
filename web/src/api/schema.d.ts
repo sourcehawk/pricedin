@@ -724,6 +724,8 @@ export interface components {
             close: number;
             /** @description The TTM EPS known on that day. */
             ttmEps: number | null;
+            /** @description The label of the newest of the four quarters that ttmEps adds up; null without a TTM EPS. */
+            ttmQuarter: string | null;
         };
         /** @description The engine input of a stock. Both lists are oldest first. */
         History: {
@@ -1115,6 +1117,8 @@ export interface components {
             date: components["schemas"]["Date"];
             close: number;
             ttmEps: number | null;
+            /** @description The labels of the quarters that ttmEps adds up, oldest first; empty without a TTM EPS. */
+            ttmQuarters: string[];
             pe: components["schemas"]["MaybeNumber"];
             priceChange12m: components["schemas"]["MaybeNumber"];
             epsGrowth12m: components["schemas"]["MaybeNumber"];

@@ -28,6 +28,8 @@ export interface Tip {
   show: (owner: Element, content: ReactNode, at?: { x: number; y: number }) => void;
   /** Moves the tooltip of owner to the pointer. */
   move: (owner: Element, at: { x: number; y: number }) => void;
+  /** Replaces the content of the tooltip of owner, where it is; does nothing, and calls no content, when owner shows none. */
+  update: (owner: Element, content: () => ReactNode) => void;
   /** Hides the tooltip when owner shows it, or any tooltip without owner. */
   hide: (owner?: Element) => void;
   /** Hides the tooltip of owner soon, unless the pointer moves onto the tooltip first. */
@@ -38,8 +40,8 @@ export interface Tip {
 
 const TipContext = createContext<Tip | null>(null);
 
-/** leaveDelay gives the pointer time to move from an element onto its tooltip. */
-const leaveDelay = 150;
+/** leaveDelay gives the pointer time to move from an element onto its tooltip, in milliseconds. */
+export const leaveDelay = 150;
 
 /** TipProvider renders the tooltip layer. */
 export function TipProvider({ children }: { children: ReactNode }) {
@@ -62,6 +64,9 @@ export function TipProvider({ children }: { children: ReactNode }) {
   );
   const move = useCallback((owner: Element, at: { x: number; y: number }) => {
     setTip((t) => (t !== null && t.owner === owner ? { ...t, at } : t));
+  }, []);
+  const update = useCallback((owner: Element, content: () => ReactNode) => {
+    setTip((t) => (t !== null && t.owner === owner ? { ...t, content: content() } : t));
   }, []);
   const hide = useCallback(
     (owner?: Element) => {
@@ -153,8 +158,8 @@ export function TipProvider({ children }: { children: ReactNode }) {
   }, [tip]);
 
   const value = useMemo<Tip>(
-    () => ({ show, move, hide, leave, owner: tip?.owner ?? null }),
-    [show, move, hide, leave, tip?.owner],
+    () => ({ show, move, update, hide, leave, owner: tip?.owner ?? null }),
+    [show, move, update, hide, leave, tip?.owner],
   );
   return (
     <TipContext value={value}>
@@ -189,15 +194,36 @@ export function useTip(): Tip {
 /**
  * useTipHandlers returns the props that show content as the tooltip of an
  * element: on hover with a mouse or a pen, on keyboard focus, and on a tap,
- * which toggles it. Spread them on the element, ref included.
+ * which toggles it. Spread them on the element, ref included. Pass as data
+ * the value that content reads, and a new value when it changes: an open
+ * tooltip then shows the new content. The tooltip closes when the element
+ * unmounts.
  */
-export function useTipHandlers(content: () => ReactNode) {
+export function useTipHandlers(content: () => ReactNode, data?: unknown) {
   const tip = useTip();
   const pointer = useRef<string>("mouse");
   // A tap focuses the element before its click, and focus shows the tip,
   // so the toggle reads whether the tip showed before the tap began.
   const openAtTap = useRef(false);
   const [node, setNode] = useState<Element | null>(null);
+  const latest = useRef(content);
+  useLayoutEffect(() => {
+    latest.current = content;
+  });
+  const { update, hide } = tip;
+  useEffect(() => {
+    if (node !== null) {
+      update(node, () => latest.current());
+    }
+  }, [data, node, update]);
+  useEffect(
+    () => () => {
+      if (node !== null) {
+        hide(node);
+      }
+    },
+    [node, hide],
+  );
   return {
     ref: setNode,
     "aria-describedby": node !== null && tip.owner === node ? tipId : undefined,

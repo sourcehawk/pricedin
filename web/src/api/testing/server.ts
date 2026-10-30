@@ -1,7 +1,7 @@
 import { http, HttpResponse, type HttpHandler } from "msw";
 import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll } from "vitest";
-import type { Problem, ProblemType } from "../types";
+import type { Problem, ProblemType, StockHistory } from "../types";
 import {
   historyFixture,
   notLoadedProfile,
@@ -72,4 +72,9 @@ export function withApiServer(): void {
   afterAll(() => {
     apiServer.close();
   });
+}
+
+/** serveHistory makes the fake API answer every history request with h. */
+export function serveHistory(h: StockHistory): void {
+  apiServer.use(http.get(apiUrl("/api/v1/stocks/:ticker/history"), () => HttpResponse.json(h)));
 }

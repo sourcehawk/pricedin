@@ -163,9 +163,9 @@ func (st *stock) history(rng HistoryRange) History {
 			continue
 		}
 		p := engine.PricePoint{Date: b.Bar.Date, Close: b.Close}
-		if v, ok := known.on(b.Bar.Date); ok && math.Abs(v) <= maxPerShare {
+		if v, k, ok := known.on(b.Bar.Date); ok && math.Abs(v) <= maxPerShare {
 			eps := boundedEPS(v)
-			p.TTMEPS = &eps
+			p.TTMEPS, p.TTMQuarter = &eps, &out.History.Quarters[k].Label
 		}
 		out.History.Daily = append(out.History.Daily, p)
 	}
@@ -211,16 +211,16 @@ func (st *stock) ttmKnown() *ttmWalk {
 	return w
 }
 
-// on returns the TTM EPS known on day, as fundamentals.TTMKnownOn does: the
-// newest quarter whose TTM was known by then. day must not be before the
-// day of the previous call.
-func (w *ttmWalk) on(day domain.Date) (float64, bool) {
+// on returns the TTM EPS known on day, as fundamentals.TTMKnownOn does, and
+// the index of the newest quarter whose TTM was known by then. day must not
+// be before the day of the previous call.
+func (w *ttmWalk) on(day domain.Date) (float64, int, bool) {
 	for w.next < len(w.order) && !w.ttm[w.order[w.next]].FirstFiled.After(day) {
 		w.latest = max(w.latest, w.order[w.next])
 		w.next++
 	}
 	if w.latest < 0 {
-		return 0, false
+		return 0, 0, false
 	}
-	return w.ttm[w.latest].V, true
+	return w.ttm[w.latest].V, w.latest, true
 }

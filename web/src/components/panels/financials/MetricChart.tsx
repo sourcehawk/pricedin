@@ -1,15 +1,15 @@
 "use client";
 
-import { useState, type FocusEvent, type PointerEvent, type ReactNode } from "react";
+import type { FocusEvent, PointerEvent, ReactNode } from "react";
 import type { SourcedNumber } from "@/api/types";
+import { linePath, shortLabel, useColumns } from "@/components/charts/smallChart";
 import { pct, signedPct } from "@/components/format";
 import { filingLink, newestFiling, SourceTip } from "@/components/Sourced";
+import { TipRow } from "@/components/tip/TipRow";
 import { useTipHandlers } from "@/components/tip/TipProvider";
-import type { FinancialsView, Metric } from "@/engine";
+import type { FinancialsView, Metric, Range } from "@/engine";
 import styles from "./Financials.module.css";
-import { HoverColumns, shortLabel } from "./HoverColumns";
-import { metricValue } from "./metricFormat";
-import { cls, metricInfo, toneClass } from "./metrics";
+import { cls, metricInfo, metricValue, showsAsZero, toneClass } from "./metrics";
 
 const W = 760;
 const H = 210;
@@ -35,17 +35,32 @@ export function MetricChart({
   metric: Metric;
   sources: readonly (SourcedNumber | null)[];
 }) {
-  const [hover, setHover] = useState<number | null>(null);
+  const scale = view.metrics[metric].scale.value;
+  if (scale === null || view.quarters.length === 0) {
+    return <p className="note">No {metricInfo[metric].lower} in the filings of these quarters.</p>;
+  }
+  return <MetricPlot ticker={ticker} view={view} metric={metric} sources={sources} scale={scale} />;
+}
+
+function MetricPlot({
+  ticker,
+  view,
+  metric,
+  sources,
+  scale,
+}: {
+  ticker: string;
+  view: FinancialsView;
+  metric: Metric;
+  sources: readonly (SourcedNumber | null)[];
+  scale: Range;
+}) {
   const info = metricInfo[metric];
   const series = view.metrics[metric];
   const quarters = view.quarters;
   const n = quarters.length;
-  const scale = series.scale.value;
   const first = quarters[0]?.label ?? "";
   const last = quarters.at(-1)?.label ?? "";
-  if (scale === null || n === 0) {
-    return <p className="note">No {info.lower} in the filings of these quarters.</p>;
-  }
   const bw = (x1 - x0) / n;
   const cx = (i: number) => x0 + i * bw + bw / 2;
   const Y = (v: number) => y1 - ((v - scale.min) / (scale.max - scale.min)) * (y1 - y0);
@@ -63,33 +78,14 @@ export function MetricChart({
         <b>
           {q?.label} {info.name}
         </b>
-        <div className="row">
-          <span>Value</span>
-          <span>{fmt(v)}</span>
-        </div>
-        {yoy !== null && (
-          <div className="row">
-            <span>vs {quarters[i - 4]?.label}</span>
-            <span>{signedPct(yoy)}</span>
-          </div>
-        )}
-        {shares && qoq !== null && (
-          <div className="row">
-            <span>vs previous quarter</span>
-            <span>{signedPct(qoq)}</span>
-          </div>
-        )}
+        <TipRow label="Value" value={fmt(v)} />
+        {yoy !== null && <TipRow label={<>vs {quarters[i - 4]?.label}</>} value={signedPct(yoy)} />}
+        {shares && qoq !== null && <TipRow label="vs previous quarter" value={signedPct(qoq)} />}
         {metric === "operatingIncome" && (
-          <div className="row">
-            <span>Margin</span>
-            <span>{pct(view.operatingMargin[i]?.value)}</span>
-          </div>
+          <TipRow label="Margin" value={pct(view.operatingMargin[i]?.value)} />
         )}
         {metric === "operatingCosts" && (
-          <div className="row">
-            <span>Share of revenue</span>
-            <span>{pct(view.costShareOfRevenue[i]?.value)}</span>
-          </div>
+          <TipRow label="Share of revenue" value={pct(view.costShareOfRevenue[i]?.value)} />
         )}
         {s !== null && (
           <div className="tm">
@@ -99,6 +95,18 @@ export function MetricChart({
       </>
     );
   };
+  const { chartProps, layer, live, guide } = useColumns(
+    {
+      count: n,
+      x: cx,
+      width: bw,
+      y0: y0 - 8,
+      y1,
+      label: (i) => `${quarters[i]?.label ?? ""} ${info.name}: ${fmt(series.values[i] ?? null)}`,
+    },
+    tip,
+    series,
+  );
 
   const marks: ReactNode[] = [];
   const zero = Y(Math.max(scale.min, Math.min(scale.max, 0)));
@@ -111,7 +119,7 @@ export function MetricChart({
     );
     if (shares) {
       const c = series.qoq[i]?.value ?? null;
-      const tone = signedPct(c) === signedPct(0) ? null : (series.qoqTone[i]?.value ?? null);
+      const tone = c === null || showsAsZero(c, 1) ? null : (series.qoqTone[i]?.value ?? null);
       if (c !== null) {
         marks.push(
           <text
@@ -189,61 +197,45 @@ export function MetricChart({
         sourced={sources[i] ?? null}
         tip={() => tip(i)}
         onHover={(on) => {
-          setHover(on ? i : null);
+          guide(on ? i : null);
         }}
       />,
     );
   });
 
-  const points = quarters
-    .map((_, i) => series.values[i] ?? null)
-    .map((v, i) => (v === null ? null : `${cx(i).toFixed(1)},${Y(v).toFixed(1)}`))
-    .filter((p): p is string => p !== null);
+  const points = quarters.map((_, i) => {
+    const v = series.values[i] ?? null;
+    return v === null ? null : ([cx(i), Y(v)] as const);
+  });
 
   return (
-    <svg
-      viewBox={`0 0 ${String(W)} ${String(H)}`}
-      role="group"
-      aria-label={`Quarterly ${info.lower} of ${ticker}, ${first} to ${last}`}
-    >
-      <HoverColumns
-        count={n}
-        left={(i) => x0 + i * bw}
-        width={bw}
-        top={0}
-        height={H}
-        tip={tip}
-        onHover={setHover}
-      />
-      {hover !== null && (
-        <line
-          className="col-guide"
-          x1={cx(hover)}
-          x2={cx(hover)}
-          y1={y0 - 8}
-          y2={y1}
-          stroke="var(--muted)"
-          strokeDasharray="3 3"
-          pointerEvents="none"
-        />
-      )}
-      {!shares && <line x1={x0} y1={zero} x2={x1} y2={zero} stroke="var(--line)" />}
-      {shares && (
-        <>
-          <path
-            d={`M${points.join("L")}`}
-            fill="none"
-            stroke="var(--accent)"
-            strokeWidth={2}
-            pointerEvents="none"
-          />
-          <text x={x1} y={y0 - 4} textAnchor="end">
-            Change shown vs the previous quarter (QoQ) · scale zoomed in, not from zero
-          </text>
-        </>
-      )}
-      {marks}
-    </svg>
+    <>
+      <svg
+        viewBox={`0 0 ${String(W)} ${String(H)}`}
+        role="group"
+        aria-label={`Quarterly ${info.lower} of ${ticker}, ${first} to ${last}`}
+        {...chartProps}
+      >
+        {layer}
+        {!shares && <line x1={x0} y1={zero} x2={x1} y2={zero} stroke="var(--line)" />}
+        {shares && (
+          <>
+            <path
+              d={linePath(points)}
+              fill="none"
+              stroke="var(--accent)"
+              strokeWidth={2}
+              pointerEvents="none"
+            />
+            <text x={x1} y={y0 - 4} textAnchor="end">
+              Change shown vs the previous quarter (QoQ) · scale zoomed in, not from zero
+            </text>
+          </>
+        )}
+        {marks}
+      </svg>
+      {live}
+    </>
   );
 }
 

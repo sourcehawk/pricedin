@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { signedPct, times, usd } from "@/components/format";
 import type { ChartPoint } from "@/engine";
-import { Swatch } from "./Swatch";
+import { Swatch } from "@/components/Swatch";
 
 /** OverlayKey names a line or marker set that a chip switches on and off. */
 export type OverlayKey = "eps" | "pe" | "r12" | "g12" | "sh" | "bands";

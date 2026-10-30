@@ -1,11 +1,7 @@
 import type { RenderResult } from "@testing-library/react";
-import type { ReactNode } from "react";
-import { http, HttpResponse } from "msw";
 import type { QuarterSources, SecSource, Source, StockHistory } from "@/api/types";
 import { exampleHistory, historyFixture } from "@/api/testing/fixtures";
-import { apiServer, apiUrl } from "@/api/testing/server";
-import { useStock } from "@/state/StockProvider";
-import { renderReady } from "@/testing/render";
+import { renderReady, WhenReady } from "@/testing/render";
 import { FinancialsPanel } from "./FinancialsPanel";
 
 // Test data for the financials panel: the example history with a filing
@@ -91,16 +87,6 @@ export function financialsHistory(edit: (qs: Q[]) => Q[] = (qs) => qs): StockHis
     history: { ...exampleHistory, quarters },
     quarters: quarters.map((q, i) => sourcesOf(q, i)),
   };
-}
-
-/** serveHistory makes the fake API answer the history of GRMN with h. */
-export function serveHistory(h: StockHistory): void {
-  apiServer.use(http.get(apiUrl("/api/v1/stocks/:ticker/history"), () => HttpResponse.json(h)));
-}
-
-/** WhenReady renders its children once the evaluation exists, as the page does. */
-function WhenReady({ children }: { children: ReactNode }) {
-  return useStock().evaluation === null ? null : children;
 }
 
 /** renderPanel renders the financials panel and waits for the evaluation. */

@@ -66,7 +66,8 @@ export function StockMain() {
       </Notice>
     );
   }
-  if (profile.isError) {
+  // A failed refresh keeps the data read before; the panels stay, with a note.
+  if (profile.isError && profile.data === undefined) {
     const unknown = profile.error instanceof ApiError && profile.error.status === 404;
     return (
       <Notice title={unknown ? `No company has the ticker ${t}` : `${t} could not be read`}>
@@ -88,7 +89,7 @@ export function StockMain() {
       </Notice>
     );
   }
-  if (history.isError) {
+  if (history.isError && history.data === undefined) {
     return (
       <Notice title={`The history of ${t} could not be read`}>
         <p>{errorText(history.error)}</p>
@@ -112,5 +113,15 @@ export function StockMain() {
     }
     return <Notice title={`Reading the history of ${t}…`} />;
   }
-  return <Panels />;
+  const refresh = profile.isError ? profile.error : history.isError ? history.error : null;
+  return (
+    <>
+      {refresh !== null && (
+        <p className="note" role="status">
+          {t} could not be refreshed, so the page shows the data read before. {errorText(refresh)}
+        </p>
+      )}
+      <Panels />
+    </>
+  );
 }

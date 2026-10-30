@@ -5,34 +5,21 @@ import {
   useLayoutEffect,
   useRef,
   useState,
-  type CSSProperties,
   type KeyboardEvent,
   type PointerEvent,
   type ReactNode,
 } from "react";
 import type { Axis } from "@/engine";
-import { Sourced } from "@/components/Sourced";
 import { useTip } from "@/components/tip/TipProvider";
-import type { Provenance } from "@/state/StockProvider";
 import styles from "./smallChart.module.css";
 
-// The parts that the small charts (the earnings trajectory and how
-// demanding over time) share: the hover columns with their guide line,
-// the y axis and the rows of the tooltip.
+// The parts that the small charts (the earnings trajectory, how demanding
+// over time and the financials) share: the hover columns with their guide
+// line, the y axis and the rows of the tooltip.
 
-/** swatch sets the color of a legend key or a line sample (the --c of .keys and .lg). */
-export function swatch(color: string): CSSProperties {
-  return { "--c": color } as CSSProperties;
-}
-
-/** TipRow is one label and value row of a chart tooltip. */
-export function TipRow({ label, value }: { label: ReactNode; value: ReactNode }) {
-  return (
-    <div className="row">
-      <span>{label}</span>
-      <span>{value}</span>
-    </div>
-  );
+/** shortLabel is a quarter's label on a chart axis: "Q3 FY26" is "Q3'26". */
+export function shortLabel(label: string): string {
+  return label.replace(/ FY(\d\d)$/, "'$1");
 }
 
 /** YAxis draws the grid line and the label of each tick of axis between x0 and x1. */
@@ -79,6 +66,8 @@ export interface ColumnsLayout {
   y1: number;
   /** The column that focus shows first; the last one when absent. */
   start?: number;
+  /** The accessible name of column i, which a screen reader reads in browse mode; absent leaves the columns unnamed. */
+  label?: (i: number) => string;
 }
 
 const keySteps: Record<string, (i: number, count: number) => number> = {
@@ -96,7 +85,8 @@ const keySteps: Record<string, (i: number, count: number) => number> = {
  * layer inside the svg, above the marks, and live outside the svg: it
  * announces the column that the keys reach. Pass as data the value that
  * tipFor reads, and a new value when it changes: an open tooltip then shows
- * the new values.
+ * the new values. guide moves the guide line to a column, or hides it with
+ * null, without a tooltip, for a mark of the chart that has its own.
  */
 export function useColumns(layout: ColumnsLayout, tipFor: (i: number) => ReactNode, data: unknown) {
   const tip = useTip();
@@ -189,7 +179,8 @@ export function useColumns(layout: ColumnsLayout, tipFor: (i: number) => ReactNo
     },
     onKeyDown: (e: KeyboardEvent<SVGSVGElement>) => {
       const step = keySteps[e.key];
-      if (step === undefined || count === 0) {
+      // A focused mark inside the chart, such as a link, keeps its own keys.
+      if (step === undefined || count === 0 || e.target !== e.currentTarget) {
         return;
       }
       e.preventDefault();
@@ -198,7 +189,7 @@ export function useColumns(layout: ColumnsLayout, tipFor: (i: number) => ReactNo
   };
 
   const live = (
-    <div role="status" className={styles.live}>
+    <div role="status" className="sr-only">
       {keyboard && active !== null ? tipFor(active) : null}
     </div>
   );
@@ -213,6 +204,7 @@ export function useColumns(layout: ColumnsLayout, tipFor: (i: number) => ReactNo
             rects.current[i] = el;
           }}
           className="vcol"
+          {...(layout.label === undefined ? {} : { role: "img", "aria-label": layout.label(i) })}
           data-x={x(i).toFixed(1)}
           x={x(i) - width / 2}
           y={y0}
@@ -241,7 +233,7 @@ export function useColumns(layout: ColumnsLayout, tipFor: (i: number) => ReactNo
       />
     </g>
   );
-  return { active, chartProps, layer, live };
+  return { active, chartProps, layer, live, guide: setActive };
 }
 
 /** linePath joins the points into an SVG path; the line breaks at null points and at points without a finite y. */
@@ -271,22 +263,4 @@ export function endLabels(a: number, b: number): [number, number] {
     }
   }
   return [ya, yb];
-}
-
-/** FromLevers shows a starting-point value with its provenance: the source of the stock's value, or a mark that the user typed it. */
-export function FromLevers({
-  provenance,
-  children,
-}: {
-  provenance: Provenance;
-  children: ReactNode;
-}) {
-  return (
-    <Sourced
-      value={provenance?.kind === "stock" ? provenance.sourced : null}
-      user={provenance?.kind === "user"}
-    >
-      {children}
-    </Sourced>
-  );
 }

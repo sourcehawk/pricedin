@@ -1,4 +1,5 @@
-import { screen, waitFor } from "@testing-library/react";
+import { focusManager } from "@tanstack/react-query";
+import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -6,6 +7,8 @@ import { profileFixture } from "@/api/testing/fixtures";
 import { apiServer, apiUrl, problem, withApiServer } from "@/api/testing/server";
 import { defaultLevers, leversReducer } from "@/state/levers";
 import { renderReady, renderWithStock, testLevers } from "@/testing/render";
+import { usd } from "@/components/format";
+import { StartingPoint } from "@/components/rail/StartingPoint";
 import { StockMain } from "./StockMain";
 import { TopBar } from "./TopBar";
 
@@ -44,6 +47,72 @@ describe("StockMain", () => {
       "Financials",
     ]) {
       expect(screen.getByRole("region", { name })).toBeInTheDocument();
+    }
+  });
+
+  it("keeps the panels when a refresh of the profile fails, and says so", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    const { unmount } = await renderReady(<StockMain />);
+    try {
+      apiServer.use(
+        http.get(apiUrl("/api/v1/stocks/:ticker"), () => problem(503, "Service Unavailable")),
+      );
+      vi.setSystemTime(Date.now() + 5 * 60_000 + 1);
+      act(() => {
+        focusManager.setFocused(false);
+        focusManager.setFocused(true);
+      });
+      expect(await screen.findByText(/could not be refreshed/)).toBeInTheDocument();
+      expect(screen.getByRole("region", { name: "Priced in" })).toBeInTheDocument();
+      expect(screen.queryByRole("heading", { name: /could not be read/ })).toBeNull();
+    } finally {
+      // A focus change refetches the queries of a mounted page.
+      unmount();
+      vi.useRealTimers();
+      focusManager.setFocused(undefined);
+    }
+  });
+
+  it("shows the profile of the kept history in the top bar and the starting point", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    const { unmount } = await renderReady(
+      <>
+        <TopBar />
+        <StartingPoint />
+      </>,
+    );
+    try {
+      const close = profileFixture.latestClose;
+      if (close === null) {
+        throw new Error("the fixture has a close");
+      }
+      // The next profile has a newer close at a new price, and its history fails.
+      apiServer.use(
+        http.get(apiUrl("/api/v1/stocks/:ticker"), () =>
+          HttpResponse.json({
+            ...profileFixture,
+            latestClose: { ...close, value: 27, asOf: "2099-01-01" },
+            freshness: { ...profileFixture.freshness, latestClose: "2099-01-01" },
+          }),
+        ),
+        http.get(apiUrl("/api/v1/stocks/:ticker/history"), () => problem(503, "Unavailable")),
+      );
+      vi.setSystemTime(Date.now() + 5 * 60_000 + 1);
+      act(() => {
+        focusManager.setFocused(false);
+        focusManager.setFocused(true);
+      });
+      await new Promise((r) => setTimeout(r, 300));
+      const top = screen.getByRole("banner");
+      expect(top).toHaveTextContent(usd(close.value));
+      expect(top).not.toHaveTextContent("$27.00");
+      expect(top).toHaveTextContent(close.asOf);
+      expect(screen.getByLabelText("Share price ($)")).toHaveValue(close.value);
+      expect(screen.getByText(/^Filled from GRMN/)).toHaveTextContent(`the close of ${close.asOf}`);
+    } finally {
+      unmount();
+      vi.useRealTimers();
+      focusManager.setFocused(undefined);
     }
   });
 

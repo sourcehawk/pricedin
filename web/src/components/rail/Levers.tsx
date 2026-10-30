@@ -2,7 +2,7 @@
 
 import { useId, type ReactNode } from "react";
 import type { BaselineMode, ExitPeMode } from "@/engine";
-import { pct, usd, years } from "@/components/format";
+import { pct, times, usd, years } from "@/components/format";
 import { InfoTip } from "@/components/tip/InfoTip";
 import { useStock } from "@/state/StockProvider";
 import { NumberField } from "./NumberField";
@@ -237,7 +237,7 @@ export function ExitPeLever() {
           {sliderMin}×
         </span>
         <span className="mid" style={{ left: `${String(f * 100)}%` }}>
-          {now === null ? "" : `now ${now.toFixed(1)}×`}
+          {now === null ? "" : `now ${times(now)}`}
         </span>
         <span className="end" style={{ left: "100%" }} hidden={now !== null && f > 0.72}>
           {max}×
@@ -245,9 +245,7 @@ export function ExitPeLever() {
       </div>
       <div className="trlrow" data-lever="typicalPeMonths">
         <span className="muted">Typical P/E</span>
-        <b className="refv">
-          {typical === null ? "n/a" : `${(Math.round(typical * 2) / 2).toFixed(1)}×`}
-        </b>
+        <b className="refv">{typical === null ? "n/a" : times(Math.round(typical * 2) / 2)}</b>
         <label htmlFor={monthsId} className="muted">
           · last
         </label>

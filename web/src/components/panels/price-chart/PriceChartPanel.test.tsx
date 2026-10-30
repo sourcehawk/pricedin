@@ -1,28 +1,17 @@
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { http, HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
 import type { StockHistory } from "@/api/types";
 import { historyFixture } from "@/api/testing/fixtures";
-import { apiServer, apiUrl, withApiServer } from "@/api/testing/server";
-import { useStock } from "@/state/StockProvider";
-import { renderReady } from "@/testing/render";
-import { PriceChartPanel as Panel } from "./PriceChartPanel";
+import { serveHistory, withApiServer } from "@/api/testing/server";
+import { renderReady, WhenReady } from "@/testing/render";
+import { PriceChartPanel } from "./PriceChartPanel";
 
 withApiServer();
 
-/** PriceChartPanel mounts the panel once the evaluation exists, as the page does. */
-function PriceChartPanel() {
-  const { evaluation } = useStock();
-  return evaluation === null ? null : <Panel />;
-}
-
-function serveHistory(history: StockHistory["history"]) {
-  apiServer.use(
-    http.get(apiUrl("/api/v1/stocks/:ticker/history"), () =>
-      HttpResponse.json({ ...historyFixture, history }),
-    ),
-  );
+/** serveEngineHistory makes the fake API answer with the history fixture, its engine history replaced by history. */
+function serveEngineHistory(history: StockHistory["history"]) {
+  serveHistory({ ...historyFixture, history });
 }
 
 const panel = () => screen.getByRole("region", { name: "Price" });
@@ -62,7 +51,11 @@ function sizeChart() {
 
 describe("PriceChartPanel", () => {
   it("sums up the visible range under the title", async () => {
-    await renderReady(<PriceChartPanel />);
+    await renderReady(
+      <WhenReady>
+        <PriceChartPanel />
+      </WhenReady>,
+    );
     const sub = within(panel()).getByTestId("price-sub");
     expect(sub).toHaveTextContent(
       "3Y: +164.7% · high $273.81 · low $101.55 · P/E 16.5× → 25.0× · price–earnings link: moderate (0.47)",
@@ -72,7 +65,11 @@ describe("PriceChartPanel", () => {
   });
 
   it("shows the latest close with its source", async () => {
-    await renderReady(<PriceChartPanel />);
+    await renderReady(
+      <WhenReady>
+        <PriceChartPanel />
+      </WhenReady>,
+    );
     const close = within(within(panel()).getByTestId("price-sub")).getByText("$270.00");
     close.focus();
     expect(await screen.findByRole("tooltip")).toHaveTextContent(
@@ -80,8 +77,30 @@ describe("PriceChartPanel", () => {
     );
   });
 
+  it("sources the latest close also when an earlier day closed at the same price", async () => {
+    const daily = historyFixture.history.daily.map((d, i, all) =>
+      i === all.length - 40 ? { ...d, close: all.at(-1)?.close ?? d.close } : d,
+    );
+    serveEngineHistory({ ...historyFixture.history, daily });
+    await renderReady(
+      <WhenReady>
+        <PriceChartPanel />
+      </WhenReady>,
+    );
+    const sub = within(panel()).getByTestId("price-sub");
+    const close = within(sub).getAllByText("$270.00").at(-1) as HTMLElement;
+    close.focus();
+    expect(await screen.findByRole("tooltip")).toHaveTextContent(
+      "Close on 2026-09-30 from Massive",
+    );
+  });
+
   it("starts with the TTM EPS, P/E and share-change overlays on", async () => {
-    await renderReady(<PriceChartPanel />);
+    await renderReady(
+      <WhenReady>
+        <PriceChartPanel />
+      </WhenReady>,
+    );
     expect(chip(/^TTM EPS/)).toHaveAttribute("aria-pressed", "true");
     expect(chip(/^P\/E(?! bands)/)).toHaveAttribute("aria-pressed", "true");
     expect(chip(/^Share changes/)).toHaveAttribute("aria-pressed", "true");
@@ -94,14 +113,22 @@ describe("PriceChartPanel", () => {
   });
 
   it("shows the last day's values in the chips", async () => {
-    await renderReady(<PriceChartPanel />);
+    await renderReady(
+      <WhenReady>
+        <PriceChartPanel />
+      </WhenReady>,
+    );
     expect(within(chips()).getByText("Price").parentElement).toHaveTextContent("Price$270.00");
     expect(chip(/^TTM EPS/)).toHaveTextContent("TTM EPS$10.80");
     expect(chip(/^P\/E(?! bands)/)).toHaveTextContent("P/E25.0×");
   });
 
   it("toggles an overlay with its chip", async () => {
-    await renderReady(<PriceChartPanel />);
+    await renderReady(
+      <WhenReady>
+        <PriceChartPanel />
+      </WhenReady>,
+    );
     await userEvent.click(chip(/^Price change, 12M/));
     expect(chip(/^Price change, 12M/)).toHaveAttribute("aria-pressed", "true");
     expect(chip(/^Price change, 12M/)).toHaveTextContent("+10%");
@@ -112,7 +139,11 @@ describe("PriceChartPanel", () => {
   });
 
   it("shows the hovered day in the chips, the guide line and the tooltip", async () => {
-    await renderReady(<PriceChartPanel />);
+    await renderReady(
+      <WhenReady>
+        <PriceChartPanel />
+      </WhenReady>,
+    );
     const svg = sizeChart();
     // jsdom has no PointerEvent; React reads the coordinates of any event of this type.
     fireEvent(svg, new MouseEvent("pointermove", { bubbles: true, clientX: 50, clientY: 100 }));
@@ -126,7 +157,7 @@ describe("PriceChartPanel", () => {
       "Close from Massive, adjusted for splits",
     );
     expect(screen.getByRole("tooltip")).toHaveTextContent(
-      "TTM EPS adds up the four quarters to Q3 FY23, first reported on 2023-09-30, with the values of the latest filings; the newest is Form 10-Q, filed 2023-09-30. P/E is the close over this TTM EPS.",
+      "TTM EPS adds up Q4 FY22, Q1 FY23, Q2 FY23 and Q3 FY23, known from the filings on 2023-09-30, with the values of the latest filings; the newest is Form 10-Q, filed 2023-09-30. P/E is the close over this TTM EPS.",
     );
     fireEvent.pointerLeave(svg, { pointerType: "mouse" });
     expect(within(chips()).getByText("Price").parentElement).toHaveTextContent("Price$270.00");
@@ -137,7 +168,11 @@ describe("PriceChartPanel", () => {
   });
 
   it("moves through the days with the arrow keys", async () => {
-    await renderReady(<PriceChartPanel />);
+    await renderReady(
+      <WhenReady>
+        <PriceChartPanel />
+      </WhenReady>,
+    );
     const svg = chart();
     svg.focus();
     await userEvent.keyboard("{ArrowLeft}");
@@ -150,7 +185,11 @@ describe("PriceChartPanel", () => {
   });
 
   it("announces the day that the arrow keys select, and not the hovered day", async () => {
-    await renderReady(<PriceChartPanel />);
+    await renderReady(
+      <WhenReady>
+        <PriceChartPanel />
+      </WhenReady>,
+    );
     const status = within(panel()).getByRole("status");
     const svg = sizeChart();
     pointer(svg, "pointermove", "mouse", { clientX: 50, clientY: 100 });
@@ -162,7 +201,11 @@ describe("PriceChartPanel", () => {
   });
 
   it("keeps a tapped day after the finger lifts, until a tap elsewhere", async () => {
-    await renderReady(<PriceChartPanel />);
+    await renderReady(
+      <WhenReady>
+        <PriceChartPanel />
+      </WhenReady>,
+    );
     const svg = sizeChart();
     const guide = screen.getByTestId("price-guide");
     pointer(svg, "pointerdown", "touch", { clientX: 50, clientY: 100 });
@@ -175,7 +218,11 @@ describe("PriceChartPanel", () => {
   });
 
   it("redraws the hovered day when a line is switched on", async () => {
-    await renderReady(<PriceChartPanel />);
+    await renderReady(
+      <WhenReady>
+        <PriceChartPanel />
+      </WhenReady>,
+    );
     pointer(sizeChart(), "pointermove", "mouse", { clientX: 50, clientY: 100 });
     expect(await screen.findByRole("tooltip")).not.toHaveTextContent("Price change, 12M");
     fireEvent.click(chip(/^Price change, 12M/));
@@ -185,8 +232,15 @@ describe("PriceChartPanel", () => {
   });
 
   it("names the period that a short history covers", async () => {
-    serveHistory({ ...historyFixture.history, daily: historyFixture.history.daily.slice(-100) });
-    await renderReady(<PriceChartPanel />);
+    serveEngineHistory({
+      ...historyFixture.history,
+      daily: historyFixture.history.daily.slice(-100),
+    });
+    await renderReady(
+      <WhenReady>
+        <PriceChartPanel />
+      </WhenReady>,
+    );
     expect(within(chart()).getByRole("img", { name: /daily close/ })).toHaveAccessibleName(
       /^GRMN daily close since \d+ \w+ 2026, from/,
     );
@@ -194,7 +248,11 @@ describe("PriceChartPanel", () => {
   });
 
   it("drops a touch selection when the browser cancels the pointer for a scroll", async () => {
-    await renderReady(<PriceChartPanel />);
+    await renderReady(
+      <WhenReady>
+        <PriceChartPanel />
+      </WhenReady>,
+    );
     const svg = sizeChart();
     pointer(svg, "pointerdown", "touch", { clientX: 50, clientY: 100 });
     expect(screen.getByTestId("price-guide")).toHaveAttribute("visibility", "visible");
@@ -206,7 +264,11 @@ describe("PriceChartPanel", () => {
   });
 
   it("drops a keyboard-selected day when the page scrolls", async () => {
-    await renderReady(<PriceChartPanel />);
+    await renderReady(
+      <WhenReady>
+        <PriceChartPanel />
+      </WhenReady>,
+    );
     chart().focus();
     await userEvent.keyboard("{ArrowLeft}");
     expect(screen.getByTestId("price-guide")).toHaveAttribute("visibility", "visible");
@@ -215,7 +277,11 @@ describe("PriceChartPanel", () => {
   });
 
   it("lets a user scroll of the plot drop the day when End could not scroll it", async () => {
-    await renderReady(<PriceChartPanel />);
+    await renderReady(
+      <WhenReady>
+        <PriceChartPanel />
+      </WhenReady>,
+    );
     const svg = chart();
     const box = svg.parentElement as HTMLElement;
     let scroll = 700;
@@ -246,7 +312,11 @@ describe("PriceChartPanel", () => {
   });
 
   it("drops the hovered day when the range changes", async () => {
-    await renderReady(<PriceChartPanel />);
+    await renderReady(
+      <WhenReady>
+        <PriceChartPanel />
+      </WhenReady>,
+    );
     pointer(sizeChart(), "pointermove", "mouse", { clientX: 50, clientY: 100 });
     fireEvent.click(within(panel()).getByRole("button", { name: "1Y" }));
     await waitFor(() => {
@@ -257,7 +327,11 @@ describe("PriceChartPanel", () => {
   });
 
   it("switches the range", async () => {
-    await renderReady(<PriceChartPanel />);
+    await renderReady(
+      <WhenReady>
+        <PriceChartPanel />
+      </WhenReady>,
+    );
     const oneYear = within(panel()).getByRole("button", { name: "1Y" });
     await userEvent.click(oneYear);
     await waitFor(() => {
@@ -272,7 +346,11 @@ describe("PriceChartPanel", () => {
 
   describe("P/E bands", () => {
     async function withBands() {
-      await renderReady(<PriceChartPanel />);
+      await renderReady(
+        <WhenReady>
+          <PriceChartPanel />
+        </WhenReady>,
+      );
       await userEvent.click(chip(/^P\/E bands/));
       await userEvent.unhover(chip(/^P\/E bands/));
       await waitFor(() => {
@@ -331,8 +409,88 @@ describe("PriceChartPanel", () => {
       expect(chart().querySelector('[data-bm="20"].bline')).not.toHaveClass("bh");
       expect(screen.queryByRole("tooltip")).toBeNull();
       fireEvent.pointerOut(line as Element, { pointerType: "mouse" });
-      expect(caption()).toHaveTextContent("Hover a dotted line");
+      await waitFor(() => {
+        expect(caption()).toHaveTextContent("Hover a dotted line");
+      });
       expect(chart().querySelector('[data-bm="25"].bline')).not.toHaveClass("bh");
+    });
+
+    it("keeps the band in the caption while the pointer moves onto its sources", async () => {
+      await withBands();
+      const line = chart().querySelector('[data-bm="25"].bhit') as Element;
+      await userEvent.hover(line);
+      expect(caption()).toHaveTextContent("25× band:");
+      // The pointer leaves the chart for the caption above it.
+      await userEvent.hover(within(caption()).getByRole("link", { name: "$10.80" }));
+      await new Promise((r) => setTimeout(r, 300));
+      expect(caption()).toHaveTextContent("25× band:");
+      expect(chart().querySelector('[data-bm="25"].bline')).toHaveClass("bh");
+      const link = within(caption()).getByRole("link", { name: "$10.80" });
+      fireEvent.pointerLeave(link, { pointerType: "mouse" });
+      fireEvent.pointerLeave(caption(), { pointerType: "mouse" });
+
+      await waitFor(() => {
+        expect(caption()).toHaveTextContent("Hover a dotted line");
+      });
+    });
+
+    it("keeps the band while the pointer rests on the tooltip of a caption source", async () => {
+      await withBands();
+      await userEvent.hover(chart().querySelector('[data-bm="25"].bhit') as Element);
+      const link = within(caption()).getByRole("link", { name: "$10.80" });
+      await userEvent.hover(link);
+      // The tooltip sits outside the caption, so the pointer leaves the caption for it.
+      fireEvent.pointerLeave(link, { pointerType: "mouse" });
+      fireEvent.pointerLeave(caption(), { pointerType: "mouse" });
+      fireEvent.pointerEnter(screen.getByRole("tooltip"), { pointerType: "mouse" });
+      await new Promise((r) => setTimeout(r, 300));
+      expect(screen.getByRole("tooltip")).toHaveTextContent("Sum of the last four quarters");
+      expect(caption()).toHaveTextContent("25× band:");
+      fireEvent.pointerLeave(screen.getByRole("tooltip"));
+      await waitFor(() => {
+        expect(caption()).toHaveTextContent("Hover a dotted line");
+      });
+    });
+
+    it("keeps the band while a caption source has the focus, also when the pointer leaves", async () => {
+      await withBands();
+      await userEvent.hover(chart().querySelector('[data-bm="25"].bhit') as Element);
+      const eps = within(caption()).getByRole("link", { name: "$10.80" });
+      await userEvent.hover(eps);
+      act(() => {
+        eps.focus();
+      });
+      fireEvent.pointerLeave(eps, { pointerType: "mouse" });
+      fireEvent.pointerLeave(caption(), { pointerType: "mouse" });
+      await new Promise((r) => setTimeout(r, 300));
+      expect(caption()).toHaveTextContent("25× band:");
+    });
+
+    it("keeps the band in the caption while the focus moves onto its sources", async () => {
+      await withBands();
+      act(() => {
+        label("25×").focus();
+      });
+      act(() => {
+        within(caption()).getByRole("link", { name: "$10.80" }).focus();
+      });
+      await new Promise((r) => setTimeout(r, 300));
+      expect(caption()).toHaveTextContent("25× band:");
+    });
+
+    it("sources the TTM EPS and the close in the caption", async () => {
+      await withBands();
+      fireEvent.pointerOver(chart().querySelector('[data-bm="25"].bhit') as Element, {
+        pointerType: "mouse",
+      });
+      const eps = within(caption()).getByRole("link", { name: "$10.80" });
+      await userEvent.hover(eps);
+      const tip = screen.getByRole("tooltip");
+      expect(tip).toHaveTextContent("Sum of the last four quarters");
+      expect(tip.querySelectorAll(":scope > ul > li")).toHaveLength(4);
+      const close = within(caption()).getAllByText("$270.00").at(-1) as HTMLElement;
+      await userEvent.hover(close);
+      expect(screen.getByRole("tooltip")).toHaveTextContent("Close on 2026-09-30 from Massive");
     });
 
     it("lifts a band whose label gets the focus", async () => {
@@ -364,7 +522,9 @@ describe("PriceChartPanel", () => {
       pointer(line, "pointerout", "touch");
       expect(caption()).toHaveTextContent("20× band:");
       pointer(document.body, "pointerdown", "touch");
-      expect(caption()).toHaveTextContent("Hover a dotted line");
+      await waitFor(() => {
+        expect(caption()).toHaveTextContent("Hover a dotted line");
+      });
     });
 
     it("puts the band hit areas above the layer that follows the pointer", async () => {
@@ -379,7 +539,7 @@ describe("PriceChartPanel", () => {
 
     it("labels only the bands that reach the last day", async () => {
       const daily = historyFixture.history.daily;
-      serveHistory({
+      serveEngineHistory({
         ...historyFixture.history,
         daily: daily.map((d, i) => (i >= daily.length - 3 ? { ...d, ttmEps: -1 } : d)),
       });
@@ -389,7 +549,7 @@ describe("PriceChartPanel", () => {
     });
 
     it("says why there are no bands without a positive TTM EPS", async () => {
-      serveHistory({
+      serveEngineHistory({
         ...historyFixture.history,
         daily: historyFixture.history.daily.map((d) => ({ ...d, ttmEps: -1 })),
       });
@@ -401,7 +561,11 @@ describe("PriceChartPanel", () => {
 
   describe("share-count markers", () => {
     it("marks a buyback with its change", async () => {
-      await renderReady(<PriceChartPanel />);
+      await renderReady(
+        <WhenReady>
+          <PriceChartPanel />
+        </WhenReady>,
+      );
       const marker = within(chart()).getByLabelText(/^Q4 FY25: buyback/);
       expect(marker).toHaveTextContent("-2.1%");
       expect(marker).toHaveClass("buyback");
@@ -409,19 +573,17 @@ describe("PriceChartPanel", () => {
 
     it("links a marker to the filing that reports its share count", async () => {
       const url = "https://www.sec.gov/Archives/edgar/data/0/q4fy25.htm";
-      apiServer.use(
-        http.get(apiUrl("/api/v1/stocks/:ticker/history"), () =>
-          HttpResponse.json({
-            ...historyFixture,
-            quarters: historyFixture.quarters.map((q) =>
-              q.label === "Q4 FY25" && q.eps !== null
-                ? { ...q, dilutedShares: { ...q.eps, url } }
-                : q,
-            ),
-          }),
+      serveHistory({
+        ...historyFixture,
+        quarters: historyFixture.quarters.map((q) =>
+          q.label === "Q4 FY25" && q.eps !== null ? { ...q, dilutedShares: { ...q.eps, url } } : q,
         ),
+      });
+      await renderReady(
+        <WhenReady>
+          <PriceChartPanel />
+        </WhenReady>,
       );
-      await renderReady(<PriceChartPanel />);
       expect(within(chart()).getByRole("link", { name: /^Q4 FY25: buyback/ })).toHaveAttribute(
         "href",
         url,
@@ -432,8 +594,12 @@ describe("PriceChartPanel", () => {
       const quarters = historyFixture.history.quarters.map((q, i, all) =>
         i === all.length - 1 ? { ...q, dilutedShares: 192_000_000 * 1.05 * 1.05 } : q,
       );
-      serveHistory({ ...historyFixture.history, quarters });
-      await renderReady(<PriceChartPanel />);
+      serveEngineHistory({ ...historyFixture.history, quarters });
+      await renderReady(
+        <WhenReady>
+          <PriceChartPanel />
+        </WhenReady>,
+      );
       const marker = within(chart()).getByLabelText(/^Q3 FY26: dilution/);
       expect(marker).toHaveClass("dilution");
       const badge = marker.querySelector("rect");
@@ -443,37 +609,67 @@ describe("PriceChartPanel", () => {
     });
 
     it("shows the share counts on the first tap and opens the filing on the second", async () => {
-      apiServer.use(
-        http.get(apiUrl("/api/v1/stocks/:ticker/history"), () =>
-          HttpResponse.json({
-            ...historyFixture,
-            quarters: historyFixture.quarters.map((q) =>
-              q.label === "Q4 FY25" && q.eps !== null ? { ...q, dilutedShares: q.eps } : q,
-            ),
-          }),
+      serveHistory({
+        ...historyFixture,
+        quarters: historyFixture.quarters.map((q) =>
+          q.label === "Q4 FY25" && q.eps !== null ? { ...q, dilutedShares: q.eps } : q,
         ),
+      });
+      await renderReady(
+        <WhenReady>
+          <PriceChartPanel />
+        </WhenReady>,
       );
-      await renderReady(<PriceChartPanel />);
       const marker = within(chart()).getByRole("link", { name: /^Q4 FY25: buyback/ });
       pointer(marker, "pointerdown", "touch");
       expect(fireEvent.click(marker)).toBe(false);
-      expect(screen.getByRole("tooltip")).toHaveTextContent("Shares195.92M → 191.71M");
+      expect(screen.getByRole("tooltip")).toHaveTextContent("Shares195.9M → 191.7M");
       pointer(marker, "pointerdown", "touch");
       expect(fireEvent.click(marker)).toBe(true);
     });
 
-    it("closes its tooltip on a tap elsewhere, so the next tap is a first tap again", async () => {
-      apiServer.use(
-        http.get(apiUrl("/api/v1/stocks/:ticker/history"), () =>
-          HttpResponse.json({
-            ...historyFixture,
-            quarters: historyFixture.quarters.map((q) =>
-              q.label === "Q4 FY25" && q.eps !== null ? { ...q, dilutedShares: q.eps } : q,
-            ),
-          }),
+    it("says which share count is an estimate", async () => {
+      serveHistory({
+        ...historyFixture,
+        quarters: historyFixture.quarters.map((q) =>
+          q.label === "Q4 FY25" && q.eps !== null
+            ? {
+                ...q,
+                dilutedShares: {
+                  kind: "derived",
+                  method: "weighted_average_q4",
+                  estimate: true,
+                  inputs: [q.eps],
+                },
+              }
+            : q,
         ),
+      });
+      await renderReady(
+        <WhenReady>
+          <PriceChartPanel />
+        </WhenReady>,
       );
-      await renderReady(<PriceChartPanel />);
+      const marker = within(chart()).getByRole("link", { name: /^Q4 FY25: buyback/ });
+      expect(marker).toHaveAccessibleName(
+        "Q4 FY25: buyback, 195.9M to 191.7M (estimate) diluted shares, -2.1%",
+      );
+      fireEvent.focus(marker);
+      expect(screen.getByRole("tooltip")).toHaveTextContent("Shares195.9M → 191.7M (estimate)");
+    });
+
+    it("closes its tooltip on a tap elsewhere, so the next tap is a first tap again", async () => {
+      serveHistory({
+        ...historyFixture,
+        quarters: historyFixture.quarters.map((q) =>
+          q.label === "Q4 FY25" && q.eps !== null ? { ...q, dilutedShares: q.eps } : q,
+        ),
+      });
+      await renderReady(
+        <WhenReady>
+          <PriceChartPanel />
+        </WhenReady>,
+      );
       const marker = within(chart()).getByRole("link", { name: /^Q4 FY25: buyback/ });
       pointer(marker, "pointerdown", "touch");
       fireEvent.click(marker);
@@ -485,17 +681,17 @@ describe("PriceChartPanel", () => {
     });
 
     it("opens the filing with Enter after a tap", async () => {
-      apiServer.use(
-        http.get(apiUrl("/api/v1/stocks/:ticker/history"), () =>
-          HttpResponse.json({
-            ...historyFixture,
-            quarters: historyFixture.quarters.map((q) =>
-              q.label === "Q4 FY25" && q.eps !== null ? { ...q, dilutedShares: q.eps } : q,
-            ),
-          }),
+      serveHistory({
+        ...historyFixture,
+        quarters: historyFixture.quarters.map((q) =>
+          q.label === "Q4 FY25" && q.eps !== null ? { ...q, dilutedShares: q.eps } : q,
         ),
+      });
+      await renderReady(
+        <WhenReady>
+          <PriceChartPanel />
+        </WhenReady>,
       );
-      await renderReady(<PriceChartPanel />);
       const marker = within(chart()).getByRole("link", { name: /^Q4 FY25: buyback/ });
       pointer(marker, "pointerdown", "touch");
       expect(fireEvent.click(marker)).toBe(false);
@@ -509,15 +705,23 @@ describe("PriceChartPanel", () => {
         ...q,
         dilutedShares: i === all.length - 1 ? 1_030_000 : 1_000_000,
       }));
-      serveHistory({ ...historyFixture.history, quarters });
-      await renderReady(<PriceChartPanel />);
+      serveEngineHistory({ ...historyFixture.history, quarters });
+      await renderReady(
+        <WhenReady>
+          <PriceChartPanel />
+        </WhenReady>,
+      );
       expect(within(chart()).getByLabelText(/^Q3 FY26: dilution/)).toHaveAccessibleName(
-        "Q3 FY26: dilution, 1.00M to 1.03M diluted shares, +3.0%",
+        "Q3 FY26: dilution, 1.000M to 1.030M diluted shares, +3.0%",
       );
     });
 
     it("takes the pointer only on its badge, so the days around it stay selectable", async () => {
-      await renderReady(<PriceChartPanel />);
+      await renderReady(
+        <WhenReady>
+          <PriceChartPanel />
+        </WhenReady>,
+      );
       const marker = within(chart()).getByLabelText(/^Q4 FY25: buyback/);
       expect(marker.querySelector("line")).toHaveAttribute("pointer-events", "none");
       for (const r of marker.querySelectorAll("rect")) {
@@ -526,14 +730,22 @@ describe("PriceChartPanel", () => {
     });
 
     it("hides with its chip", async () => {
-      await renderReady(<PriceChartPanel />);
+      await renderReady(
+        <WhenReady>
+          <PriceChartPanel />
+        </WhenReady>,
+      );
       await userEvent.click(chip(/^Share changes/));
       expect(within(chart()).queryByLabelText(/buyback/)).toBeNull();
     });
   });
 
   it("describes the chart for screen readers", async () => {
-    await renderReady(<PriceChartPanel />);
+    await renderReady(
+      <WhenReady>
+        <PriceChartPanel />
+      </WhenReady>,
+    );
     expect(within(chart()).getByRole("img", { name: /daily close/ })).toHaveAccessibleName(
       "GRMN daily close over 3Y, from $102.00 to $270.00, with TTM EPS, P/E and share-change markers",
     );
@@ -541,7 +753,11 @@ describe("PriceChartPanel", () => {
 
   describe("walkthrough", () => {
     async function start() {
-      await renderReady(<PriceChartPanel />);
+      await renderReady(
+        <WhenReady>
+          <PriceChartPanel />
+        </WhenReady>,
+      );
       await userEvent.click(
         within(panel()).getByRole("button", {
           name: "Walk me through the price chart with my numbers",
@@ -602,7 +818,9 @@ describe("PriceChartPanel", () => {
           <div data-lever="ttmEps" />
           <div data-lever="typicalPeMonths" />
           <div data-lever="targetReturn" />
-          <PriceChartPanel />
+          <WhenReady>
+            <PriceChartPanel />
+          </WhenReady>
         </>,
       );
       await userEvent.click(

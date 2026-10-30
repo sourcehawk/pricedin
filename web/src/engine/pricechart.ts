@@ -6,6 +6,7 @@ import {
   quarterRows,
   type ChartRange,
   type DayRow,
+  type QuarterRow,
   type PricePoint,
   type Quarter,
 } from "./inputs";
@@ -351,6 +352,8 @@ export interface ChartPoint {
   date: string;
   close: number;
   ttmEps: number | null;
+  /** The labels of the quarters that ttmEps adds up, oldest first; empty without a TTM EPS, or when the day's ttmQuarter names no quarter of the history. */
+  ttmQuarters: string[];
   pe: MaybeNumber;
   /** Against the last close at least 365 days earlier. */
   priceChange12m: MaybeNumber;
@@ -383,7 +386,7 @@ export function priceChart(
     return none("insufficient_history");
   }
   const rng: ChartRange = chartRange === "" ? "3Y" : chartRange;
-  const all = enrich(daily);
+  const all = enrich(daily, quarterRows(quarters));
   const end = at(daily, daily.length - 1).date;
   const start = addMonths(end, -rangeMonths[rng]);
   const from = daily.findIndex((d) => d.date >= start);
@@ -492,7 +495,8 @@ export function priceChart(
 }
 
 /** enrich adds the P/E and the 12-month changes to every daily point. */
-function enrich(daily: readonly DayRow[]): ChartPoint[] {
+function enrich(daily: readonly DayRow[], quarters: readonly QuarterRow[]): ChartPoint[] {
+  const index = new Map(quarters.map((q, i) => [q.label, i]));
   const first = at(daily, 0);
   let j = 0;
   return daily.map((d): ChartPoint => {
@@ -501,12 +505,16 @@ function enrich(daily: readonly DayRow[]): ChartPoint[] {
       j++;
     }
     const pe = pointPe(d);
+    const k = d.ttmEps === null || d.ttmQuarter === null ? undefined : index.get(d.ttmQuarter);
+    const ttmQuarters =
+      k === undefined ? [] : quarters.slice(Math.max(0, k - 3), k + 1).map((q) => q.label);
     if (first.date > back) {
       const missing = none("insufficient_history");
       return {
         date: d.date,
         close: d.close,
         ttmEps: d.ttmEps,
+        ttmQuarters,
         pe,
         priceChange12m: missing,
         epsGrowth12m: missing,
@@ -525,6 +533,7 @@ function enrich(daily: readonly DayRow[]): ChartPoint[] {
       date: d.date,
       close: d.close,
       ttmEps: d.ttmEps,
+      ttmQuarters,
       pe,
       priceChange12m: some(d.close / ref.close - 1),
       epsGrowth12m,

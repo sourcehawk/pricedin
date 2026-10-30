@@ -1,3 +1,4 @@
+import { pct } from "@/components/format";
 import type { Evaluation, Grid, GridTag, Tone } from "@/engine";
 
 /** GridView is what the cells show: the yearly return, the total return or the exit share price. */
@@ -62,13 +63,7 @@ export function growthLabel(grid: Grid, i: number): string {
   if (r === undefined) {
     return "n/a";
   }
-  const decimals = r.exact || grid.step < 0.05 ? 1 : 0;
-  return `${(r.growth * 100).toFixed(decimals)}%`;
-}
-
-/** peLabel is an exit P/E without a trailing ".0": 20, 22.5. */
-export function peLabel(pe: number): string {
-  return pe % 1 === 0 ? String(pe) : pe.toFixed(1);
+  return pct(r.growth, r.exact || grid.step < 0.05 ? 1 : 0);
 }
 
 /** exitColumn is the index of the column of the exit P/E in use; -1 when the grid has none. */

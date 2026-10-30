@@ -10,11 +10,11 @@ import {
 import { createContext, useContext, useState, type ReactNode } from "react";
 import { ApiError, createApi, type Api } from "./client";
 import { loginPath } from "./session";
-import type { Profile } from "./types";
+import type { Profile, StockHistory } from "./types";
 
 const ApiContext = createContext<Api | null>(null);
 
-/** newQueryClient returns the query client of the app: no retry of a 4xx answer, no refetch on focus. */
+/** newQueryClient returns the query client of the app: no retry of a 4xx answer, and no refetch on focus unless a query asks for it. */
 export function newQueryClient(): QueryClient {
   return new QueryClient({
     defaultOptions: {
@@ -70,7 +70,11 @@ export function useApi(): Api {
 /** stockKey is the query key prefix of everything cached for one stock. */
 export const stockKey = (ticker: string) => ["stock", ticker] as const;
 
-/** useProfile reads the profile of ticker; it is idle while ticker is null. */
+/**
+ * useProfile reads the profile of ticker; it is idle while ticker is null.
+ * A window that gets the focus back reads a profile older than its stale
+ * time again, so a tab left open overnight shows the new close.
+ */
 export function useProfile(ticker: string | null) {
   const api = useApi();
   return useQuery({
@@ -78,6 +82,7 @@ export function useProfile(ticker: string | null) {
     queryFn: () => api.profile(ticker ?? ""),
     enabled: ticker !== null,
     staleTime: 5 * 60_000,
+    refetchOnWindowFocus: true,
   });
 }
 
@@ -85,11 +90,12 @@ export function useProfile(ticker: string | null) {
  * useHistory reads the history the engine runs on. When ticker is set and
  * freshness changes to a value that is not cached, the history is read
  * again. It is idle while freshness is null, such as before the profile says
- * that the stock is loaded.
+ * that the stock is loaded. When a newer history of the same stock fails to
+ * load, isError is true and data stays the last history read.
  */
 export function useHistory(ticker: string | null, freshness: Profile["freshness"] | null) {
   const api = useApi();
-  return useQuery({
+  const q = useQuery({
     queryKey: [
       ...stockKey(ticker ?? ""),
       "history",
@@ -103,8 +109,16 @@ export function useHistory(ticker: string | null, freshness: Profile["freshness"
     placeholderData: (previous, previousQuery) =>
       previousQuery?.queryKey[1] === ticker ? previous : undefined,
     staleTime: Number.POSITIVE_INFINITY,
+    // Only a history that failed to load is stale, so focus reads that one again.
+    refetchOnWindowFocus: true,
     gcTime: 60 * 60_000,
   });
+  const [kept, setKept] = useState<StockHistory | undefined>(undefined);
+  if (q.data !== undefined && !q.isPlaceholderData && q.data !== kept) {
+    setKept(q.data);
+  }
+  const data = q.data ?? (kept !== undefined && kept.ticker === ticker ? kept : undefined);
+  return { ...q, data };
 }
 
 /** useSearch searches tickers and names; it is idle for an empty query. */

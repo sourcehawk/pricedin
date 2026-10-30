@@ -1,15 +1,10 @@
 "use client";
 
-import {
-  useCallback,
-  useEffect,
-  useId,
-  useMemo,
-  useRef,
-  useState,
-  type CSSProperties,
-} from "react";
-import { signedPct, times, usd } from "@/components/format";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { joinNames } from "@/components/copy";
+import { multiple, shareCount, signedPct, times, usd } from "@/components/format";
+import { EstimateTag, estimateNote, newestFiling } from "@/components/Sourced";
+import { TipRow } from "@/components/tip/TipRow";
 import { useTip, useTipHandlers } from "@/components/tip/TipProvider";
 import type { QuarterSources, SecSource, Source } from "@/api/types";
 import type { Chart, ChartPoint, ShareEvent } from "@/engine";
@@ -21,9 +16,8 @@ import {
   height,
   labelSlots,
   left,
-  linePath,
+  seriesPath,
   monthTicks,
-  multipleLabel,
   nearestIndex,
   pointsPath,
   priceTick,
@@ -37,12 +31,13 @@ import {
 } from "./geometry";
 import type { HoverStore } from "./hover";
 import type { OverlayKey } from "./overlays";
-import styles from "./PriceChart.module.css";
 
 /** Marker is a share-count event with the filing that reports its share count, when known. */
 export interface Marker {
   event: ShareEvent;
   href: string | null;
+  /** The sources of the share counts before and after the change; null without one. */
+  sources: { from: Source | null; to: Source | null };
 }
 
 export interface PricePlotProps {
@@ -72,13 +67,6 @@ const overlayNames: Record<OverlayKey, string> = {
   sh: "share-change markers",
 };
 
-function listed(names: readonly string[]): string {
-  if (names.length <= 1) {
-    return names.join("");
-  }
-  return `${names.slice(0, -1).join(", ")} and ${names.at(-1) ?? ""}`;
-}
-
 function draw(chart: Chart, bandsOn: boolean) {
   const pts = chart.points;
   const x1 = right(bandsOn);
@@ -93,7 +81,7 @@ function draw(chart: Chart, bandsOn: boolean) {
   const yc = yScale(chart.changeRange);
   const eps = pts.map((p) => p.ttmEps);
 
-  const price = linePath(
+  const price = seriesPath(
     xs,
     pts.map((p) => p.close),
     yp,
@@ -156,23 +144,23 @@ function draw(chart: Chart, bandsOn: boolean) {
         ? ""
         : `${price}L${lastX.toFixed(1)},${String(bottom)}L${String(left)},${String(bottom)}Z`,
     lastDot: last === undefined ? null : { x: lastX, y: yp(last.close) },
-    eps: ye === null ? "" : linePath(xs, eps, ye, true),
+    eps: ye === null ? "" : seriesPath(xs, eps, ye, true),
     pe:
       ype === null
         ? ""
-        : linePath(
+        : seriesPath(
             xs,
             pts.map((p) => p.pe.value),
             ype,
             false,
           ),
-    r12: linePath(
+    r12: seriesPath(
       xs,
       pts.map((p) => p.priceChange12m.value),
       yc,
       false,
     ),
-    g12: linePath(
+    g12: seriesPath(
       xs,
       pts.map((p) => p.epsGrowth12m.value),
       yc,
@@ -204,29 +192,7 @@ function dotSpecs(g: Drawing): {
   ];
 }
 
-function TipRow({
-  color,
-  dash = false,
-  label,
-  value,
-}: {
-  color: string;
-  dash?: boolean;
-  label: string;
-  value: string;
-}) {
-  return (
-    <div className="prow">
-      <span>
-        <i className={dash ? "sw dash" : "sw"} style={{ "--c": color } as CSSProperties} />
-        {label}
-      </span>
-      <strong>{value}</strong>
-    </div>
-  );
-}
-
-/** DayTip is the tooltip of a hovered day; the tooltip's background is the ink color, so ink lines use the surface color. */
+/** DayTip is the tooltip of a hovered day. */
 function DayTip({
   p,
   shown,
@@ -264,47 +230,34 @@ function DayTip({
         {feed === null
           ? "Daily close"
           : `Close from ${feed.charAt(0).toUpperCase()}${feed.slice(1)}`}
-        , adjusted for splits. {ttmNote(p.date, quarters)}
+        , adjusted for splits. {ttmNote(p, quarters)}
       </div>
     </>
   );
 }
 
-function secSources(s: Source | null): SecSource[] {
-  if (s === null) {
-    return [];
-  }
-  if (s.kind === "sec") {
-    return [s];
-  }
-  return s.kind === "derived" ? s.inputs.flatMap(secSources) : [];
-}
-
 /**
- * ttmNote names the quarters behind the TTM EPS of a day: the four up to the
- * last quarter whose TTM EPS was known on that day. The chart plots their
- * latest filed values, which can be amendments filed after that day.
+ * ttmNote names the quarters behind the TTM EPS of a day, as the engine
+ * gives them, and the newest filing among them. The chart plots their latest
+ * filed values, which can be amendments filed after that day.
  */
-function ttmNote(date: string, quarters: readonly QuarterSources[]): string {
-  let k = -1;
-  quarters.forEach((q, i) => {
-    if (q.ttmEpsKnownOn !== null && q.ttmEpsKnownOn <= date) {
-      k = i;
-    }
-  });
-  const q = quarters[k];
+function ttmNote(p: ChartPoint, quarters: readonly QuarterSources[]): string {
+  const last = p.ttmQuarters.at(-1);
+  const q = quarters.find((x) => x.label === last);
   if (q === undefined || q.ttmEpsKnownOn === null) {
     return "TTM EPS adds up the last four reported quarters.";
   }
+  const behind = quarters.filter((x) => p.ttmQuarters.includes(x.label));
   let newest: SecSource | null = null;
-  for (const f of quarters.slice(Math.max(0, k - 3), k + 1).flatMap((x) => secSources(x.eps))) {
-    if (newest === null || f.filed > newest.filed) {
+  for (const x of behind) {
+    const f = x.eps === null ? null : newestFiling(x.eps);
+    if (f !== null && (newest === null || f.filed > newest.filed)) {
       newest = f;
     }
   }
   const filing =
     newest === null ? "" : `; the newest is Form ${newest.form}, filed ${newest.filed}`;
-  return `TTM EPS adds up the four quarters to ${q.label}, first reported on ${q.ttmEpsKnownOn}, with the values of the latest filings${filing}. P/E is the close over this TTM EPS.`;
+  return `TTM EPS adds up ${joinNames(p.ttmQuarters)}, known from the filings on ${q.ttmEpsKnownOn}, with the values of the latest filings${filing}. P/E is the close over this TTM EPS.`;
 }
 
 /** dayLine is the day's values as one sentence, for the screen reader. */
@@ -323,13 +276,6 @@ function dayLine(p: ChartPoint, shown: ReadonlySet<OverlayKey>): string {
     parts.push(`EPS growth 12M ${signedPct(p.epsGrowth12m.value)}`);
   }
   return `${dayLabel(p.date)}: ${parts.join(", ")}`;
-}
-
-function shares(n: number): string {
-  if (n >= 1e9) {
-    return `${(n / 1e9).toFixed(2)}B`;
-  }
-  return n >= 1e6 ? `${(n / 1e6).toFixed(2)}M` : n.toLocaleString("en-US");
 }
 
 function MarkerMark({ m, x }: { m: Marker; x: number }) {
@@ -360,30 +306,34 @@ function MarkerMark({ m, x }: { m: Marker; x: number }) {
       document.removeEventListener("pointerdown", onDown, true);
     };
   }, [open, node, hideTip]);
-  const handlers = useTipHandlers(() => (
-    <>
-      <b>
-        {e.label}: {e.kind}
-      </b>
-      <div className="row">
-        <span>Shares</span>
-        <span>
-          {shares(e.from)} → {shares(e.to)}
-        </span>
-      </div>
-      <div className="row">
-        <span>Change</span>
-        <span>{change}</span>
-      </div>
-      <div className="tm">
-        {dilution
-          ? "Each share now owns a smaller part of the profit or loss."
-          : "Each remaining share owns a larger part of the profit or loss."}
-        {m.href !== null && " Click, or tap again, to open the filing."}
-      </div>
-    </>
-  ));
-  const label = `${e.label}: ${e.kind}, ${shares(e.from)} to ${shares(e.to)} diluted shares, ${change}`;
+  const handlers = useTipHandlers(
+    () => (
+      <>
+        <b>
+          {e.label}: {e.kind}
+        </b>
+        <TipRow
+          label="Shares"
+          value={
+            <>
+              {shareCount(e.from)}
+              <EstimateTag source={m.sources.from} /> → {shareCount(e.to)}
+              <EstimateTag source={m.sources.to} />
+            </>
+          }
+        />
+        <TipRow label="Change" value={change} />
+        <div className="tm">
+          {dilution
+            ? "Each share now owns a smaller part of the profit or loss."
+            : "Each remaining share owns a larger part of the profit or loss."}
+          {m.href !== null && " Click, or tap again, to open the filing."}
+        </div>
+      </>
+    ),
+    m,
+  );
+  const label = `${e.label}: ${e.kind}, ${shareCount(e.from)}${estimateNote(m.sources.from)} to ${shareCount(e.to)}${estimateNote(m.sources.to)} diluted shares, ${change}`;
   const body = (
     <>
       <line
@@ -674,11 +624,11 @@ export function PricePlot({
   const last = chart.points.at(-1);
   const summary =
     `${ticker} daily close ${spanLabel(chart.start, chart.end, chart.range)}, from ${usd(first?.close)} to ${usd(last?.close)}` +
-    (names.length > 0 ? `, with ${listed(names)}` : "");
+    (names.length > 0 ? `, with ${joinNames(names)}` : "");
 
   const bandName = (m: number) => {
     const band = chart.bands.value?.multiples.find((b) => b.multiple === m);
-    return `${multipleLabel(m)} band: ${usd(band?.priceToday.value)} today`;
+    return `${multiple(m)} band: ${usd(band?.priceToday.value)} today`;
   };
   const walkBand = (m: number) => (m === nearest ? "bands band-near" : "bands");
   const bh = (m: number) => (m === lifted ? " bh" : "");
@@ -919,7 +869,7 @@ export function PricePlot({
               textAnchor="middle"
               style={{ fontSize: 10, fill: "var(--ink)" }}
             >
-              {multipleLabel(l.multiple)}
+              {multiple(l.multiple)}
             </text>
           </g>
         );
@@ -974,7 +924,7 @@ export function PricePlot({
       >
         {content}
       </svg>
-      <p ref={live} className={styles.srOnly} role="status" />
+      <p ref={live} className="sr-only" role="status" />
     </>
   );
 }

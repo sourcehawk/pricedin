@@ -1,8 +1,9 @@
 import { act, fireEvent, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
-import { withApiServer } from "@/api/testing/server";
-import { filedOn, financialsHistory, serveHistory, renderPanel } from "./testing";
+import { serveHistory, withApiServer } from "@/api/testing/server";
+import { column, guide } from "@/testing/charts";
+import { filedOn, financialsHistory, renderPanel } from "./testing";
 
 withApiServer();
 
@@ -46,7 +47,7 @@ describe("CompareView", () => {
       "aria-pressed",
       "true",
     );
-    fireEvent.pointerEnter(container.querySelectorAll("rect.cmpcol")[7] as Element, {
+    fireEvent.pointerEnter(column(container, 7), {
       pointerType: "mouse",
       clientX: 5,
       clientY: 5,
@@ -54,7 +55,7 @@ describe("CompareView", () => {
     const tip = screen.getByRole("tooltip");
     expect(tip).toHaveTextContent("Diluted EPS+12%$2.75");
     expect(tip).toHaveTextContent("Total change since Q4 FY24");
-    expect(container.querySelector("line.col-guide")).toBeInTheDocument();
+    expect(guide(container)).toHaveAttribute("visibility", "visible");
   });
 
   it("lets the keyboard reach each quarter's values", async () => {
@@ -62,18 +63,32 @@ describe("CompareView", () => {
     const chart = screen.getByRole("group", {
       name: /Financial metrics compared by quarter for GRMN/,
     });
-    const quarter = within(chart).getByRole("img", {
-      name: "Q3 FY26: revenue +9% ($1.99B), operating income +18% ($612M), diluted EPS +12% ($2.75), diluted shares -2% (192.0M)",
-    });
     act(() => {
-      quarter.focus();
+      chart.focus();
     });
+    expect(screen.getByRole("tooltip")).toHaveTextContent("Q3 FY26");
     expect(screen.getByRole("tooltip")).toHaveTextContent("Diluted EPS+12%$2.75");
-    expect(container.querySelector("line.col-guide")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Q3 FY26");
+    await userEvent.keyboard("{ArrowLeft}");
+    expect(screen.getByRole("tooltip")).toHaveTextContent("Q2 FY26");
+    expect(guide(container)).toHaveAttribute("x1", column(container, 6).dataset.x);
     act(() => {
-      quarter.blur();
+      chart.blur();
     });
-    expect(container.querySelector("line.col-guide")).not.toBeInTheDocument();
+    expect(guide(container)).toHaveAttribute("visibility", "hidden");
+  });
+
+  it("names each quarter's column for a screen reader, without a tab stop of its own", async () => {
+    const { container } = await openCompare();
+    const chart = screen.getByRole("group", {
+      name: /Financial metrics compared by quarter for GRMN/,
+    });
+    expect(
+      within(chart).getByRole("img", {
+        name: "Q3 FY26: revenue +9% ($1.99B), operating income +18% ($612M), diluted EPS +12% ($2.75), diluted shares -2% (192.0M)",
+      }),
+    ).toBe(column(container, 7));
+    expect(column(container, 7)).not.toHaveAttribute("tabindex");
   });
 
   it("switches to the change from the quarter before", async () => {
@@ -83,7 +98,7 @@ describe("CompareView", () => {
       "aria-pressed",
       "true",
     );
-    fireEvent.pointerEnter(container.querySelectorAll("rect.cmpcol")[7] as Element, {
+    fireEvent.pointerEnter(column(container, 7), {
       pointerType: "mouse",
       clientX: 5,
       clientY: 5,
@@ -135,7 +150,7 @@ describe("CompareView", () => {
 
   it("names the filing of each amount in the quarter's tooltip", async () => {
     const { container } = await openCompare();
-    fireEvent.pointerEnter(container.querySelectorAll("rect.cmpcol")[7] as Element, {
+    fireEvent.pointerEnter(column(container, 7), {
       pointerType: "mouse",
       clientX: 5,
       clientY: 5,
@@ -147,18 +162,16 @@ describe("CompareView", () => {
 
   it("keeps a tapped quarter's tooltip open until the next tap", async () => {
     const { container } = await openCompare();
-    const col = container.querySelectorAll("rect.cmpcol")[7] as Element;
+    const col = column(container, 7);
     fireEvent.pointerDown(col, { pointerType: "touch" });
     fireEvent.pointerEnter(col, { pointerType: "touch" });
-    fireEvent.pointerLeave(col, { pointerType: "touch" });
-    fireEvent.click(col);
+    fireEvent.pointerLeave(col.closest("svg") as Element, { pointerType: "touch" });
     await new Promise((r) => setTimeout(r, 300));
     expect(screen.getByRole("tooltip")).toHaveTextContent("Q3 FY26");
-    expect(container.querySelector("line.col-guide")).toBeInTheDocument();
+    expect(guide(container)).toHaveAttribute("visibility", "visible");
     fireEvent.pointerDown(col, { pointerType: "touch" });
-    fireEvent.click(col);
     expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
-    expect(container.querySelector("line.col-guide")).not.toBeInTheDocument();
+    expect(guide(container)).toHaveAttribute("visibility", "hidden");
   });
 
   it("hides the table with fewer than two metrics and asks for one with none", async () => {

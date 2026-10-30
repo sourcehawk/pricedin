@@ -4,7 +4,8 @@ import type { Evaluation } from "@/engine";
 import { pct, times, usd, years } from "@/components/format";
 import { Walkthrough, type WalkthroughStep } from "@/components/walkthrough/Walkthrough";
 import { useStock } from "@/state/StockProvider";
-import { baselineName, typicalText } from "./notes";
+import { baselineLabel } from "@/components/copy";
+import { typicalText } from "./notes";
 
 const exitPe = (ev: Evaluation): string => times(ev.exitPe.inUse.value?.pe);
 const peNow = (ev: Evaluation): string => times(ev.peNow.value);
@@ -138,7 +139,7 @@ export function RailWalkthrough() {
         <>
           Weighted <b>{pct(ev.baselines.weighted.value)}</b>, today{" "}
           <b>{pct(ev.baselines.today.value)}</b>, trailing{" "}
-          <b>{pct(ev.baselines.trailing.growth.value)}</b>. You use the {baselineName(ev)},{" "}
+          <b>{pct(ev.baselines.trailing.growth.value)}</b>. You use the {baselineLabel(ev)},{" "}
           <b>{pct(ev.baselines.growth.value)}</b>.
         </>
       ),
@@ -165,7 +166,7 @@ export function RailWalkthrough() {
         <>
           <strong>{sym} in one line:</strong> for {pct(r, 1)} a year over {years(n)} with a{" "}
           {exitPe(ev)} exit, the price requires {pct(ev.required.growth.value)} EPS growth a year,
-          against your {baselineName(ev)} of {pct(ev.baselines.growth.value)}.
+          against your {baselineLabel(ev)} of {pct(ev.baselines.growth.value)}.
         </>
       ),
     },

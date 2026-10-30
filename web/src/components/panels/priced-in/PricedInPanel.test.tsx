@@ -1,13 +1,10 @@
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
-import { http, HttpResponse } from "msw";
 import { historyFixture } from "@/api/testing/fixtures";
-import { apiServer, apiUrl, withApiServer } from "@/api/testing/server";
-import type { ReactNode } from "react";
-import { leversReducer, type LeverAction } from "@/state/levers";
-import { useStock } from "@/state/StockProvider";
-import { renderReady, testLevers } from "@/testing/render";
+import { serveHistory, withApiServer } from "@/api/testing/server";
+import { type LeverAction } from "@/state/levers";
+import { leversWith, renderReady, WhenReady } from "@/testing/render";
 import { PricedInPanel } from "./PricedInPanel";
 
 withApiServer();
@@ -15,15 +12,6 @@ withApiServer();
 // The GRMN example of testdata/engine/evaluation-example.json: price $270,
 // TTM EPS $10.80, target 15%, 3 years, estimated exit P/E 20×, weighted
 // trend 16.0%, required growth 23.9%.
-
-/** WhenReady renders its children once the evaluation exists, as the page does. */
-function WhenReady({ children }: { children: ReactNode }) {
-  return useStock().evaluation === null ? null : children;
-}
-
-function levers(...actions: LeverAction[]) {
-  return actions.reduce(leversReducer, testLevers());
-}
 
 async function renderPanel(...actions: LeverAction[]) {
   await renderReady(
@@ -34,7 +22,7 @@ async function renderPanel(...actions: LeverAction[]) {
         <PricedInPanel />
       </WhenReady>
     </>,
-    { levers: levers(...actions) },
+    { levers: leversWith(...actions) },
   );
   return screen.getByRole("region", { name: "Priced in" });
 }
@@ -75,6 +63,17 @@ describe("the priced-in panel", () => {
     const panel = await renderPanel({ type: "setTargetReturn", value: 0.05 });
     const pill = within(panel).getByText("Undemanding: the weighted trend clears the bar");
     expect(pill).toHaveClass("pill", "good");
+  });
+
+  it("names a custom baseline without a second your in the label", async () => {
+    const panel = await renderPanel(
+      { type: "setTargetReturn", value: 0.05 },
+      { type: "setBaselineMode", mode: "custom" },
+      { type: "setCustomRate", value: 0.3 },
+    );
+    expect(
+      within(panel).getByText("Undemanding: the custom growth clears the bar"),
+    ).toBeInTheDocument();
   });
 
   it("labels a baseline within 1.5 pp of the requirement as tight", async () => {
@@ -190,11 +189,7 @@ describe("the priced-in panel", () => {
         },
       };
     });
-    apiServer.use(
-      http.get(apiUrl("/api/v1/stocks/GRMN/history"), () =>
-        HttpResponse.json({ ...historyFixture, quarters }),
-      ),
-    );
+    serveHistory({ ...historyFixture, quarters });
     const panel = await renderPanel();
     const chips = within(panel).getByRole("list", { name: "Quarterly EPS growth, year over year" });
     const last = within(chips).getAllByRole("listitem").at(-1) as HTMLElement;

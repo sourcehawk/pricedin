@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import type { QuarterSources, SourcedNumber } from "@/api/types";
 import type { Evaluation, Verdict } from "@/engine";
 import { pct, pp, signedPct, times, usd, years } from "@/components/format";
-import { baselineName } from "@/components/rail/notes";
+import { baselineLabel, baselineName, dividendsReach } from "@/components/copy";
 import { newestFiling, Sourced } from "@/components/Sourced";
 import { InfoTip } from "@/components/tip/InfoTip";
 import { Walkthrough } from "@/components/walkthrough/Walkthrough";
@@ -31,9 +31,9 @@ function verdictText(ev: Evaluation): string | null {
   }
   switch (v) {
     case "undemanding":
-      return `Undemanding: the ${baselineName(ev)} clears the bar`;
+      return `Undemanding: the ${baselineLabel(ev)} clears the bar`;
     case "tight":
-      return `Tight: needs the ${baselineName(ev)} to hold`;
+      return `Tight: needs the ${baselineLabel(ev)} to hold`;
     case "demanding":
       return "Demanding: needs growth to accelerate";
   }
@@ -98,7 +98,7 @@ export function PricedInPanel() {
   const pe = ev.exitPe.inUse.value?.pe ?? null;
   const ab = ev.atBaseline.value;
   const b = ev.baselines;
-  const noGrowth = R === null && req.growth.reason === "dividends_reach_target";
+  const noGrowth = dividendsReach(ev);
   const verdict = ev.verdict.value;
   const tone = verdict === null ? null : verdictTone[verdict];
   const message = verdictText(ev);
@@ -117,7 +117,7 @@ export function PricedInPanel() {
   } else if (pe === null) {
     sub = "The exit P/E needs more price and earnings history.";
   } else {
-    sub = `For ${pct(r)} a year over ${years(n)}, exiting at ${pe.toFixed(1)}× earnings${ev.exitPe.mode === "estimated" ? " (estimated)" : ""}${req.dividends > 0 ? ", with dividends" : ""}.`;
+    sub = `For ${pct(r)} a year over ${years(n)}, exiting at ${times(pe)} earnings${ev.exitPe.mode === "estimated" ? " (estimated)" : ""}${req.dividends > 0 ? ", with dividends" : ""}.`;
   }
 
   const gap = ev.gap.value;

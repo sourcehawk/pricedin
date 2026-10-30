@@ -1,20 +1,11 @@
-import type { CSSProperties, ReactNode } from "react";
+import type { ReactNode } from "react";
+import { Swatch } from "@/components/Swatch";
+import { money, shareCount, signedPct, usd } from "@/components/format";
 import type { Metric, Missing, Tone } from "@/engine";
-import styles from "./Financials.module.css";
-
-/** Sample shows a color sample in text instead of the color's name. */
-export function Sample({ color }: { color: string }) {
-  return <i className={styles.sample} style={colorVar(color)} aria-hidden="true" />;
-}
 
 /** cls joins class names, leaving out the missing ones. */
 export function cls(...names: (string | undefined | false)[]): string {
   return names.filter((n) => typeof n === "string" && n !== "").join(" ");
-}
-
-/** colorVar sets the --c color that the prototype's swatches and samples read. */
-export function colorVar(color: string): CSSProperties {
-  return { "--c": color } as CSSProperties;
 }
 
 /** MetricInfo names a metric and explains it, as the prototype does. */
@@ -48,8 +39,8 @@ export const metricInfo: Record<Metric, MetricInfo> = {
         salaries, research, marketing and administration. It equals revenue minus operating income.
         Rising costs are not bad by themselves, because a growing business spends more, and cutting
         research or marketing can hurt later. What matters is costs against revenue: the change
-        shows as <Sample color="var(--warn)" /> when costs grow faster than revenue, because that
-        squeezes the margin, and as <Sample color="var(--muted)" /> otherwise.
+        shows as <Swatch color="var(--warn)" /> when costs grow faster than revenue, because that
+        squeezes the margin, and as <Swatch color="var(--muted)" /> otherwise.
       </>
     ),
     color: "var(--s6)",
@@ -84,7 +75,7 @@ export const metricInfo: Record<Metric, MetricInfo> = {
         The number of shares, counting stock options and grants that will turn into shares. When it
         rises (dilution), each share owns a smaller slice of the profit, so EPS grows slower than
         profit. When it falls (buybacks), EPS grows faster than profit. An increase shows as{" "}
-        <Sample color="var(--bad)" />.
+        <Swatch color="var(--bad)" />.
       </>
     ),
     color: "var(--ink)",
@@ -93,6 +84,11 @@ export const metricInfo: Record<Metric, MetricInfo> = {
 
 export const marginTip =
   "Operating income divided by revenue: how many cents of profit each dollar of sales brings. The change is in percentage points (pp).";
+
+/** showsAsZero reports whether a change shows as zero with digits decimals; such a change is neutral, with no tone and no word for its direction. */
+export function showsAsZero(change: number, digits: number): boolean {
+  return signedPct(change, digits) === signedPct(0, digits);
+}
 
 /** toneClass is the text class of a tone: good is green, bad red, warn amber, neutral muted. */
 export function toneClass(t: Tone | null): string {
@@ -117,5 +113,17 @@ export function missingText(m: Missing): string {
       return "not enough quarters";
     default:
       return "not reported";
+  }
+}
+
+/** metricValue shows a value of metric m; decimals applies to amounts in billions. */
+export function metricValue(m: Metric, x: number | null | undefined, decimals = 1): string {
+  switch (m) {
+    case "eps":
+      return usd(x, 2);
+    case "dilutedShares":
+      return shareCount(x);
+    default:
+      return money(x, decimals);
   }
 }
