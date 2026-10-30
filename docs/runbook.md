@@ -304,7 +304,7 @@ The blob store keeps every raw response under a key with its retrieval date and 
 | Key | Content |
 | --- | --- |
 | `sec/tickers/...`, `sec/submissions/...`, `sec/companyfacts/...`, `sec/daily-index/...` | SEC responses |
-| `sec/archives/companyfacts.zip/...` | The bulk archives of `sec-bulk` |
+| `sec/archives/companyfacts.zip/...` | The company facts archive of `sec-bulk`, the only bulk archive that PricedIn uses. The submissions come through the API, under `sec/submissions/...` |
 | `prices/massive/grouped/...`, `aggs/...`, `splits/...`, `dividends/...`, `tickers/...` | Massive responses, page by page |
 
 The job `reprocess` loads these files into the database again. It uses the parsers and the store methods of the other jobs, and it sends no request to SEC or Massive. Then it rebuilds the quarters of the companies whose data changed. Use it after a fix to a parser or to the normalization of the data:
