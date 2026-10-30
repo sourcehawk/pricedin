@@ -17,9 +17,8 @@ import { financialsSteps, intro, watchOut } from "./walkthrough";
 type Shown = Metric | "compare";
 
 /**
- * FinancialsPanel shows the quarterly financials of the last eight
- * quarters: one metric as a chart or several compared, tiles against a
- * year earlier, and the newest filing. Every figure links to its filing.
+ * FinancialsPanel must be rendered inside the page's ready state: it throws
+ * when there is no evaluation.
  */
 export function FinancialsPanel() {
   const { evaluation, history, profile } = useEvaluation();
