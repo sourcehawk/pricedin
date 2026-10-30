@@ -125,7 +125,7 @@ function BandCaption({
  */
 export function PriceChartPanel() {
   const { evaluation: ev, history, profile, dispatch } = useEvaluation();
-  const ticker = history.ticker;
+  const ticker = profile.ticker.symbol;
   const [stored, setStored] = useView<readonly string[]>(overlaysView, defaultOverlays);
   // The walkthrough shows every overlay without changing the user's choice.
   const [touring, setTouring] = useState(false);
