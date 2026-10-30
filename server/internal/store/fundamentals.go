@@ -46,8 +46,10 @@ var fundamentalsStage = stage{
 }
 
 // ReplaceQuarterlyFundamentals replaces every derived value of the CIK with
-// values, in one transaction: on an error the old values stay. The CIK must
-// be a stored company, and each quarter and metric may appear once.
+// values, in one transaction: on an error the old values stay. Two
+// replacements of one company run one after the other, so the result is
+// always one complete set. The CIK must be a stored company, or it returns
+// ErrNotFound, and each quarter and metric may appear once.
 func (s *Store) ReplaceQuarterlyFundamentals(ctx context.Context, cik domain.CIK, values []QuarterlyValue) error {
 	rows := make([][]any, len(values))
 	for i := range values {
@@ -62,10 +64,18 @@ func (s *Store) ReplaceQuarterlyFundamentals(ctx context.Context, cik domain.CIK
 		}
 	}
 	err := s.inTx(ctx, func(tx pgx.Tx) error {
+		// The DELETE alone locks nothing when the company has no rows yet.
+		tag, err := tx.Exec(ctx, `SELECT FROM companies WHERE cik = $1 FOR NO KEY UPDATE`, int64(cik))
+		if err != nil {
+			return err
+		}
+		if tag.RowsAffected() == 0 {
+			return notFound("company %s", cik)
+		}
 		if _, err := tx.Exec(ctx, `DELETE FROM quarterly_fundamentals WHERE cik = $1`, int64(cik)); err != nil {
 			return err
 		}
-		_, err := (&Store{db: tx}).copyInsert(ctx, fundamentalsStage, rows, `
+		_, err = (&Store{db: tx}).copyInsert(ctx, fundamentalsStage, rows, `
 			INSERT INTO quarterly_fundamentals (cik, fiscal_year, fiscal_quarter, metric, value, method,
 			                                    period_start, period_end, filed, inputs)
 			SELECT $1::bigint, fiscal_year, fiscal_quarter, metric, value, method,

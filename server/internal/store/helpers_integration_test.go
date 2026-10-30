@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -67,3 +68,24 @@ var (
 	globex  = domain.Company{CIK: 1002, Name: "Globex Corp", SIC: "7372", FiscalYearEnd: "0630"}
 	initech = domain.Company{CIK: 1003, Name: "Initech Holdings", FiscalYearEnd: "0131"}
 )
+
+// waitForBlockedQuery waits until a query of the database waits for a lock,
+// or a short time has passed. A test that runs a second writer calls it
+// before it commits the first, so that the second writer is already
+// running when the first commits.
+func waitForBlockedQuery(t *testing.T, pool *pgxpool.Pool) {
+	t.Helper()
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		var blocked bool
+		if err := pool.QueryRow(context.Background(),
+			`SELECT EXISTS (SELECT 1 FROM pg_stat_activity
+			                WHERE datname = current_database() AND wait_event_type = 'Lock')`).Scan(&blocked); err != nil {
+			t.Fatalf("read pg_stat_activity: %v", err)
+		}
+		if blocked {
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+}

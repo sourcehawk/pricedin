@@ -109,3 +109,41 @@ func TestReplaceQuarterlyFundamentalsWithNoRowsClearsTheCompany(t *testing.T) {
 		t.Errorf("ListQuarterlyFundamentals() = %v, %v; want empty, nil", got, err)
 	}
 }
+
+func TestReplaceQuarterlyFundamentalsOfOneCompanyRunOneAfterTheOther(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	s, pool := newStore(t)
+	mustUpsertCompanies(t, s, acme)
+	value := func(quarter int) store.QuarterlyValue {
+		return store.QuarterlyValue{
+			FiscalYear: 2026, FiscalQuarter: quarter, Metric: "eps_diluted", Value: 1, Method: "reported",
+			PeriodStart: date(t, "2026-01-01"), PeriodEnd: date(t, "2026-03-31"), Filed: date(t, "2026-05-01"),
+		}
+	}
+
+	second := make(chan error, 1)
+	err := s.WithTx(ctx, func(tx *store.Store) error {
+		if err := tx.ReplaceQuarterlyFundamentals(ctx, acme.CIK, []store.QuarterlyValue{value(1)}); err != nil {
+			return err
+		}
+		go func() { second <- s.ReplaceQuarterlyFundamentals(ctx, acme.CIK, []store.QuarterlyValue{value(2)}) }()
+		waitForBlockedQuery(t, pool)
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("first ReplaceQuarterlyFundamentals() error = %v", err)
+	}
+	if err := <-second; err != nil {
+		t.Fatalf("second ReplaceQuarterlyFundamentals() error = %v", err)
+	}
+
+	got, err := s.ListQuarterlyFundamentals(ctx, acme.CIK)
+	if err != nil {
+		t.Fatalf("ListQuarterlyFundamentals() error = %v", err)
+	}
+	// The replacement that committed last wins; the two never mix.
+	if diff := cmp.Diff([]store.QuarterlyValue{value(2)}, got); diff != "" {
+		t.Errorf("rows after two concurrent replacements (-want +got):\n%s", diff)
+	}
+}
