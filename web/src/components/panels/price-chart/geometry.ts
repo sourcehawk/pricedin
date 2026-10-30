@@ -37,11 +37,11 @@ export function yScale(r: Range): (v: number) => number {
 const f1 = (v: number) => v.toFixed(1);
 
 /**
- * linePath returns the SVG path of values at xs; a null value breaks the
+ * seriesPath returns the SVG path of values at xs; a null value breaks the
  * line. With step, a change of value draws a vertical step on the day it
  * changes, as TTM EPS does on a filing.
  */
-export function linePath(
+export function seriesPath(
   xs: readonly number[],
   values: readonly (number | null)[],
   y: (v: number) => number,
@@ -223,6 +223,8 @@ export function nearestIndex(xs: readonly number[], vx: number): number {
   return Math.abs((xs[lo] ?? 0) - vx) <= Math.abs((xs[hi] ?? 0) - vx) ? lo : hi;
 }
 
+// The width of the left margin sets this format, so it stays with the
+// chart's geometry and not in components/format.
 /** priceTick shows a value of the price axis: "$50", "$1,250", "$2.5", and "$12.5k" from $10,000, which fits the left margin. */
 export function priceTick(v: number): string {
   const r = Number(v.toFixed(6));

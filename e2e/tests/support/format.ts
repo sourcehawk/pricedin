@@ -16,14 +16,14 @@ export function pp(x: Value): string {
   return usable(x) ? `${x >= 0 ? "+" : ""}${(x * 100).toFixed(1)} pp` : "n/a";
 }
 
-/** usd shows US dollars with cents: "$1,234.50"; an amount under one cent shows two significant digits: "$0.0042". */
+/** usd shows US dollars with cents: "$1,234.50"; a nonzero amount that would round to $0.00 shows up to two significant digits: "$0.0042". */
 export function usd(x: Value): string {
   if (!usable(x)) {
     return "n/a";
   }
   const a = Math.abs(x);
   const abs =
-    a > 0 && a < 0.01
+    a > 0 && a < 0.005
       ? a.toLocaleString("en-US", { maximumSignificantDigits: 2 })
       : a.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   return `${x < 0 ? "-" : ""}$${abs}`;

@@ -16,7 +16,7 @@ import {
   height,
   labelSlots,
   left,
-  linePath,
+  seriesPath,
   monthTicks,
   nearestIndex,
   pointsPath,
@@ -81,7 +81,7 @@ function draw(chart: Chart, bandsOn: boolean) {
   const yc = yScale(chart.changeRange);
   const eps = pts.map((p) => p.ttmEps);
 
-  const price = linePath(
+  const price = seriesPath(
     xs,
     pts.map((p) => p.close),
     yp,
@@ -144,23 +144,23 @@ function draw(chart: Chart, bandsOn: boolean) {
         ? ""
         : `${price}L${lastX.toFixed(1)},${String(bottom)}L${String(left)},${String(bottom)}Z`,
     lastDot: last === undefined ? null : { x: lastX, y: yp(last.close) },
-    eps: ye === null ? "" : linePath(xs, eps, ye, true),
+    eps: ye === null ? "" : seriesPath(xs, eps, ye, true),
     pe:
       ype === null
         ? ""
-        : linePath(
+        : seriesPath(
             xs,
             pts.map((p) => p.pe.value),
             ype,
             false,
           ),
-    r12: linePath(
+    r12: seriesPath(
       xs,
       pts.map((p) => p.priceChange12m.value),
       yc,
       false,
     ),
-    g12: linePath(
+    g12: seriesPath(
       xs,
       pts.map((p) => p.epsGrowth12m.value),
       yc,

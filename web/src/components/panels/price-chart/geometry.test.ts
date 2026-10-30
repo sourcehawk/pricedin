@@ -6,7 +6,7 @@ import {
   dayTime,
   labelSlots,
   left,
-  linePath,
+  seriesPath,
   monthTicks,
   nearestIndex,
   pointsPath,
@@ -19,13 +19,13 @@ import {
 
 const id = (v: number) => v;
 
-describe("linePath", () => {
+describe("seriesPath", () => {
   it("joins the values and breaks the line at a missing value", () => {
-    expect(linePath([0, 1, 2, 3], [5, null, 6, 7], id, false)).toBe("M0.0,5.0M2.0,6.0L3.0,7.0");
+    expect(seriesPath([0, 1, 2, 3], [5, null, 6, 7], id, false)).toBe("M0.0,5.0M2.0,6.0L3.0,7.0");
   });
 
   it("draws a step on the day a stepped value changes", () => {
-    expect(linePath([0, 1, 2], [5, 5, 8], id, true)).toBe("M0.0,5.0L1.0,5.0L2.0,5.0L2.0,8.0");
+    expect(seriesPath([0, 1, 2], [5, 5, 8], id, true)).toBe("M0.0,5.0L1.0,5.0L2.0,5.0L2.0,8.0");
   });
 });
 

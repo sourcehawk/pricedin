@@ -1,5 +1,5 @@
-// Number formats of the page. usd below one cent and shareCount differ from
-// the prototype's formats. Rates and returns are fractions; every format
+// Number formats of the page. usd near zero and shareCount differ from the
+// prototype's formats. Rates and returns are fractions; every format
 // except years shows "n/a" for a missing or infinite value.
 
 type Value = number | null | undefined;
@@ -36,9 +36,9 @@ export function points(x: Value, decimals = 1): string {
 }
 
 /**
- * usd shows US dollars: "$1,234.50", "-$3.20". A nonzero amount under one
- * cent shows up to two significant digits, "$0.0042", so that it never reads
- * as $0.00.
+ * usd shows US dollars: "$1,234.50", "-$3.20". A nonzero amount that would
+ * round to zero at decimals shows up to two significant digits, "$0.0042",
+ * so that it never reads as $0.00.
  */
 export function usd(x: Value, decimals = 2): string {
   if (!usable(x)) {
@@ -46,7 +46,7 @@ export function usd(x: Value, decimals = 2): string {
   }
   const a = Math.abs(x);
   const abs =
-    a > 0 && a < 0.01
+    a > 0 && a < 0.5 * 10 ** -decimals
       ? a.toLocaleString("en-US", { maximumSignificantDigits: 2 })
       : a.toLocaleString("en-US", {
           minimumFractionDigits: decimals,
@@ -95,8 +95,8 @@ export function shareCount(x: Value): string {
   if (Number(m) < 1000) {
     return `${sign}${m}M`;
   }
-  const b = a / 1e9;
-  return `${sign}${b < 1000 ? b.toPrecision(4) : Math.round(b).toLocaleString("en-US")}B`;
+  const b = (a / 1e9).toPrecision(4);
+  return `${sign}${Number(b) < 1000 ? b : Math.round(a / 1e9).toLocaleString("en-US")}B`;
 }
 
 /** times shows a multiple such as a P/E: "25.0×". */

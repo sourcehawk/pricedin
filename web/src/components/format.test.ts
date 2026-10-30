@@ -69,6 +69,13 @@ describe("usd", () => {
   it("shows zero as zero", () => {
     expect(usd(0)).toBe("$0.00");
   });
+  it("never shows a nonzero amount as zero, also with no decimals", () => {
+    expect(usd(0.005, 0)).toBe("$0.005");
+    expect(usd(0.4, 0)).toBe("$0.4");
+    expect(usd(0.6, 0)).toBe("$1");
+    expect(usd(0.0049)).toBe("$0.0049");
+    expect(usd(0.007)).toBe("$0.01");
+  });
 });
 
 describe("signedUsd", () => {
@@ -121,6 +128,9 @@ describe("shareCount", () => {
   });
   it("moves to billions where millions would round to 1000", () => {
     expect(shareCount(999_960_000)).toBe("1.000B");
+  });
+  it("shows whole billions where billions would round to 1000", () => {
+    expect(shareCount(999.96e9)).toBe("1,000B");
   });
   it("shows a count under a million in whole shares", () => {
     expect(shareCount(950_000)).toBe("950,000");
