@@ -16,7 +16,8 @@ const verifyKey = "verify-key-0123456789"
 
 // fakeMassive serves synthetic answers to the requests of prices verify.
 // grmnCIK is the CIK that the ticker endpoint gives for GRMN.
-func fakeMassive(t *testing.T, grmnCIK string) *httptest.Server {
+// onlyAfterSplit leaves out the NVDA bar before the split.
+func fakeMassive(t *testing.T, grmnCIK string, onlyAfterSplit bool) *httptest.Server {
 	t.Helper()
 	json := func(w http.ResponseWriter, body string) {
 		w.Header().Set("Content-Type", "application/json")
@@ -34,6 +35,10 @@ func fakeMassive(t *testing.T, grmnCIK string) *httptest.Server {
 	})
 	// Bars at midnight in New York of 2024-06-07 and 2024-06-10.
 	mux.HandleFunc("/v2/aggs/ticker/NVDA/range/1/day/2024-06-05/2024-06-12", func(w http.ResponseWriter, r *http.Request) {
+		if onlyAfterSplit {
+			json(w, `{"ticker":"NVDA","status":"OK","results":[{"o":1,"h":1,"l":1,"c":116,"v":1,"t":1717992000000}]}`)
+			return
+		}
 		if r.URL.Query().Get("adjusted") == "true" {
 			json(w, `{"ticker":"NVDA","status":"OK","results":[{"o":1,"h":1,"l":1,"c":115,"v":1,"t":1717732800000},{"o":1,"h":1,"l":1,"c":116,"v":1,"t":1717992000000}]}`)
 			return
@@ -76,7 +81,7 @@ func TestPricesVerifyRequiresTheAPIKey(t *testing.T) {
 }
 
 func TestPricesVerifyReportsEveryCheck(t *testing.T) {
-	srv := fakeMassive(t, "0001121788")
+	srv := fakeMassive(t, "0001121788", false)
 	out, err := runVerify(t, map[string]string{"PRICEDIN_MASSIVE_API_KEY": verifyKey, "PRICEDIN_MASSIVE_BASE_URL": srv.URL})
 	if err != nil {
 		t.Fatalf("prices verify error = %v\n%s", err, out)
@@ -103,7 +108,7 @@ func TestPricesVerifyReportsEveryCheck(t *testing.T) {
 }
 
 func TestPricesVerifyFailsWhenACheckFails(t *testing.T) {
-	srv := fakeMassive(t, "0000000001")
+	srv := fakeMassive(t, "0000000001", false)
 	out, err := runVerify(t, map[string]string{"PRICEDIN_MASSIVE_API_KEY": verifyKey, "PRICEDIN_MASSIVE_BASE_URL": srv.URL})
 	if err == nil {
 		t.Fatalf("prices verify error = nil, want a failed CIK check\n%s", out)
@@ -117,4 +122,15 @@ func TestPricesVerifyFailsWhenACheckFails(t *testing.T) {
 // test does not depend on column widths.
 func squeeze(s string) string {
 	return regexp.MustCompile(` {2,}`).ReplaceAllString(s, "  ")
+}
+
+func TestPricesVerifyFailsWithoutBarsBeforeTheSplit(t *testing.T) {
+	srv := fakeMassive(t, "0001121788", true)
+	out, err := runVerify(t, map[string]string{"PRICEDIN_MASSIVE_API_KEY": verifyKey, "PRICEDIN_MASSIVE_BASE_URL": srv.URL})
+	if err == nil {
+		t.Fatalf("prices verify error = nil, want a failed split check\n%s", out)
+	}
+	if !strings.Contains(out, "before the split") {
+		t.Errorf("output does not name the missing bars:\n%s", out)
+	}
 }

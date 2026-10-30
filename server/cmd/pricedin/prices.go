@@ -140,7 +140,13 @@ func verifySplit(ctx context.Context, w io.Writer, c *massive.Client, fail func(
 	}
 
 	_, _ = fmt.Fprintln(w, "  Date\tRaw close\tFactor\tAdjustForSplits\tMassive adjusted\tMatch")
+	var before, after int
 	for _, b := range ours {
+		if b.Bar.Date.Before(nvdaSplitDate) {
+			before++
+		} else {
+			after++
+		}
 		want, ok := massiveClose[b.Bar.Date]
 		match := ok && math.Abs(b.Close-want) <= closeTolerance
 		_, _ = fmt.Fprintf(w, "  %s\t%.4f\t%g\t%.4f\t%s\t%s\n", b.Bar.Date, b.Bar.Close, b.Factor, b.Close, formatClose(want, ok), yesNo(match))
@@ -148,8 +154,10 @@ func verifySplit(ctx context.Context, w io.Writer, c *massive.Client, fail func(
 			fail("the NVDA close of %s adjusted by AdjustForSplits does not match Massive's adjusted close", b.Bar.Date)
 		}
 	}
-	if len(ours) == 0 {
-		fail("no NVDA bars from %s to %s", nvdaFrom, nvdaTo)
+	// Only a bar before the split shows that the adjustment divides by the
+	// ratio; after it, every factor is 1.
+	if before == 0 || after == 0 {
+		fail("want NVDA bars before the split and from %s on, got %d before the split and %d after", nvdaSplitDate, before, after)
 	}
 	_, _ = fmt.Fprintln(w)
 	return nil
