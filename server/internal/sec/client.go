@@ -13,9 +13,11 @@ import (
 	"mime"
 	"net"
 	"net/http"
+	"net/http/httptrace"
 	"net/url"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/sourcehawk/pricedin/server/internal/domain"
@@ -211,13 +213,25 @@ type limitedTransport struct {
 }
 
 func (t limitedTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	if err := t.limiter.wait(req.Context()); err != nil {
+	ctx := req.Context()
+	if err := t.limiter.wait(ctx); err != nil {
 		if req.Body != nil {
 			_ = req.Body.Close()
 		}
 		return nil, err
 	}
-	return t.next.RoundTrip(req)
+	// http.Transport sends a GET again on a new connection when a reused
+	// one fails before the response, and it does not return here first.
+	// Each connection after the first therefore waits for the limiter too.
+	// A wait that ctx ends needs no handling: the transport then stops the
+	// request itself.
+	var conns atomic.Int32
+	trace := &httptrace.ClientTrace{GotConn: func(httptrace.GotConnInfo) {
+		if conns.Add(1) > 1 {
+			_ = t.limiter.wait(ctx)
+		}
+	}}
+	return t.next.RoundTrip(req.WithContext(httptrace.WithClientTrace(ctx, trace)))
 }
 
 func baseURLOrDefault(raw, fallback string) (string, error) {

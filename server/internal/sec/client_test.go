@@ -282,6 +282,45 @@ func TestClientLimitsRedirectedRequests(t *testing.T) {
 	requireTenPerSecond(t, sent)
 }
 
+func TestClientLimitsARequestThatTheTransportSendsAgain(t *testing.T) {
+	// The server closes the reused connection of the second request
+	// without an answer. http.Transport then sends the GET again on a new
+	// connection, without returning to the Client.
+	clock := newFakeClock()
+	var mu sync.Mutex
+	var sent []time.Time
+	c := newClient(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		mu.Lock()
+		sent = append(sent, clock.Now())
+		n := len(sent)
+		mu.Unlock()
+		if n == 2 {
+			conn, _, err := http.NewResponseController(w).Hijack()
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			_ = conn.Close()
+			return
+		}
+		_, _ = w.Write([]byte("-----\n"))
+	}), sec.Options{Clock: clock})
+
+	for range 2 {
+		if _, err := c.DailyIndex(t.Context(), date(t, "2026-08-26")); err != nil {
+			t.Fatalf("DailyIndex() error = %v", err)
+		}
+	}
+	if len(sent) != 3 {
+		t.Fatalf("requests = %d, want 3 (the second one sent again by the transport)", len(sent))
+	}
+	for i := 1; i < len(sent); i++ {
+		if gap := sent[i].Sub(sent[i-1]); gap < 111*time.Millisecond {
+			t.Errorf("request %d came %v after the one before, want at least 1/9 s", i, gap)
+		}
+	}
+}
+
 func TestClientKeepsTheRedirectPolicyOfItsHTTPClient(t *testing.T) {
 	var log requestLog
 	c := newClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
