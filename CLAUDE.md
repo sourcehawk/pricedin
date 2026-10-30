@@ -6,13 +6,21 @@ Product principle: show what must happen for an investment to succeed, not what 
 
 ## Status
 
-v1 is in development. The repository has these parts:
+v1 is in development. The server side is complete. The web app is a placeholder page, and the stock page comes with the open web-shell and panel issues. The repository has these parts:
 
-- `server/`: Go module `github.com/sourcehawk/pricedin/server`. The `pricedin` command (`cmd/pricedin`) serves `/healthz`, `/readyz` and the metrics. `internal/config` reads the `PRICEDIN_` variables. `internal/domain` holds the types that later packages share.
-- `web/`: Next.js app (App Router, TypeScript) with a placeholder page that uses the prototype's design tokens and fonts.
+- `server/`: Go module `github.com/sourcehawk/pricedin/server`, one binary `pricedin` (`cmd/pricedin`) with these subcommands: `serve` (the HTTP API with the owner login), `migrate`, `jobs list|run`, `ingest company`, `scheduler`, `prices verify`, `auth hash-password|token|sessions`, and `healthcheck`.
+  - `internal/engine`: the Go calculation engine, the source of truth.
+  - `internal/sec`, `internal/prices` and `internal/prices/massive`: the SEC client and the price provider (Massive) behind an adapter interface.
+  - `internal/fundamentals`: fiscal quarters, splits and TTM values from SEC facts.
+  - `internal/ingest`: the ingestion jobs, their advisory locks and the scheduler.
+  - `internal/store`: Postgres access and the migrations. `internal/blob`: the raw-file store (file system or S3).
+  - `internal/stocks`, `internal/httpapi`, `internal/auth`: the API. `api/openapi.yaml` is its contract.
+- `web/`: Next.js app (App Router, TypeScript). `src/engine` is the TypeScript port of the engine. Both engines pass the shared cases in `testdata/engine/`.
 - `e2e/`: Playwright tests that run against the Docker Compose stack.
+- `deploy/`: the Fly.io app (`fly/server.toml`) and the SQL script of the app role (`sql/roles.sql`). `.github/workflows/deploy.yml` deploys by hand. Nothing is deployed yet.
+- `docs/`: architecture, data sources, API, runbook and development guide. `docs/superpowers/` holds the design, the plan and the state of v1.
 - `Makefile`: the only entry point for tools, lint, tests, builds, images and the local stack. CI calls only `make` targets. `make` lists them.
-- `docker-compose.yml`: Postgres, the server and the web app. `.env.example` lists every variable.
+- `docker-compose.yml` and `docker-compose.fixtures.yml`: the local stack, with or without a fixture server that answers in place of SEC and Massive. `.env.example` lists every variable.
 
 The prototype `prototype/pricedin.html` is a single self-contained HTML page with inline CSS and JavaScript.
 
