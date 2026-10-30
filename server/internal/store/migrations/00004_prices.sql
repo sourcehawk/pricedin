@@ -55,9 +55,7 @@ CREATE AGGREGATE numeric_product (numeric) (
 
 -- Split-adjusted bars. split_factor is the product of the ratios of every
 -- split that executed after the bar's date and on or before the symbol's
--- newest bar: prices divide by it, and volume multiplies by it. Until a bar
--- at the new share count exists, every stored bar is at the old one, so an
--- announced split changes nothing yet.
+-- newest bar: prices divide by it, and volume multiplies by it.
 CREATE VIEW prices_adjusted AS
 SELECT
     p.symbol,
