@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import type { Source, SourcedNumber } from "@/api/types";
+import type { SecSource, Source, SourcedNumber } from "@/api/types";
 import { useTipHandlers } from "./tip/TipProvider";
 
 // Names of the derivation methods that the API reports for a derived value.
@@ -20,21 +20,26 @@ const methods: Record<string, string> = {
 const providers: Record<string, string> = { massive: "Massive" };
 const providerName = (p: string): string => providers[p] ?? p;
 
-/** filingLink returns the filing a value links to: its own, or the newest one among its inputs. */
-export function filingLink(s: Source): string | null {
+function secSources(s: Source): SecSource[] {
   switch (s.kind) {
     case "sec":
-      return s.url;
-    case "derived": {
-      const filed = s.inputs
-        .map((i) => ({ url: filingLink(i), filed: i.kind === "sec" ? i.filed : "" }))
-        .filter((x): x is { url: string; filed: string } => x.url !== null);
-      filed.sort((a, b) => (a.filed < b.filed ? -1 : a.filed > b.filed ? 1 : 0));
-      return filed.at(-1)?.url ?? null;
-    }
+      return [s];
+    case "derived":
+      return s.inputs.flatMap(secSources);
     default:
-      return null;
+      return [];
   }
+}
+
+/** filingLink returns the filing a value links to: its own, or the newest filing among its inputs at any depth. */
+export function filingLink(s: Source): string | null {
+  let newest: SecSource | null = null;
+  for (const f of secSources(s)) {
+    if (newest === null || f.filed > newest.filed) {
+      newest = f;
+    }
+  }
+  return newest?.url ?? null;
 }
 
 function SourceLine({ s }: { s: Source }) {

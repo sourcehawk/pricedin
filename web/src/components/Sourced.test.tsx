@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
-import type { SourcedNumber } from "@/api/types";
+import type { SecSource, SourcedNumber } from "@/api/types";
 import { priceSourced, ttmEpsSourced } from "@/api/testing/fixtures";
 import { Sourced } from "./Sourced";
 import { TipProvider } from "./tip/TipProvider";
@@ -69,6 +69,47 @@ describe("Sourced", () => {
     expect(screen.getByRole("link", { name: "$10.80" })).toHaveAttribute(
       "href",
       latest?.kind === "sec" ? latest.url : "",
+    );
+  });
+
+  it("links the newest filing also when it sits in a nested derived input", () => {
+    const sec = (form: string, filed: string): SecSource => ({
+      kind: "sec",
+      form,
+      accession: `acc-${filed}`,
+      filed,
+      concept: "EarningsPerShareDiluted",
+      periodStart: null,
+      periodEnd: filed,
+      reported: 1,
+      splitRatio: 1,
+      scale: 1,
+      url: `https://www.sec.gov/${form}/${filed}`,
+    });
+    const ttm: SourcedNumber = {
+      value: 4,
+      source: {
+        kind: "derived",
+        method: "ttm",
+        estimate: false,
+        inputs: [
+          sec("10-Q", "2026-05-01"),
+          sec("10-Q", "2026-08-01"),
+          sec("10-Q", "2026-11-01"),
+          {
+            kind: "derived",
+            method: "fy_difference",
+            estimate: false,
+            inputs: [sec("10-K", "2027-02-20"), sec("10-Q", "2026-11-01")],
+          },
+        ],
+      },
+      asOf: "2027-02-20",
+    };
+    renderSourced(<Sourced value={ttm}>$4.00</Sourced>);
+    expect(screen.getByRole("link", { name: "$4.00" })).toHaveAttribute(
+      "href",
+      "https://www.sec.gov/10-K/2027-02-20",
     );
   });
 
