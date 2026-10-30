@@ -5,7 +5,7 @@ import type { ChartPoint } from "@/engine";
 /**
  * closeSourced returns the close of date with its source: the profile's
  * latest close on its own day when it is close, and otherwise the feed's
- * close of that day. It is null without a feed.
+ * close of that day. It is null without a feed or the feed's provider.
  */
 export function closeSourced(
   date: string,
@@ -16,7 +16,7 @@ export function closeSourced(
   if (latest !== null && latest.asOf === date && latest.value === close) {
     return latest;
   }
-  if (feed === null) {
+  if (feed?.provider == null) {
     return null;
   }
   let splitFactor = 1;

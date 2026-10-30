@@ -76,8 +76,10 @@ type QuarterSources struct {
 // splits that adjust them. The raw close of a daily close, as the provider
 // reports it, is the close times the ratio of every split dated after it.
 type PriceFeed struct {
-	Provider string `json:"provider"`
-	Symbol   string `json:"symbol"`
+	// Provider is nil when the closes of the range come from more than one
+	// provider.
+	Provider *string `json:"provider"`
+	Symbol   string  `json:"symbol"`
 	// Splits are the splits after the first daily close, oldest first; empty
 	// when no split adjusts a close of the range.
 	Splits []PriceSplit `json:"splits"`
@@ -181,9 +183,25 @@ func (st *stock) history(rng HistoryRange) History {
 		out.History.Daily = append(out.History.Daily, p)
 	}
 	if b, ok := st.lastBar(); ok {
-		out.Prices = &PriceFeed{Provider: b.Bar.Source, Symbol: b.Bar.Symbol, Splits: st.splitsAfter(out.History.Daily)}
+		out.Prices = &PriceFeed{Provider: st.providerFrom(from), Symbol: b.Bar.Symbol, Splits: st.splitsAfter(out.History.Daily)}
 	}
 	return out
+}
+
+// providerFrom returns the provider of every bar from day on, or nil when
+// they come from more than one.
+func (st *stock) providerFrom(day domain.Date) *string {
+	var p *string
+	for _, b := range st.bars {
+		switch {
+		case b.Bar.Date.Before(day):
+		case p == nil:
+			p = &b.Bar.Source
+		case *p != b.Bar.Source:
+			return nil
+		}
+	}
+	return p
 }
 
 // splitsAfter returns the splits in effect that are dated after the first

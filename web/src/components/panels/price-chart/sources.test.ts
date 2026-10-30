@@ -69,6 +69,10 @@ describe("closeSourced", () => {
     expect(s).toMatchObject({ value: priceSourced.value + 1, asOf: priceSourced.asOf });
   });
 
+  it("has no source when the feed names no provider", () => {
+    expect(closeSourced("2025-08-14", 201.5, { ...feed, provider: null }, priceSourced)).toBeNull();
+  });
+
   it("has no source without a price feed", () => {
     expect(closeSourced("2025-01-15", 180, null, priceSourced)).toBeNull();
   });

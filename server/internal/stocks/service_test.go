@@ -187,7 +187,7 @@ func TestHistoryPricesGiveTheRawCloseOfEveryDailyClose(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if h.Prices == nil || h.Prices.Provider != "massive" || h.Prices.Symbol != "NVDA" {
+		if h.Prices == nil || h.Prices.Provider == nil || *h.Prices.Provider != "massive" || h.Prices.Symbol != "NVDA" {
 			t.Fatalf("range %s: Prices = %+v, want the massive NVDA closes", rng, h.Prices)
 		}
 		if diff := cmp.Diff(wantSplits, h.Prices.Splits); diff != "" || h.Prices.Splits == nil {
@@ -204,6 +204,109 @@ func TestHistoryPricesGiveTheRawCloseOfEveryDailyClose(t *testing.T) {
 				t.Fatalf("range %s: close %v × factor %v on %s = %v, want the raw close %v", rng, d.Close, factor, d.Date, d.Close*factor, want)
 			}
 		}
+	}
+}
+
+// tinyStore adds the stock TINY, with NVIDIA's facts and the given closes
+// and provider splits, to the fixture.
+func tinyStore(t *testing.T, bars []domain.PriceBar, splits []domain.Split) *stockstest.Store {
+	t.Helper()
+	m := stockstest.Fixture(t)
+	const cik domain.CIK = 3
+	m.Companies = append(m.Companies, domain.Company{CIK: cik, Name: "Tiny"})
+	m.Tickers = append(m.Tickers, store.TickerRecord{Ticker: domain.Ticker{Symbol: "TINY", CIK: cik, ValidFrom: date(t, "2020-01-01")}, Source: store.TickerSourceSEC})
+	m.Loaded[cik] = true
+	m.Facts = append(m.Facts, nvdaFactsAs(t, m, cik)...)
+	m.Bars = append(m.Bars, bars...)
+	m.Splits = append(m.Splits, splits...)
+	m.PriceReferenceCheckedAt["TINY"] = stockstest.Now
+	return m
+}
+
+func tinyBars(t *testing.T, source string, days ...string) []domain.PriceBar {
+	t.Helper()
+	out := make([]domain.PriceBar, len(days))
+	for i, d := range days {
+		out[i] = domain.PriceBar{Symbol: "TINY", Date: date(t, d), Close: float64(60 + i), Source: source}
+	}
+	return out
+}
+
+func TestHistoryPricesListEachSplitThatAdjustsAClose(t *testing.T) {
+	split := func(day string, to float64) domain.Split {
+		return domain.Split{Symbol: "TINY", Date: date(t, day), From: 1, To: to, Source: "massive"}
+	}
+	tests := map[string]struct {
+		days   []string
+		splits []domain.Split
+		want   []stocks.PriceSplit
+	}{
+		"a split on the first close adjusts none": {
+			days: []string{"2026-03-02", "2026-03-03"}, splits: []domain.Split{split("2026-03-02", 2)},
+			want: []stocks.PriceSplit{},
+		},
+		"two splits in the range": {
+			days:   []string{"2026-03-02", "2026-03-03", "2026-03-04", "2026-03-05"},
+			splits: []domain.Split{split("2026-03-05", 3), split("2026-03-03", 2)},
+			want:   []stocks.PriceSplit{{Date: date(t, "2026-03-03"), Ratio: 2}, {Date: date(t, "2026-03-05"), Ratio: 3}},
+		},
+		"a split after the last close, by today": {
+			days: []string{"2026-03-02", "2026-03-03"}, splits: []domain.Split{split("2026-06-01", 2)},
+			want: []stocks.PriceSplit{{Date: date(t, "2026-06-01"), Ratio: 2}},
+		},
+		"a split after today adjusts none": {
+			days: []string{"2026-03-02", "2026-03-03"}, splits: []domain.Split{split("2026-12-01", 2)},
+			want: []stocks.PriceSplit{},
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			bars := tinyBars(t, "massive", tt.days...)
+			h, err := newService(t, tinyStore(t, bars, tt.splits), nil).History(context.Background(), "TINY", stocks.RangeMax)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if h.Prices == nil {
+				t.Fatal("Prices = nil, want the feed of the closes")
+			}
+			if diff := cmp.Diff(tt.want, h.Prices.Splits); diff != "" {
+				t.Errorf("Prices.Splits (-want +got):\n%s", diff)
+			}
+			if len(h.History.Daily) != len(bars) {
+				t.Fatalf("daily = %d closes, want %d", len(h.History.Daily), len(bars))
+			}
+			for i, d := range h.History.Daily {
+				factor := 1.0
+				for _, sp := range h.Prices.Splits {
+					if d.Date.Before(sp.Date) {
+						factor *= sp.Ratio
+					}
+				}
+				if !near(d.Close*factor, bars[i].Close) {
+					t.Errorf("close %v × factor %v on %s, want the raw close %v", d.Close, factor, d.Date, bars[i].Close)
+				}
+			}
+		})
+	}
+}
+
+func TestHistoryPricesNameNoProviderWhenTheClosesComeFromTwo(t *testing.T) {
+	bars := append(tinyBars(t, "massive", "2026-03-02"), tinyBars(t, "licensed", "2026-03-03")...)
+	h, err := newService(t, tinyStore(t, bars, nil), nil).History(context.Background(), "TINY", stocks.RangeMax)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if h.Prices == nil || h.Prices.Provider != nil || h.Prices.Symbol != "TINY" {
+		t.Errorf("Prices = %+v, want the TINY feed without a provider", h.Prices)
+	}
+	// A range with the closes of one provider names it.
+	bars = append(tinyBars(t, "massive", "2026-03-02"), tinyBars(t, "massive", "2026-03-03")...)
+	h, err = newService(t, tinyStore(t, bars, nil), nil).History(context.Background(), "TINY", stocks.RangeMax)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if h.Prices == nil || h.Prices.Provider == nil || *h.Prices.Provider != "massive" {
+		t.Errorf("Prices = %+v, want the massive feed", h.Prices)
 	}
 }
 

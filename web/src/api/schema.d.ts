@@ -575,11 +575,14 @@ export interface components {
          *     and symbol, with `closeDate` the close's date and `splitFactor` the
          *     product of the `ratio` of every split dated after that date (1 when
          *     there is none). The provider's raw close is the close times the
-         *     split factor.
+         *     split factor. Without a provider the daily closes have no source.
          */
         PriceFeed: {
-            /** @example massive */
-            provider: string;
+            /**
+             * @description The provider of every daily close; null when the closes of the range come from more than one provider.
+             * @example massive
+             */
+            provider: string | null;
             /** @description The provider's symbol. */
             symbol: string;
             /** @description The splits dated after the first daily close, oldest first; empty when no split adjusts a close of the range. */

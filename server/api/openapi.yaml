@@ -884,11 +884,14 @@ components:
         and symbol, with `closeDate` the close's date and `splitFactor` the
         product of the `ratio` of every split dated after that date (1 when
         there is none). The provider's raw close is the close times the
-        split factor.
+        split factor. Without a provider the daily closes have no source.
       additionalProperties: false
       required: [provider, symbol, splits]
       properties:
-        provider: { type: string, example: massive }
+        provider:
+          type: [string, "null"]
+          example: massive
+          description: The provider of every daily close; null when the closes of the range come from more than one provider.
         symbol: { type: string, description: "The provider's symbol." }
         splits:
           type: array
