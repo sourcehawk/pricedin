@@ -37,6 +37,22 @@ describe("DataPage", () => {
     );
   });
 
+  it("marks a run that a dead process left behind", async () => {
+    renderWithStock(<DataPage />);
+    const row = await screen.findByRole("row", { name: /prices-backfill/ });
+    expect(row).toHaveTextContent("abandoned");
+  });
+
+  it("counts the companies that wait for an SEC retry and the tracked ones", async () => {
+    renderWithStock(<DataPage />);
+    const tile = (name: string) => screen.getByText(name).closest(".tile");
+    await screen.findByText("SEC retries");
+    expect(tile("SEC retries")).toHaveTextContent(
+      /^SEC retries\s*2\s*companies wait for another try; 1 failed too often and is no longer tried$/,
+    );
+    expect(tile("Tracked")).toHaveTextContent(/^Tracked\s*4\s*companies loaded on demand/);
+  });
+
   it("loads a company on demand", async () => {
     let loaded = "";
     apiServer.use(

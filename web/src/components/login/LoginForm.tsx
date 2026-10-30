@@ -16,6 +16,10 @@ function failure(e: unknown): string {
       return "The server cannot be reached. Check your connection and try again.";
     case 401:
       return "The email or the password is wrong.";
+    case 503:
+      return e.problem?.type === "urn:pricedin:problem:login-disabled"
+        ? "Login is turned off: the server has no owner account. Set PRICEDIN_OWNER_EMAIL and PRICEDIN_OWNER_PASSWORD_HASH on the server, then restart it."
+        : `The login failed: ${e.message}`;
     case 429:
       return e.retryAfter === null
         ? "Too many attempts. Wait a minute, then try again."

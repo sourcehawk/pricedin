@@ -55,11 +55,16 @@ const StockContext = createContext<StockContextValue | null>(null);
 
 const noSubscription = () => () => undefined;
 
+/** present returns v when it holds a value: the API reports a dividend that was never fetched as missing. */
+function present(v: SourcedNumber | { value: null } | null | undefined): SourcedNumber | null {
+  return v === null || v === undefined || v.value === null ? null : v;
+}
+
 function stockStartingPoint(p: Profile | undefined) {
   return {
     price: p?.latestClose?.value ?? null,
     ttmEps: p?.ttmEps?.value ?? null,
-    dividend: p?.ttmDividend.value ?? null,
+    dividend: present(p?.ttmDividend)?.value ?? null,
   };
 }
 
@@ -165,7 +170,7 @@ export function StockProvider({
     provenance: {
       price: provenanceOf(state.price, p?.latestClose),
       ttmEps: provenanceOf(state.ttmEps, p?.ttmEps),
-      dividend: provenanceOf(state.dividend, p?.ttmDividend),
+      dividend: provenanceOf(state.dividend, present(p?.ttmDividend)),
     },
   };
   return <StockContext value={value}>{children}</StockContext>;

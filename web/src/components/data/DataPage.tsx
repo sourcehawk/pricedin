@@ -149,6 +149,23 @@ export function DataPage() {
                 {s.companies.withFacts.toLocaleString("en-US")} with facts)
               </span>
             </div>
+            <div className="tile">
+              <span className="eyebrow">SEC retries</span>
+              <b>{s.secRetries.waiting.toLocaleString("en-US")}</b>
+              <span className="small muted">
+                {s.secRetries.waiting === 1 ? "company waits" : "companies wait"} for another try;{" "}
+                {s.secRetries.exhausted.toLocaleString("en-US")} failed too often and{" "}
+                {s.secRetries.exhausted === 1 ? "is" : "are"} no longer tried
+              </span>
+            </div>
+            <div className="tile">
+              <span className="eyebrow">Tracked</span>
+              <b>{s.trackedCompanies.toLocaleString("en-US")}</b>
+              <span className="small muted">
+                {s.trackedCompanies === 1 ? "company" : "companies"} loaded on demand, kept current
+                by the daily jobs
+              </span>
+            </div>
           </div>
         )}
       </section>
@@ -181,7 +198,9 @@ export function DataPage() {
                       {r.job}
                     </th>
                     <td>
-                      <span className={`pill ${statusTone[r.status]}`}>{r.status}</span>
+                      <span className={`pill ${statusTone[r.status]}`}>
+                        {r.abandoned ? "abandoned" : r.status}
+                      </span>
                       {r.error !== "" && <div className="err">{r.error}</div>}
                     </td>
                     <td className="mono">{when(r.startedAt)}</td>

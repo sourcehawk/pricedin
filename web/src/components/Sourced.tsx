@@ -13,6 +13,7 @@ const methods: Record<string, string> = {
   fy_difference: "Fiscal year minus the first three quarters",
   weighted_average_q4: "Fourth quarter from the yearly weighted average",
   reported: "As reported",
+  not_available: "No data was ever fetched",
   derived: "Computed from other reported values",
 };
 

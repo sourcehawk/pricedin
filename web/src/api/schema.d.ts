@@ -462,10 +462,11 @@ export interface components {
              *     quarters added; the inputs are the quarters),
              *     `recurring_dividends_12m` (the recurring dividends with an ex-date
              *     in the last 12 months, split-adjusted), `price_over_ttm_eps` (a
-             *     P/E).
+             *     P/E), `not_available` (no data was ever fetched; the value is
+             *     the lever's default, 0).
              * @enum {string}
              */
-            method: "reported" | "ytd_difference" | "fy_difference" | "weighted_average_q4" | "derived" | "ttm" | "recurring_dividends_12m" | "price_over_ttm_eps";
+            method: "reported" | "ytd_difference" | "fy_difference" | "weighted_average_q4" | "derived" | "ttm" | "recurring_dividends_12m" | "price_over_ttm_eps" | "not_available";
             /** @description The value is not exact. */
             estimate: boolean;
             /** @description `ttm` only: the fiscal quarter the TTM ends with. */
@@ -552,8 +553,13 @@ export interface components {
             latestClose: components["schemas"]["NullableSourcedNumber"];
             /** @description The TTM diluted EPS known today; the source lists its four quarters. Null when it cannot be derived. */
             ttmEps: components["schemas"]["NullableSourcedNumber"];
-            /** @description The recurring dividends per share with an ex-date in the last 12 months, split-adjusted; 0 when none. As of today. */
-            ttmDividend: components["schemas"]["SourcedNumber"];
+            /**
+             * @description The recurring dividends per share with an ex-date in the last 12
+             *     months, split-adjusted; 0 when none. `asOf` is the day the
+             *     dividend data was last fetched, which can be earlier than today.
+             *     Missing with reason `no_dividend_data` when it never was.
+             */
+            ttmDividend: components["schemas"]["SourcedNumber"] | components["schemas"]["Missing"];
             /** @description latestClose over ttmEps; null without both or when the TTM EPS is zero or negative. */
             pe: components["schemas"]["NullableSourcedNumber"];
             freshness: components["schemas"]["Freshness"];
@@ -668,6 +674,8 @@ export interface components {
             job: string;
             /** @enum {string} */
             status: "running" | "succeeded" | "failed";
+            /** @description A failed run that a process left running when it died. */
+            abandoned: boolean;
             startedAt: components["schemas"]["Timestamp"];
             finishedAt: components["schemas"]["Timestamp"] | null;
             stats: {
@@ -684,6 +692,15 @@ export interface components {
                 withFacts: number;
                 withFundamentals: number;
             };
+            /** @description Companies whose SEC load failed. */
+            secRetries: {
+                /** @description Will be tried again. */
+                waiting: number;
+                /** @description Failed too often; the jobs no longer try them. */
+                exhausted: number;
+            };
+            /** @description Companies loaded on demand, which the daily jobs keep current. */
+            trackedCompanies: number;
         };
         /** @example Q3 FY26 */
         QuarterLabel: string;
@@ -751,7 +768,9 @@ export interface components {
         };
         ScenarioCase: {
             name: string;
+            /** @description The engine refuses a value beyond 10^30 in size. */
             growth: number;
+            /** @description The engine refuses a value beyond 10^30 in size. */
             exitPe: number;
         };
         /** @description The levers the engine ran with, every default filled in. */
@@ -787,10 +806,11 @@ export interface components {
             chartRange?: components["schemas"]["ChartRange"];
         };
         /**
-         * @description Why a value is missing.
+         * @description Why a value is missing. `no_dividend_data` comes from the API, not
+         *     the engine: no dividend data was ever fetched for the symbol.
          * @enum {string}
          */
-        Reason: "needs_positive_eps" | "dividends_reach_target" | "insufficient_history" | "missing_data" | "non_positive_base" | "growth_out_of_range" | "too_few_points" | "zero_variance" | "not_applicable";
+        Reason: "needs_positive_eps" | "dividends_reach_target" | "insufficient_history" | "missing_data" | "non_positive_base" | "growth_out_of_range" | "too_few_points" | "zero_variance" | "not_applicable" | "no_dividend_data";
         /** @enum {string} */
         Tone: "good" | "warn" | "bad" | "neutral";
         /** @enum {string} */
@@ -1066,7 +1086,9 @@ export interface components {
         };
         ScenarioOutcome: {
             name: string;
+            /** @description The engine refuses a value beyond 10^30 in size. */
             growth: number;
+            /** @description The engine refuses a value beyond 10^30 in size. */
             exitPe: number;
             result: {
                 value: components["schemas"]["ScenarioResult"];

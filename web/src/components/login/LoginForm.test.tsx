@@ -74,6 +74,19 @@ describe("LoginForm", () => {
     );
   });
 
+  it("says that login is turned off when the server has no owner", async () => {
+    apiServer.use(
+      http.post(apiUrl("/api/auth/login"), () =>
+        problem(503, "Login disabled", undefined, "urn:pricedin:problem:login-disabled"),
+      ),
+    );
+    renderForm();
+    await logIn();
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Login is turned off: the server has no owner account.",
+    );
+  });
+
   it("says when the server cannot be reached", async () => {
     apiServer.use(http.post(apiUrl("/api/auth/login"), () => HttpResponse.error()));
     renderForm();

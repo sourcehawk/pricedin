@@ -26,7 +26,7 @@ export function StartingPoint() {
       ? p?.latestClose?.value
       : f === "ttmEps"
         ? p?.ttmEps?.value
-        : p?.ttmDividend.value);
+        : (p?.ttmDividend.value ?? null));
   const field = (f: StartingPointField, extra: { min?: number }) => (
     <NumberField
       id={ids[f]}

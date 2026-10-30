@@ -1,11 +1,11 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient } from "@tanstack/react-query";
-import { http } from "msw";
+import { http, HttpResponse } from "msw";
 import { useEffect } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createApi } from "@/api/client";
 import { ApiProvider } from "@/api/queries";
-import { exampleHistory } from "@/api/testing/fixtures";
+import { exampleHistory, profileFixture } from "@/api/testing/fixtures";
 import { apiServer, apiUrl, withApiServer } from "@/api/testing/server";
 import { evaluate } from "@/engine";
 import { renderWithStock, testLevers } from "@/testing/render";
@@ -76,6 +76,23 @@ describe("StockProvider", () => {
     });
     expect(current().evaluation?.required.growth.value).toBeLessThan(before ?? 0);
     expect(current().provenance.price).toEqual({ kind: "user" });
+  });
+
+  it("uses no dividend when the stock has no dividend data", async () => {
+    apiServer.use(
+      http.get(apiUrl("/api/v1/stocks/:t"), () =>
+        HttpResponse.json({
+          ...profileFixture,
+          ttmDividend: { value: null, reason: "no_dividend_data" },
+        }),
+      ),
+    );
+    renderWithStock(<Probe />);
+    await waitFor(() => {
+      expect(current().evaluation).not.toBeNull();
+    });
+    expect(current().levers?.dividend).toBe(0);
+    expect(current().provenance.dividend).toBeNull();
   });
 
   it("does not read the history of a stock whose data is not loaded", async () => {
