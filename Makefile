@@ -186,6 +186,8 @@ test-server: ## Run the Go unit tests with the race detector
 .PHONY: test-scripts
 test-scripts: ## Run the tests of the shell scripts in scripts/
 	scripts/deploy-gate_test.sh
+	scripts/ci-changes_test.sh
+	scripts/ci-ok_test.sh
 
 .PHONY: test-integration
 test-integration: ## Run the Go integration tests (build tag integration)

@@ -13,6 +13,36 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Decides which test jobs a pull request needs, from the paths it changes.
+  # A push to main runs every job.
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      go: ${{ steps.decide.outputs.go }}
+      web: ${{ steps.decide.outputs.web }}
+      e2e: ${{ steps.decide.outputs.e2e }}
+    steps:
+      # The checkout of a pull request is its merge commit. Its first parent
+      # is the head of the base branch, so the difference between the two is
+      # the change of the pull request.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Decide which jobs the change needs
+        id: decide
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          if [ "$EVENT_NAME" = pull_request ]; then
+            git -c core.quotePath=false diff --name-only --no-renames HEAD^1 HEAD >"$RUNNER_TEMP/changed"
+            cat "$RUNNER_TEMP/changed"
+            scripts/ci-changes.sh <"$RUNNER_TEMP/changed"
+          else
+            scripts/ci-changes.sh all
+          fi
+
   lint:
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -52,6 +82,8 @@ jobs:
       - run: make test-scripts
 
   test-server:
+    needs: changes
+    if: needs.changes.outputs.go == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -64,6 +96,8 @@ jobs:
       - run: make test-server
 
   test-integration:
+    needs: changes
+    if: needs.changes.outputs.go == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -76,6 +110,8 @@ jobs:
       - run: make test-integration
 
   test-web:
+    needs: changes
+    if: needs.changes.outputs.web == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -89,6 +125,8 @@ jobs:
       - run: make test-web
 
   build:
+    needs: changes
+    if: needs.changes.outputs.e2e == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -112,6 +150,8 @@ jobs:
           DOCKER_BUILD_FLAGS: --cache-from type=gha --cache-to type=gha,mode=max
 
   e2e:
+    needs: changes
+    if: needs.changes.outputs.e2e == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -142,19 +182,30 @@ jobs:
           retention-days: 14
           if-no-files-found: ignore
 
+  # The one required check. A job that the change does not need is skipped,
+  # and that counts as a pass.
   ci-ok:
     if: always()
-    needs: [lint, test-server, test-integration, test-web, build, e2e]
+    needs: [changes, lint, test-server, test-integration, test-web, build, e2e]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Fail unless every job succeeded
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Fail unless every job that the change needs succeeded
         env:
-          RESULTS: ${{ join(needs.*.result, ' ') }}
+          CHANGES: ${{ needs.changes.result }}
+          LINT: ${{ needs.lint.result }}
+          TEST_SERVER: ${{ needs.test-server.result }}
+          TEST_INTEGRATION: ${{ needs.test-integration.result }}
+          TEST_WEB: ${{ needs.test-web.result }}
+          BUILD: ${{ needs.build.result }}
+          E2E: ${{ needs.e2e.result }}
+          NEEDS_GO: ${{ needs.changes.outputs.go }}
+          NEEDS_WEB: ${{ needs.changes.outputs.web }}
+          NEEDS_E2E: ${{ needs.changes.outputs.e2e }}
         run: |
-          echo "results: $RESULTS"
-          for result in $RESULTS; do
-            if [ "$result" != success ]; then
-              exit 1
-            fi
-          done
+          scripts/ci-ok.sh "changes=$CHANGES" "lint=$LINT" \
+            "test-server=$TEST_SERVER:$NEEDS_GO" "test-integration=$TEST_INTEGRATION:$NEEDS_GO" \
+            "test-web=$TEST_WEB:$NEEDS_WEB" "build=$BUILD:$NEEDS_E2E" "e2e=$E2E:$NEEDS_E2E"
