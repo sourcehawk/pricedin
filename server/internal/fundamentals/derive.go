@@ -54,11 +54,13 @@ func Derive(cik domain.CIK, facts []domain.Fact, opts Options) (Series, error) {
 		d.periods[k] = append(d.periods[k], observation{fact: *f, value: f.Value, ratio: 1})
 	}
 
+	years := cal.build()
+	d.snap(years)
 	d.splits, d.conflicts = confirmSplits(cik, ratios, opts)
 	d.settle()
 
 	series := Series{Splits: d.splits, Conflicts: d.conflicts}
-	for _, y := range cal.build() {
+	for _, y := range years {
 		start := y.start
 		var earlier []span
 		for i, end := range y.ends {
@@ -120,6 +122,45 @@ type deriver struct {
 	winners   map[periodKey]winner
 	splits    []domain.Split
 	conflicts []Conflict
+}
+
+// snapTolerance is how many days a reported period can start or end away
+// from a period of the fiscal calendar and still count as it. Filers
+// sometimes move a boundary by a day in a later comparative: Coca-Cola's
+// 10-Q of July 2012 gives its Q2 2011 as starting on 2011-04-03, while its
+// 10-Q of August 2011 gave 2011-04-02.
+const snapTolerance = 3
+
+// snap files each observation under the quarter or year-to-date period of
+// years that it matches within snapTolerance days, so that a restatement
+// of a shifted period competes with the original for the latest filing.
+// An observation keeps its reported dates in its fact.
+func (d *deriver) snap(years []fiscalYear) {
+	var calendar []span
+	for _, y := range years {
+		start := y.start
+		for _, end := range y.ends {
+			calendar = append(calendar, span{start, end}, span{y.start, end})
+			start = end.AddDays(1)
+		}
+	}
+	exact := make(map[span]bool, len(calendar))
+	for _, c := range calendar {
+		exact[c] = true
+	}
+	snapped := make(map[periodKey][]observation, len(d.periods))
+	for k, obs := range d.periods {
+		if p := (span{k.start, k.end}); !exact[p] {
+			for _, c := range calendar {
+				if abs(daysIn(c.start, p.start)-1) <= snapTolerance && abs(daysIn(c.end, p.end)-1) <= snapTolerance {
+					k.start, k.end = c.start, c.end
+					break
+				}
+			}
+		}
+		snapped[k] = append(snapped[k], obs...)
+	}
+	d.periods = snapped
 }
 
 // settle orders each period's filings, adjusts them for splits, picks the

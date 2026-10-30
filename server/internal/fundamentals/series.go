@@ -79,7 +79,8 @@ type SourceRef struct {
 	Form      string
 	Concept   string
 	Filed     domain.Date
-	// PeriodStart is nil for an instant fact.
+	// PeriodStart is nil for an instant fact. The period is as filed, and
+	// it can start or end up to three days away from the quarter's.
 	PeriodStart *domain.Date
 	PeriodEnd   domain.Date
 	// Value is the number as the filing reports it, before split

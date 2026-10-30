@@ -378,3 +378,30 @@ func TestDeriveDatesAQuarterByItsEarliestAvailableSource(t *testing.T) {
 		t.Errorf("FirstFiled = %s, want 2026-02-19, the filing date of k-2025", v.FirstFiled)
 	}
 }
+
+func TestDeriveMatchesARestatedPeriodWhoseDatesMovedByUpToThreeDays(t *testing.T) {
+	// The next year's 10-Q restates Q2 for a period that starts two days
+	// later. A period five days off is another period.
+	tests := []struct {
+		name  string
+		start string
+		want  float64
+		accn  string
+	}{
+		{"two days later", "2025-04-03", 120, "q2-2026"},
+		{"five days later", "2025-04-06", 100, "q2-2025"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var facts []domain.Fact
+			y := newCalYear(t, &facts, 2025)
+			y.q2.add(sec.OperatingIncomeLoss, "2025-04-01", "2025-06-30", 100)
+			newFiling(t, &facts, "q2-2026", "10-Q", "2026-07-25", 2026, "Q2").add(sec.OperatingIncomeLoss, tt.start, "2025-06-30", 120)
+
+			v := value(t, derive(t, facts, fundamentals.Options{}), "Q2 FY25", fundamentals.OperatingIncome)
+			if v.V != tt.want || !cmp.Equal(accessions(v), []string{tt.accn}) {
+				t.Errorf("Q2 FY25 operating income = %v from %v, want %v from %s", v.V, accessions(v), tt.want, tt.accn)
+			}
+		})
+	}
+}

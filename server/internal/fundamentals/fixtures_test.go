@@ -523,3 +523,17 @@ func TestDeriveDatesADMQ4From10KOfThatYear(t *testing.T) {
 		t.Errorf("Q4 FY22 EPS = %v %s first filed %s, want 1.84 reported first filed 2023-02-14", v.V, v.Method, v.FirstFiled)
 	}
 }
+
+func TestDeriveFindsCocaColasRestatementOfAShiftedPeriod(t *testing.T) {
+	// The 10-Q filed 2011-08-01 gives Q2 2011 operating income of 3,174
+	// million for 2011-04-02 to 2011-07-01. The 10-Q filed 2012-07-26
+	// restates it as 3,179 million for 2011-04-03 to 2011-07-01.
+	s := deriveFixture(t, cikKO, fundamentals.Options{Splits: koSplits(t)})
+	v := value(t, s, "Q2 FY11", fundamentals.OperatingIncome)
+	if v.V != 3179000000 || len(v.Inputs) != 1 || v.Inputs[0].Accession != "0000021344-12-000037" {
+		t.Fatalf("Q2 FY11 operating income = %v from %v, want 3179000000 from 0000021344-12-000037", v.V, accessions(v))
+	}
+	if in := v.Inputs[0]; in.PeriodStart.String() != "2011-04-03" || v.FirstFiled.String() != "2011-08-01" {
+		t.Errorf("input period starts %s, FirstFiled %s; want the filed start 2011-04-03 and 2011-08-01", in.PeriodStart, v.FirstFiled)
+	}
+}
