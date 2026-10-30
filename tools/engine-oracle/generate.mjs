@@ -161,6 +161,18 @@ add("requirement with a dividend over five years", "requirement", {
 });
 add("requirement needs positive EPS", "requirement", { ...rq, eps: -0.5 });
 add(
+  "requirement at a huge exit P/E",
+  "requirement",
+  { price: 100, eps: 4, targetReturn: 0.15, years: 1, exitPe: 7.38e25, dividend: 0 },
+  N.requiredEndpoints,
+);
+add(
+  "required growth rounds to -100% at a huge exit P/E",
+  "requiredGrowth",
+  { price: 100, eps: 4, targetReturn: 0.15, years: 1, exitPe: 7.38e25, dividend: 0 },
+  N.requiredEndpoints,
+);
+add(
   "requirement when dividends reach the target",
   "requirement",
   { ...rq, price: 50, dividend: 30 },
@@ -197,6 +209,8 @@ add(
 
 for (const d of [0.02, 0.015, 0.0150001, 0, -0.015, -0.0150001, -0.3])
   add(`tone of ${d}`, "tone", { diff: d });
+add("tone at a computed 1.5 pp gap", "tone", { diff: 0.165 - 0.15 }, N.toneTolerance);
+add("tone at a computed -1.5 pp gap", "tone", { diff: 0.135 - 0.15 }, N.toneTolerance);
 for (const d of [0.05, 0.015, 0, -0.015, -0.02])
   add(`verdict at a gap of ${d}`, "verdict", { gap: d });
 for (const [r, t] of [
@@ -526,6 +540,12 @@ add(
 );
 add("return grid needs positive EPS", "returnGrid", { ...gridBase, eps: 0 });
 add(
+  "return grid at an exit P/E of 0.5",
+  "returnGrid",
+  { ...gridBase, exitPe: 0.5, required: { value: 2.1 } },
+  [N.exactRow, N.positiveColumns],
+);
+add(
   "return grid with a baseline above 1000%",
   "returnGrid",
   { ...gridBase, baseline: { mode: "weighted", growth: { value: 11 } }, weighted: { value: 11 } },
@@ -540,7 +560,7 @@ const pathBase = {
   years: 3,
   baseline: { value: 0.12981 },
   yearlyRates: null,
-  required: { value: 0.14953 },
+  requiredEps: { value: 16.4041 },
 };
 add("earnings paths with the weighted trend", "earningsPaths", pathBase, N.scaleEveryPoint);
 add(
@@ -549,11 +569,16 @@ add(
   { ...pathBase, baseline: { value: 0.0931 }, yearlyRates: [0.4, -0.2, 0.15] },
   N.scaleEveryPoint,
 );
-add("earnings paths over one year", "earningsPaths", { ...pathBase, years: 1 }, N.scaleEveryPoint);
+add(
+  "earnings paths over one year",
+  "earningsPaths",
+  { ...pathBase, years: 1, requiredEps: { value: 12.4149 } },
+  N.scaleEveryPoint,
+);
 add(
   "earnings paths without a requirement",
   "earningsPaths",
-  { ...pathBase, required: { value: null, reason: "dividends_reach_target" } },
+  { ...pathBase, requiredEps: { value: null, reason: "dividends_reach_target" } },
   [N.scaleEveryPoint, N.dividendsReachTarget],
 );
 add(
@@ -563,6 +588,12 @@ add(
   N.scaleEveryPoint,
 );
 add("earnings paths need positive EPS", "earningsPaths", { ...pathBase, eps: -1 });
+add(
+  "earnings paths to a near-zero required EPS",
+  "earningsPaths",
+  { ...pathBase, years: 1, requiredEps: { value: 1.5e-24 } },
+  [N.scaleEveryPoint, N.requiredEndpoints],
+);
 
 const hdBase = {
   quarters: gq,
@@ -733,6 +764,12 @@ const nearZero = (eps) =>
 add("P/E bands at a near-zero EPS", "peBands", { points: nearZero(1e-9) }, N.bandSteps);
 add("P/E bands at a tiny EPS", "peBands", { points: nearZero(1e-16) }, N.bandSteps);
 add("P/E bands at a P/E near 1", "peBands", { points: nearZero(80) }, N.bandSteps);
+add(
+  "P/E bands at the lowest valid P/E",
+  "peBands",
+  { points: [{ date: "2026-01-02", close: 1e-4, ttmEps: 1e6 }] },
+  [N.bandSteps, N.bandDigits, N.bandSlack],
+);
 add(
   "P/E bands at a P/E near 0.001",
   "peBands",
@@ -941,6 +978,44 @@ add(
   "evaluate",
   { history: { quarters: withEps(short(gq, 5), 4, -4), daily: [] }, levers: defaultLevers(GRMN) },
   [...evalNotes, N.scenarioRange],
+);
+const cancel = [0, 1.0001e-4, -1e-4, 0, 0, 1];
+add(
+  "evaluate a TTM EPS that cancels to near zero",
+  "evaluate",
+  {
+    history: {
+      quarters: short(gq, 6).map((q, i) => ({
+        ...q,
+        eps: cancel[i],
+        close: i === 3 || i === 4 ? 1e6 : null,
+      })),
+      daily: [],
+    },
+    levers: defaultLevers(GRMN, {
+      price: 100,
+      ttmEps: 4,
+      holdingYears: 1,
+      exitPe: { mode: "trailing", trailingMonths: 36 },
+    }),
+  },
+  [...evalNotes, N.requiredEndpoints],
+);
+add(
+  "evaluate a baseline exactly 1.5 pp above the requirement",
+  "evaluate",
+  ev(noDaily(GRMN), {
+    price: 100,
+    ttmEps: 5,
+    holdingYears: 1,
+    exitPe: { mode: "custom", custom: 20, trailingMonths: 36 },
+    baseline: {
+      mode: "custom",
+      trailingMonths: 12,
+      custom: { yearly: false, rate: 0.165, rates: [] },
+    },
+  }),
+  [...evalNotes, N.toneTolerance],
 );
 add(
   "evaluate a baseline that lands exactly on the target",

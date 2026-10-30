@@ -126,3 +126,13 @@ func TestReturnGridWithoutValues(t *testing.T) {
 	in.ExitPE = 0
 	wantNone(t, "grid with a zero exit P/E", ReturnGrid(in), ReasonNeedsPositiveEPS)
 }
+
+func TestReturnGridDropsColumnsThatRoundToZero(t *testing.T) {
+	in := gridAt(BaselineWeighted, Some(0.1595))
+	in.ExitPE = 0.5
+	for _, c := range wantSome(t, "grid", ReturnGrid(in)).Columns {
+		if c.ExitPE <= 0 {
+			t.Errorf("column at exit P/E %v", c.ExitPE)
+		}
+	}
+}

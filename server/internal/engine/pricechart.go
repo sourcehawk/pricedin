@@ -185,8 +185,10 @@ func PEBands(points []PricePoint) Maybe[Bands] {
 		}
 	}
 	var ms []float64
+	// The end slack shrinks with the step, so a tiny P/E range does not fill up.
+	slack := math.Min(1e-9, stp*1e-6)
 	// At a huge P/E a step can be too small to change m.
-	for m := math.Ceil(pLo/stp) * stp; m <= pHi+1e-9 && len(ms) < maxBands && m+stp > m; m += stp {
+	for m := math.Ceil(pLo/stp) * stp; m <= pHi+slack && len(ms) < maxBands && m+stp > m; m += stp {
 		if m > 0 {
 			ms = append(ms, toFixed(m, digits))
 		}

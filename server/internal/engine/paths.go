@@ -27,7 +27,8 @@ type PathsInput struct {
 	// YearlyRates, when non-nil, make the baseline path follow one rate per
 	// year (the custom year-by-year baseline).
 	YearlyRates []float64 `json:"yearlyRates"`
-	Required    Number    `json:"required"`
+	// RequiredEPS is the EPS needed at the exit; the required path runs to it.
+	RequiredEPS Number `json:"requiredEps"`
 }
 
 // Paths is the earnings trajectory: TTM EPS history, then the baseline and
@@ -71,7 +72,7 @@ func EarningsPaths(in PathsInput) Maybe[Paths] {
 		q := in.Quarters[i]
 		out.History = append(out.History, HistoryPoint{Label: q.Label, PeriodEnd: q.PeriodEnd, TTMEPS: s.ttm[i], TTMYoY: s.ttmYoY[i]})
 	}
-	g, req := in.Baseline, in.Required
+	g, req := in.Baseline, in.RequiredEPS
 	gOk := g.Ok() && growthInRange(g.Get())
 	gReason := ReasonGrowthOutOfRange
 	if !g.Ok() {
@@ -91,7 +92,7 @@ func EarningsPaths(in PathsInput) Maybe[Paths] {
 			p.Baseline = Some(BaselinePath(in.EPS, g.Get(), k, in.YearlyRates))
 		}
 		if req.Ok() {
-			p.Required = Some(in.EPS * math.Pow(1+req.Get(), float64(k)/4))
+			p.Required = Some(in.EPS * math.Pow(req.Get()/in.EPS, float64(k)/float64(steps)))
 		}
 		p.Gap = None[float64](reasonOf(p.Baseline, p.Required))
 		if p.Baseline.Ok() && p.Required.Ok() {

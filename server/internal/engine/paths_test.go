@@ -7,7 +7,7 @@ import (
 
 func TestEarningsPaths(t *testing.T) {
 	q := quarters(grow(16, 0.1)...)
-	in := PathsInput{Quarters: q, EPS: 10, Years: 2, Baseline: Some(0.1), Required: Some(0.2)}
+	in := PathsInput{Quarters: q, EPS: 10, Years: 2, Baseline: Some(0.1), RequiredEPS: Some(14.4)}
 	p := wantSome(t, "paths", EarningsPaths(in))
 	if len(p.History) != 13 || p.History[0].Label != q[3].Label {
 		t.Errorf("history has %d quarters from %s, want 13 from %s", len(p.History), p.History[0].Label, q[3].Label)
@@ -30,7 +30,7 @@ func TestEarningsPaths(t *testing.T) {
 // The scale covers every plotted point, also the dip inside a year-by-year
 // path that ends higher than it starts.
 func TestEarningsPathsScaleCoversEveryPoint(t *testing.T) {
-	in := PathsInput{Quarters: quarters(grow(16, 0.1)...), EPS: 10, Years: 3, Baseline: Some(0.0), YearlyRates: []float64{-0.6, 0.5, 1.5}, Required: Some(0.05)}
+	in := PathsInput{Quarters: quarters(grow(16, 0.1)...), EPS: 10, Years: 3, Baseline: Some(0.0), YearlyRates: []float64{-0.6, 0.5, 1.5}, RequiredEPS: Some(11.57625)}
 	p := wantSome(t, "paths", EarningsPaths(in))
 	for _, f := range p.Future {
 		for _, m := range []Number{f.Baseline, f.Required} {
@@ -40,7 +40,7 @@ func TestEarningsPathsScaleCoversEveryPoint(t *testing.T) {
 		}
 	}
 	neg := quarters(-2, -2, -2, -2, -1, -1, -1, -1, 1, 1, 1, 1)
-	pn := wantSome(t, "paths", EarningsPaths(PathsInput{Quarters: neg, EPS: 4, Years: 1, Baseline: Some(0.1), Required: Some(0.1)}))
+	pn := wantSome(t, "paths", EarningsPaths(PathsInput{Quarters: neg, EPS: 4, Years: 1, Baseline: Some(0.1), RequiredEPS: Some(4.4)}))
 	if pn.Scale.Min > -8 {
 		t.Errorf("scale %+v does not cover the TTM loss of -8", pn.Scale)
 	}
@@ -48,7 +48,7 @@ func TestEarningsPathsScaleCoversEveryPoint(t *testing.T) {
 
 func TestEarningsPathsWithoutValues(t *testing.T) {
 	wantNone(t, "paths with negative EPS", EarningsPaths(PathsInput{EPS: -1, Years: 1}), ReasonNeedsPositiveEPS)
-	p := wantSome(t, "paths", EarningsPaths(PathsInput{EPS: 5, Years: 1, Baseline: Some(0.1), Required: None[float64](ReasonDividendsReachTarget)}))
+	p := wantSome(t, "paths", EarningsPaths(PathsInput{EPS: 5, Years: 1, Baseline: Some(0.1), RequiredEPS: None[float64](ReasonDividendsReachTarget)}))
 	wantNone(t, "required path", p.Future[4].Required, ReasonDividendsReachTarget)
 	wantNone(t, "gap tone", p.GapTone, ReasonDividendsReachTarget)
 	if p.Future[0].Label != nil {

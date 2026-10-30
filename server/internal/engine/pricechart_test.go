@@ -203,3 +203,12 @@ func TestPEBandsAtATinyPE(t *testing.T) {
 		seen[m.Multiple] = true
 	}
 }
+
+// The lowest valid P/E (a close of 0.0001 at a TTM EPS of 1,000,000) gets a
+// handful of bands, not 50.
+func TestPEBandsAtTheLowestValidPE(t *testing.T) {
+	b := wantSome(t, "bands", PEBands([]PricePoint{{Date: domain.NewDate(2026, 1, 2), Close: 1e-4, TTMEPS: ptr(1e6)}}))
+	if n := len(b.Multiples); n < 3 || n > 7 {
+		t.Errorf("%d bands, want about 5", n)
+	}
+}

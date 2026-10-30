@@ -205,7 +205,8 @@ func gridColumns(pe float64) []float64 {
 				v = jsRound(v/5) * 5
 			}
 		}
-		if !slices.Contains(cols, v) {
+		// A neighbor of a tiny exit P/E can round to 0.
+		if v > 0 && !slices.Contains(cols, v) {
 			cols = append(cols, v)
 		}
 	}

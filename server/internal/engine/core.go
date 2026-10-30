@@ -63,8 +63,10 @@ func Requirement(inv Investment, exitPE float64) RequirementResult {
 		return out
 	}
 	r := g.Get()
-	eps := inv.EPS * math.Pow(1+r, float64(inv.Years))
-	price := eps * exitPE
+	// Not E*(1+r)^n: r rounds to -1 at a huge exit P/E, and that would lose
+	// the price that the exit must deliver.
+	price := inv.neededFromExit()
+	eps := price / exitPE
 	out.ExitPrice = Some(price)
 	out.PriceChange = Some(price/inv.Price - 1)
 	out.EPS = Some(eps)
@@ -134,12 +136,13 @@ func meetsTarget(yearly, target float64) bool {
 const toneBand = 0.015
 
 // ToneOf classifies a difference from a target: good above +1.5 pp, bad
-// below -1.5 pp, warn within.
+// below -1.5 pp, warn within. A difference within 1e-9 of a cutoff counts
+// as within, so a value computed to land on a cutoff is warn.
 func ToneOf(diff float64) Tone {
 	switch {
-	case diff > toneBand:
+	case diff > toneBand+1e-9:
 		return ToneGood
-	case diff < -toneBand:
+	case diff < -toneBand-1e-9:
 		return ToneBad
 	default:
 		return ToneWarn

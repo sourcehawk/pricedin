@@ -180,8 +180,27 @@ func TestGrowthAbove1000PercentIsOutOfRange(t *testing.T) {
 	near(t, "exit P/E needed at 1000%", wantSome(t, "exit P/E needed", ExitPENeeded(grmn, 10)), 270*1.15*1.15*1.15/(10.8*11*11*11), 1e-12)
 	grid := wantSome(t, "grid", ReturnGrid(gridAt(BaselineWeighted, Some(1e30))))
 	wantNone(t, "YOU cell", grid.You, ReasonGrowthOutOfRange)
-	paths := wantSome(t, "paths", EarningsPaths(PathsInput{EPS: 5, Years: 10, Baseline: Some(1e30), Required: Some(0.1)}))
+	paths := wantSome(t, "paths", EarningsPaths(PathsInput{EPS: 5, Years: 10, Baseline: Some(1e30), RequiredEPS: Some(5 * math.Pow(1.1, 10))}))
 	wantNone(t, "baseline path", paths.Future[40].Baseline, ReasonGrowthOutOfRange)
 	set := Scenarios(grmn, []ScenarioCase{{Name: "Bull", Growth: 1e30, ExitPE: 20}})
 	wantNone(t, "case", set.Cases[0].Result, ReasonGrowthOutOfRange)
+}
+
+// At a huge exit P/E the required growth rounds to -100%, but the price
+// that the exit must deliver is still the target value.
+func TestRequirementAtAHugeExitPE(t *testing.T) {
+	r := Requirement(Investment{Price: 100, EPS: 4, TargetReturn: 0.15, Years: 1}, 7.38e25)
+	near(t, "exit price needed", wantSome(t, "exit price", r.ExitPrice), 115, 1e-9)
+	near(t, "EPS needed", wantSome(t, "eps", r.EPS), 115/7.38e25, 1e-30)
+	near(t, "required growth", wantSome(t, "growth", r.Growth), -1, 1e-12)
+}
+
+// A gap computed to land on 1.5 pp is tight, not undemanding.
+func TestToneAtAComputedCutoff(t *testing.T) {
+	if got := ToneOf(0.165 - 0.15); got != ToneWarn {
+		t.Errorf("ToneOf(0.165-0.15) = %q, want warn", got)
+	}
+	if got := ToneOf(0.135 - 0.15); got != ToneWarn {
+		t.Errorf("ToneOf(0.135-0.15) = %q, want warn", got)
+	}
 }

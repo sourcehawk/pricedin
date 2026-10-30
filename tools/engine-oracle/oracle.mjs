@@ -50,6 +50,12 @@ export const NOTES = {
     "v1: the trajectory rates stay within -50% to 200%, the bounds of a custom rate, so that they can fill the custom rates; the prototype lets the cap at the highest reading go below -50%.",
   fadeFactor:
     "v1: the estimated exit P/E uses the fade factor 0.5^(years/3) directly; the prototype's (gExit - 6%) / (g0 - 6%) gives 0 near the floor by cancellation.",
+  requiredEndpoints:
+    "v1: the exit price needed is the value the exit must deliver and the EPS needed is that price over the exit P/E, and the required path runs to that EPS; the prototype computes them from the required growth, which rounds to -100% at a huge P/E.",
+  toneTolerance: "v1: the tone and verdict cutoffs at ±1.5 pp allow a rounding error of 1e-9.",
+  positiveColumns: "v1: return-grid columns whose rounded exit P/E is zero or less drop out.",
+  bandSlack:
+    "v1: the band loop's end slack is the smaller of 1e-9 and a millionth of the step, so a tiny P/E range does not fill up with bands.",
   bandDigits:
     "v1: band multiples keep enough decimals for their step; the prototype rounds to 2 decimals, which makes the bands of a P/E below 0.01 all zero.",
   targetTolerance:
@@ -169,8 +175,10 @@ const coreMath = () =>
 export function requiredGrowth({ price, eps, targetReturn, years, exitPe, dividend }) {
   const R = coreMath().req(price, eps, targetReturn, years, exitPe, dividend);
   if (!fin(R)) return none("needs_positive_eps");
-  // v1: -1 means the dividends alone reach the target.
-  if (R === -1) return none("dividends_reach_target");
+  // v1: the dividends alone reach the target when the exit needs to deliver
+  // nothing (the prototype returns -1 then, which rounding can also give).
+  if (!(price * Math.pow(1 + targetReturn, years) - dividend * years > 0))
+    return none("dividends_reach_target");
   return val(R);
 }
 
@@ -190,14 +198,15 @@ export function requirement(input) {
       undemandingFrom: none(r),
     };
   }
-  // Lines 963-965 (renderAll): EPS and exit price needed.
+  // Lines 963-965 (renderAll): EPS and exit price needed. v1: the exit
+  // price is the value the exit must deliver, and the EPS that price over the
+  // exit P/E; the prototype's E*(1+R)^n loses them when R rounds to -1.
   const R = growth.value,
     n = years,
-    E = eps,
     pe = exitPe,
     Pp = price;
-  const endE = E * Math.pow(1 + R, n),
-    endP = endE * pe;
+  const endP = Pp * Math.pow(1 + input.targetReturn, n) - dividend * n,
+    endE = endP / pe;
   return {
     growth,
     exitPrice: val(endP),
@@ -227,13 +236,16 @@ export function exitPeNeeded({ price, eps, targetReturn, years, growth, dividend
 // v1: the engine compounds growth above -100% and up to 1000% a year.
 const inRange = (g) => g > -1 && g <= 10;
 
+// v1: the tone of line 847, with a rounding tolerance of 1e-9 at the cutoffs.
+const toneV1 = (diff) => (diff > 0.015 + 1e-9 ? "good" : diff < -0.015 - 1e-9 ? "bad" : "warn");
+
 export function tone({ diff }) {
-  return coreMath().tone(diff);
+  return toneV1(diff);
 }
 
 const VERDICT = { good: "undemanding", warn: "tight", bad: "demanding" };
 export function verdict({ gap }) {
-  return VERDICT[coreMath().tone(gap)];
+  return VERDICT[toneV1(gap)];
 }
 
 export function niceStep({ range: r, target }) {
@@ -408,6 +420,11 @@ export function returnGrid({
     LT = num(trailing);
   const math = coreMath();
   const h = P.heatmap(R, g, pe, RECENT, WTD, LT, Pp, E, math.proj, n, D, r);
+  // v1: a column whose rounded exit P/E is zero or less drops out.
+  const keep = h.cols.map((c) => c > 0);
+  const cols = h.cols.filter((_, i) => keep[i]),
+    todayCols = h.today.filter((_, i) => keep[i]),
+    selC = cols.indexOf(pe);
   // v1: insert the exact baseline row.
   const regular = h.rows;
   let rows = regular.map((growth) => ({ growth, exact: false }));
@@ -440,7 +457,7 @@ export function returnGrid({
     epsAtExit: E * Math.pow(1 + x.growth, n),
     exact: x.exact,
     tags: tagsAt[i],
-    cells: h.cols.map((c) => {
+    cells: cols.map((c) => {
       // Lines 1202-1204 (drawHeatmap).
       const p = math.proj(Pp, E, x.growth, n, c, D),
         diff = p.cagr - r;
@@ -449,7 +466,7 @@ export function returnGrid({
         totalReturn: p.cum,
         yearlyReturn: p.cagr,
         vsTarget: diff,
-        tone: math.tone(diff),
+        tone: toneV1(diff),
       };
     }),
   }));
@@ -459,7 +476,7 @@ export function returnGrid({
   );
   if (gOk) {
     const selR = h.near(regular, g);
-    const at = (ri) => math.proj(Pp, E, regular[ri], n, h.cols[h.selC], D).cagr;
+    const at = (ri) => math.proj(Pp, E, regular[ri], n, cols[selC], D).cagr;
     const i = Math.min(Math.max(selR, 1), regular.length - 1);
     columnSensitivity = val({
       growthStep: regular[i] - regular[i - 1],
@@ -468,11 +485,11 @@ export function returnGrid({
   }
   return val({
     step: h.step,
-    columns: h.cols.map((c, i) => ({ exitPe: c, today: h.today[i] })),
+    columns: cols.map((c, i) => ({ exitPe: c, today: todayCols[i] })),
     rows: outRows,
     you:
       youRow >= 0
-        ? val({ row: youRow, column: h.selC })
+        ? val({ row: youRow, column: selC })
         : none(has(baseline.growth) ? "growth_out_of_range" : baseline.growth.reason),
     columnSensitivity,
   });
@@ -502,7 +519,7 @@ export function earningsPaths({
   years: n,
   baseline: g,
   yearlyRates,
-  required: R,
+  requiredEps: RE,
 }) {
   if (!(E > 0)) return none("needs_positive_eps");
   const s = series(quarters);
@@ -519,8 +536,10 @@ export function earningsPaths({
   const F = 4 * n;
   const gOk = has(g) && inRange(g.value);
   const bp = (k) => baselinePath({ eps: E, growth: g.value, quarters: k, yearlyRates });
-  // Line 1250 (drawTraj): the required path; v1 drops it when there is no requirement.
-  const fr = (k) => E * Math.pow(1 + R.value, k / 4);
+  // Line 1250 (drawTraj): the required path. v1: it runs from today's EPS
+  // to the EPS needed at the exit, and it is missing when that is.
+  const fr = (k) => E * Math.pow(RE.value / E, k / F);
+  const R = RE;
   const gReason = has(g) ? "growth_out_of_range" : g.reason;
   const last = L >= 0 ? quarters[L].label : null;
   const future = [];
@@ -667,7 +686,7 @@ export function scenarios({ price: Pp, eps: E, targetReturn: r, years: n, divide
     if (!(c.exitPe > 0)) return { ...c, result: none("needs_positive_eps") };
     // Lines 1323-1324 (drawScen).
     const p = math.proj(Pp, E, c.growth, n, c.exitPe, D),
-      t = math.tone(p.cagr - r);
+      t = toneV1(p.cagr - r);
     const fe = E * Math.pow(1 + c.growth, n);
     return {
       ...c,
@@ -797,7 +816,7 @@ function bandsV1(D) {
   const ms = [];
   for (
     let m = Math.ceil(pLo / stp) * stp;
-    m <= pHi + 1e-9 && ms.length < 50 && m + stp > m;
+    m <= pHi + Math.min(1e-9, stp * 1e-6) && ms.length < 50 && m + stp > m;
     m += stp
   )
     if (m > 0) ms.push(+m.toFixed(digits));
@@ -1418,7 +1437,7 @@ export function evaluate({ history, levers }) {
       years: n,
       baseline: g,
       yearlyRates: yearly,
-      required: R,
+      requiredEps: required.eps,
     }),
     howDemanding: howDemanding({
       quarters,

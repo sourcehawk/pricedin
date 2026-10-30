@@ -226,7 +226,7 @@ func Evaluate(h History, l Levers) (Evaluation, error) {
 			Weighted: b.Weighted, Today: b.Today, Trailing: b.Trailing.Growth,
 		})
 	}
-	ev.EarningsPaths = EarningsPaths(PathsInput{Quarters: h.Quarters, EPS: l.TTMEPS, Years: n, Baseline: g, YearlyRates: yearly, Required: req})
+	ev.EarningsPaths = EarningsPaths(PathsInput{Quarters: h.Quarters, EPS: l.TTMEPS, Years: n, Baseline: g, YearlyRates: yearly, RequiredEPS: ev.Required.EPS})
 	ev.HowDemanding = HowDemanding(h.Quarters, inv, pe)
 
 	cases := l.Scenarios
