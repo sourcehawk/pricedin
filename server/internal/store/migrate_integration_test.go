@@ -155,3 +155,46 @@ func countFacts(t *testing.T, db *sql.DB) int {
 	}
 	return n
 }
+
+func TestTwoMigratorsAtOnceBothReachTheLatestVersion(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	url := pgtest.NewEmptyURL(t)
+	errs := make(chan error, 2)
+	for range 2 {
+		go func() {
+			db, err := sql.Open("pgx", url)
+			if err != nil {
+				errs <- err
+				return
+			}
+			defer func() { _ = db.Close() }()
+			migrator, err := store.NewMigrator(db)
+			if err != nil {
+				errs <- err
+				return
+			}
+			_, err = migrator.Up(ctx)
+			errs <- err
+		}()
+	}
+	for range 2 {
+		if err := <-errs; err != nil {
+			t.Errorf("concurrent Up() error = %v", err)
+		}
+	}
+
+	db, err := sql.Open("pgx", url)
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	migrator, err := store.NewMigrator(db)
+	if err != nil {
+		t.Fatalf("NewMigrator() error = %v", err)
+	}
+	pending, err := migrator.HasPending(ctx)
+	if err != nil || pending {
+		t.Errorf("HasPending() = %v, %v; want false, nil", pending, err)
+	}
+}
