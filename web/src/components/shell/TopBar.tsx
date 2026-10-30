@@ -63,7 +63,8 @@ export function TopBar() {
   const eps = levers?.ttmEps ?? p?.ttmEps?.value ?? null;
   // The engine's P/E is null for EPS that is not positive; the profile's
   // P/E stands in only before the levers exist.
-  const pe = evaluation !== null ? evaluation.peNow.value : levers === null ? (p?.pe?.value ?? null) : null;
+  const pe =
+    evaluation !== null ? evaluation.peNow.value : levers === null ? (p?.pe?.value ?? null) : null;
   return (
     <header className="top">
       <div className="brand">
