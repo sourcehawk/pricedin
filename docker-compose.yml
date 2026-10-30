@@ -1,9 +1,10 @@
 name: pricedin
 
-# Local stack: Postgres, the API server and the web app. Host ports come from
-# variables, so that two stacks on one machine can avoid each other. Every
-# port binds to 127.0.0.1 only, because the default credentials are public.
-# Every service also reads .env when it exists; values under `environment` win.
+# Local stack: Postgres, the migrations, the API server and the web app. Host
+# ports come from variables, so that two stacks on one machine can avoid each
+# other. Every port binds to 127.0.0.1 only, because the default credentials
+# are public. Every service also reads .env when it exists; values under
+# `environment` win.
 
 services:
   db:
@@ -27,6 +28,29 @@ services:
       retries: 10
       start_period: 10s
 
+  # Applies the database migrations once, then exits. `serve` does not
+  # migrate by itself.
+  migrate:
+    build:
+      context: server
+    image: ${PRICEDIN_SERVER_IMAGE:-pricedin-server:dev}
+    command: ["migrate", "up"]
+    environment:
+      # The same database settings as the server; see there.
+      PRICEDIN_DATABASE_URL: ""
+      PRICEDIN_DATABASE_HOST: db
+      PRICEDIN_DATABASE_PORT: "5432"
+      PRICEDIN_DATABASE_USER: ${POSTGRES_USER:-pricedin}
+      PRICEDIN_DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-pricedin}
+      PRICEDIN_DATABASE_NAME: ${POSTGRES_DB:-pricedin}
+      PRICEDIN_DATABASE_SSLMODE: disable
+    env_file:
+      - path: .env
+        required: false
+    depends_on:
+      db:
+        condition: service_healthy
+
   server:
     build:
       context: server
@@ -43,12 +67,18 @@ services:
       PRICEDIN_DATABASE_SSLMODE: disable
       PRICEDIN_HTTP_ADDR: ":8080"
       PRICEDIN_METRICS_ADDR: ":9090"
+      PRICEDIN_BLOB_BACKEND: fs
+      PRICEDIN_BLOB_DIR: /data/blob
     env_file:
       - path: .env
         required: false
     depends_on:
       db:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    volumes:
+      - blob-data:/data/blob
     ports:
       - "127.0.0.1:${PRICEDIN_API_PORT:-8080}:8080"
       - "127.0.0.1:${PRICEDIN_METRICS_PORT:-9090}:9090"
@@ -89,3 +119,4 @@ services:
 
 volumes:
   db-data:
+  blob-data:

@@ -1,5 +1,5 @@
-// Command pricedin runs the PricedIn API server and, in later versions, its
-// migrations and ingestion jobs.
+// Command pricedin runs the PricedIn API server and its database
+// migrations, and in later versions its ingestion jobs.
 package main
 
 import (
@@ -38,6 +38,7 @@ func newRootCmd(getenv func(string) string, stdout io.Writer) *cobra.Command {
 	root.AddCommand(
 		newServeCmd(getenv, stdout),
 		newHealthcheckCmd(getenv),
+		newMigrateCmd(getenv),
 	)
 	return root
 }

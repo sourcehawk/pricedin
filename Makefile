@@ -165,9 +165,16 @@ down: ## Stop the Compose stack (keeps the database volume)
 logs: ## Follow the logs of the Compose stack
 	$(COMPOSE) logs --follow
 
+# `make migrate MIGRATE_ARGS=status` lists the migrations; `down` rolls one back.
+MIGRATE_ARGS ?= up
+
+# Make reads .env but does not export it, so the recipe passes each
+# PRICEDIN_DATABASE_ setting that is set, quoted for the shell.
+migrate_env = $(foreach v,$(filter PRICEDIN_DATABASE_%,$(.VARIABLES)),$(if $($(v)),$(v)='$(subst ','\'',$($(v)))'))
+
 .PHONY: migrate
-migrate: ## Apply database migrations (none yet)
-	@echo 'migrate: no migrations exist yet; `pricedin migrate` arrives with the database store'
+migrate: ## Apply the database migrations to the configured database (MIGRATE_ARGS=status|down)
+	cd $(SERVER_DIR) && $(migrate_env) $(GO) run ./cmd/pricedin migrate $(MIGRATE_ARGS)
 
 # --- CI -----------------------------------------------------------------------
 .PHONY: ci
