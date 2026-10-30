@@ -9,7 +9,8 @@ func ptr[T any](v T) *T { return &v }
 
 func near(t *testing.T, name string, got, want, tol float64) {
 	t.Helper()
-	if math.Abs(got-want) > tol {
+	// NaN compares false with everything, so check it first.
+	if math.IsNaN(got) || math.IsInf(got, 0) || math.Abs(got-want) > tol {
 		t.Errorf("%s = %v, want %v (±%v)", name, got, want, tol)
 	}
 }

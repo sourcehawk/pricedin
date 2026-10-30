@@ -4,7 +4,7 @@ import "math"
 
 // Typical is the typical P/E: the median of the quarter-end P/Es over the
 // look-back, with today's P/E (the price and TTM EPS levers) as the last
-// point.
+// point, also when the history has no quarter.
 type Typical struct {
 	PE Number `json:"pe"`
 	// Months is the look-back: the requested months rounded to a multiple
@@ -40,6 +40,9 @@ func (s series) typical(price, eps float64, months int) Typical {
 		if p != 0 && e.Ok() && e.Get() > 0 {
 			pes = append(pes, p/e.Get())
 		}
+	}
+	if s.last < 0 && price != 0 && eps > 0 {
+		pes = append(pes, price/eps)
 	}
 	return Typical{PE: median(pes), Months: m, Points: len(pes)}
 }

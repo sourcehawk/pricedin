@@ -56,6 +56,9 @@ export const NOTES = {
   positiveColumns: "v1: return-grid columns whose rounded exit P/E is zero or less drop out.",
   bandSlack:
     "v1: the band loop's end slack is the smaller of 1e-9 and a millionth of the step, so a tiny P/E range does not fill up with bands.",
+  rulerStep:
+    "v1: the growth scale widens its step when the span holds more than 12 steps; the prototype keeps 20 pp.",
+  typicalToday: "v1: the typical P/E counts today's P/E also when the history has no quarter.",
   bandDigits:
     "v1: band multiples keep enough decimals for their step; the prototype rounds to 2 decimals, which makes the bands of a P/E below 0.01 all zero.",
   targetTolerance:
@@ -332,7 +335,10 @@ export function baselinePath({ eps, growth, quarters: k, yearlyRates }) {
 export function growthScale({ values }) {
   const v = values.map((x) => (x == null ? NaN : x));
   const s = P.rulerScale(v[0], v[1], v[2], v[3], v[4]);
-  return axis(s.lo, s.hi, s.step);
+  // v1: a span of more than 12 steps gets a wider step (the prototype keeps
+  // 20 pp, which gives millions of ticks for a growth near 999999).
+  const step = (s.hi - s.lo) / s.step > 12 ? P.niceStep(s.hi - s.lo, 6) : s.step;
+  return axis(s.lo, s.hi, step);
 }
 
 // ---------------------------------------------------------------- exit P/E
@@ -351,6 +357,8 @@ export function typicalPe({ quarters, price, eps, months }) {
       E = i === L ? eps : s.ttmN[i];
     if (Pp && E > 0) v.push(Pp / E);
   }
+  // v1: today's P/E counts also without any quarter.
+  if (L < 0 && price && eps > 0) v.push(price / eps);
   // v1: the conventional median.
   const med = median(v);
   return {

@@ -79,3 +79,12 @@ func TestEstimatedExitPEJustAboveTheFloor(t *testing.T) {
 	got := EstimatedExitPE(300, 10, 3, ptr(0.060000000000000005), ptr(25.0))
 	near(t, "exit P/E", wantSome(t, "exit P/E", got.PE), 22.5, 0)
 }
+
+// Without any quarter, today's P/E is the one point of the median.
+func TestTypicalPEWithNoQuarters(t *testing.T) {
+	got := TypicalPE(nil, 100, 5, 36)
+	near(t, "typical P/E", wantSome(t, "typical", got.PE), 20, 0)
+	if got.Points != 1 {
+		t.Errorf("points = %d, want 1", got.Points)
+	}
+}

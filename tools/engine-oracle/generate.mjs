@@ -340,6 +340,12 @@ add("growth scale of a fast grower", "growthScale", { values: [0.62, 0.95, 0.71,
 add("growth scale of a shrinking company", "growthScale", {
   values: [0.3, -0.35, -0.22, -0.1, -0.22],
 });
+add(
+  "growth scale of a growth near 999999",
+  "growthScale",
+  { values: [0.15, 999999, 999999, null, 999999] },
+  N.rulerStep,
+);
 
 // ---------------------------------------------------------------- exit P/E
 
@@ -385,6 +391,12 @@ add(
   "typicalPe",
   { quarters: short(gq, 2), price: 270, eps: -1, months: 12 },
   N.typicalHistory,
+);
+add(
+  "typical P/E with no quarters",
+  "typicalPe",
+  { quarters: [], price: 100, eps: 5, months: 36 },
+  N.typicalToday,
 );
 
 const ep = { price: 270, eps: 10.8, years: 3, weightedTrend: 0.1298, typicalPe: 22.1 };
@@ -1038,6 +1050,15 @@ add(
   "evaluate",
   { history: { quarters: [], daily: [] }, levers: defaultLevers(GRMN) },
   evalNotes,
+);
+add(
+  "evaluate no history with the typical P/E",
+  "evaluate",
+  {
+    history: { quarters: [], daily: [] },
+    levers: defaultLevers(GRMN, { exitPe: { mode: "trailing", trailingMonths: 36 } }),
+  },
+  [...evalNotes, N.typicalToday],
 );
 
 // ------------------------------------------------------------------ write

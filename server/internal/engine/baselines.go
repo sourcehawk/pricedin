@@ -158,7 +158,7 @@ func BaselinePath(eps, g float64, k int, yearlyRates []float64) float64 {
 
 // GrowthScale returns the scale of the growth ruler for the required growth
 // and the baselines. Missing values are ignored; the scale always spans 0%
-// to 30%.
+// to 30%, and it has at most about 12 steps.
 func GrowthScale(values []*float64) Axis {
 	lo, hi := 0.0, 0.3
 	for _, v := range values {
@@ -174,6 +174,9 @@ func GrowthScale(values []*float64) Axis {
 		step = 0.2
 	case hi-lo > 0.4:
 		step = 0.1
+	}
+	if (hi-lo)/step > 12 {
+		step = NiceStep(hi-lo, 6)
 	}
 	return newAxis(lo, hi, step)
 }

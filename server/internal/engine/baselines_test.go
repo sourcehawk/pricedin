@@ -184,3 +184,11 @@ func TestTrajectoryFillStaysWithinTheCustomRateBounds(t *testing.T) {
 		}
 	}
 }
+
+// A huge growth still gives a scale with a handful of ticks.
+func TestGrowthScaleKeepsTheTickCountBounded(t *testing.T) {
+	a := GrowthScale([]*float64{ptr(0.15), ptr(999999.0)})
+	if n := (a.Max - a.Min) / a.Step; n > 12 {
+		t.Errorf("scale %+v has %.0f steps, want at most 12", a, n)
+	}
+}

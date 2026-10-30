@@ -6242,6 +6242,14 @@
    "tolerance": 1e-9
   },
   {
+   "name": "growth scale of a growth near 999999",
+   "fn": "growthScale",
+   "input": {"values":[0.15,999999,999999,null,999999]},
+   "expected": {"min":-0.05,"max":999999.05,"step":200000},
+   "tolerance": 1e-9,
+   "note": "v1: the growth scale widens its step when the span holds more than 12 steps; the prototype keeps 20 pp."
+  },
+  {
    "name": "typical P/E over 36 months",
    "fn": "typicalPe",
    "input": {
@@ -7681,6 +7689,14 @@
    "expected": {"pe":{"value":null,"reason":"insufficient_history"},"months":12,"points":0},
    "tolerance": 1e-9,
    "note": "v1: the typical P/E window starts at the first quarter when the history is shorter than the look-back."
+  },
+  {
+   "name": "typical P/E with no quarters",
+   "fn": "typicalPe",
+   "input": {"quarters":[],"price":100,"eps":5,"months":36},
+   "expected": {"pe":{"value":20},"months":36,"points":1},
+   "tolerance": 1e-9,
+   "note": "v1: the typical P/E counts today's P/E also when the history has no quarter."
   },
   {
    "name": "estimated exit P/E fades a premium",
@@ -74528,7 +74544,7 @@
       "weightedTrend": {"value":-2.63265306122449}
      }
     ],
-    "growthScale": {"min":-2.7,"max":0.35,"step":0.2},
+    "growthScale": {"min":-2.7,"max":0.35,"step":0.5},
     "returnGrid": {
      "value": {
       "step": 0.1,
@@ -75958,7 +75974,7 @@
       "weightedTrend": {"value":9998.00009999}
      }
     ],
-    "growthScale": {"min":-1.05,"max":9998000100010356,"step":0.2},
+    "growthScale": {"min":-1.05,"max":9998000100010356,"step":2000000000000000},
     "returnGrid": {
      "value": {
       "step": 0.2,
@@ -81824,8 +81840,8 @@
      "estimate": {"value":{"pe":25,"rule":"slowGrowerKeep"}},
      "g0": {"value":null,"reason":"insufficient_history"},
      "gExit": {"value":null,"reason":"insufficient_history"},
-     "typical": {"pe":{"value":null,"reason":"insufficient_history"},"months":36,"points":0},
-     "peNowVsTypical": {"value":null,"reason":"insufficient_history"},
+     "typical": {"pe":{"value":25},"months":36,"points":1},
+     "peNowVsTypical": {"value":"close"},
      "vsNow": {"value":"same"},
      "sliderMax": 45
     },
@@ -83066,6 +83082,1274 @@
    },
    "tolerance": 1e-9,
    "note": "v1: typical P/E is the conventional median (the mean of the two middle values for an even count); the prototype takes the upper middle value. v1: the return grid has a row at the exact baseline growth, tagged with its baseline, and the YOU cell sits in it; the prototype marks the nearest row. v1: the earnings-path scale covers every plotted point, including intermediate points and negative TTM EPS; the prototype uses only the end points and clamps the minimum at 0. v1: 12-month EPS growth compares the TTM EPS known on a day with the TTM EPS known 365 days earlier; the prototype uses the TTM of four quarters earlier, which is the same value without a reporting lag. v1: the daily P/E is null when TTM EPS is not positive; the prototype divides anyway. v1: the typical required growth over the period is the conventional median, like the typical P/E. v1: the count of quarters where the price asked for more than was delivered compares only quarters with both values. v1: correlations skip quarters where either change is missing; the prototype has no missing data. v1: bar scales include negative values and zero; the prototype assumes positive values."
+  },
+  {
+   "name": "evaluate no history with the typical P/E",
+   "fn": "evaluate",
+   "input": {
+    "history": {"quarters":[],"daily":[]},
+    "levers": {
+     "price": 270,
+     "ttmEps": 10.8,
+     "dividend": 0,
+     "targetReturn": 0.15,
+     "holdingYears": 3,
+     "exitPe": {"mode":"trailing","trailingMonths":36},
+     "baseline": {"mode":"weighted","trailingMonths":12},
+     "scenarios": [],
+     "chartRange": "3Y"
+    }
+   },
+   "expected": {
+    "peNow": {"value":25},
+    "exitPe": {
+     "mode": "trailing",
+     "inUse": {"value":{"pe":25,"rule":"trailing"}},
+     "estimate": {"value":{"pe":25,"rule":"slowGrowerKeep"}},
+     "g0": {"value":null,"reason":"insufficient_history"},
+     "gExit": {"value":null,"reason":"insufficient_history"},
+     "typical": {"pe":{"value":25},"months":36,"points":1},
+     "peNowVsTypical": {"value":"close"},
+     "vsNow": {"value":"same"},
+     "sliderMax": 45
+    },
+    "baselines": {
+     "active": "weighted",
+     "growth": {"value":null,"reason":"insufficient_history"},
+     "weighted": {"value":null,"reason":"insufficient_history"},
+     "today": {"value":null,"reason":"insufficient_history"},
+     "trailing": {
+      "growth": {"value":null,"reason":"insufficient_history"},
+      "months": 6,
+      "maxMonths": 0,
+      "fromTtm": {"value":null,"reason":"insufficient_history"},
+      "toTtm": {"value":null,"reason":"insufficient_history"}
+     },
+     "custom": {"value":null,"reason":"not_applicable"},
+     "yoyShift": {"value":null,"reason":"insufficient_history"}
+    },
+    "yearByYear": {"value":null,"reason":"not_applicable"},
+    "trajectory": {"value":null,"reason":"insufficient_history"},
+    "required": {
+     "growth": {"value":0.1499999999999999},
+     "exitPrice": {"value":410.63624999999996},
+     "priceChange": {"value":0.5208749999999998},
+     "eps": {"value":16.425449999999998},
+     "dividends": 0,
+     "tightFrom": {"value":0.1349999999999999},
+     "undemandingFrom": {"value":0.16499999999999992}
+    },
+    "gap": {"value":null,"reason":"insufficient_history"},
+    "verdict": {"value":null,"reason":"insufficient_history"},
+    "atBaseline": {"value":null,"reason":"insufficient_history"},
+    "sensitivity": {
+     "value": {
+      "lowerExitPe": {"exitPe":23,"requiredGrowth":{"value":0.18241128110721494}},
+      "lowerTarget": {"targetReturn":0.13,"requiredGrowth":{"value":0.1299999999999999}},
+      "marketTarget": {"targetReturn":0.1,"requiredGrowth":{"value":0.10000000000000009}},
+      "oneYear": {"years":1,"requiredGrowth":{"value":0.1499999999999999}},
+      "fiveYears": {"years":5,"requiredGrowth":{"value":0.1499999999999999}}
+     }
+    },
+    "quarters": [],
+    "growthScale": {"min":-0.05,"max":0.35,"step":0.05},
+    "returnGrid": {
+     "value": {
+      "step": 0.025,
+      "columns": [
+       {"exitPe":14,"today":false},
+       {"exitPe":18,"today":false},
+       {"exitPe":20,"today":false},
+       {"exitPe":23,"today":false},
+       {"exitPe":25,"today":true},
+       {"exitPe":28,"today":false},
+       {"exitPe":31,"today":false},
+       {"exitPe":35,"today":false},
+       {"exitPe":40,"today":false}
+      ],
+      "rows": [
+       {
+        "growth": 0,
+        "epsAtExit": 10.8,
+        "exact": false,
+        "tags": [],
+        "cells": [
+         {
+          "exitPrice": 151.20000000000002,
+          "totalReturn": -0.43999999999999995,
+          "yearlyReturn": -0.1757429400382886,
+          "vsTarget": -0.32574294003828863,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 194.4,
+          "totalReturn": -0.28,
+          "yearlyReturn": -0.10371905068856702,
+          "vsTarget": -0.25371905068856704,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 216,
+          "totalReturn": -0.19999999999999996,
+          "yearlyReturn": -0.07168223327744416,
+          "vsTarget": -0.22168223327744416,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 248.4,
+          "totalReturn": -0.07999999999999996,
+          "yearlyReturn": -0.027411173781143994,
+          "vsTarget": -0.177411173781144,
+          "tone": "bad"
+         },
+         {"exitPrice":270,"totalReturn":0,"yearlyReturn":0,"vsTarget":-0.15,"tone":"bad"},
+         {
+          "exitPrice": 302.40000000000003,
+          "totalReturn": 0.1200000000000001,
+          "yearlyReturn": 0.03849882037022079,
+          "vsTarget": -0.1115011796297792,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 334.8,
+          "totalReturn": 0.24,
+          "yearlyReturn": 0.07433707098896636,
+          "vsTarget": -0.07566292901103364,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 378,
+          "totalReturn": 0.3999999999999999,
+          "yearlyReturn": 0.1186889420813968,
+          "vsTarget": -0.0313110579186032,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 432,
+          "totalReturn": 0.6000000000000001,
+          "yearlyReturn": 0.1696070952851465,
+          "vsTarget": 0.01960709528514651,
+          "tone": "good"
+         }
+        ]
+       },
+       {
+        "growth": 0.025,
+        "epsAtExit": 11.630418749999997,
+        "exact": false,
+        "tags": [],
+        "cells": [
+         {
+          "exitPrice": 162.82586249999997,
+          "totalReturn": -0.39694125000000013,
+          "yearlyReturn": -0.15513651353924596,
+          "vsTarget": -0.305136513539246,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 209.34753749999993,
+          "totalReturn": -0.22463875000000022,
+          "yearlyReturn": -0.08131202695578132,
+          "vsTarget": -0.23131202695578132,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 232.60837499999994,
+          "totalReturn": -0.1384875000000002,
+          "yearlyReturn": -0.04847428910938045,
+          "vsTarget": -0.19847428910938045,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 267.49963124999994,
+          "totalReturn": -0.009260625000000244,
+          "yearlyReturn": -0.003096453125672749,
+          "vsTarget": -0.15309645312567274,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 290.7604687499999,
+          "totalReturn": 0.07689062499999966,
+          "yearlyReturn": 0.02499999999999991,
+          "vsTarget": -0.12500000000000008,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 325.65172499999994,
+          "totalReturn": 0.20611749999999973,
+          "yearlyReturn": 0.06446129087947616,
+          "vsTarget": -0.08553870912052383,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 360.5429812499999,
+          "totalReturn": 0.3353443749999996,
+          "yearlyReturn": 0.10119549776369041,
+          "vsTarget": -0.04880450223630958,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 407.06465624999987,
+          "totalReturn": 0.5076468749999996,
+          "yearlyReturn": 0.14665616563343153,
+          "vsTarget": -0.00334383436656846,
+          "tone": "warn"
+         },
+         {
+          "exitPrice": 465.2167499999999,
+          "totalReturn": 0.7230249999999996,
+          "yearlyReturn": 0.19884727266727498,
+          "vsTarget": 0.04884727266727498,
+          "tone": "good"
+         }
+        ]
+       },
+       {
+        "growth": 0.05,
+        "epsAtExit": 12.502350000000002,
+        "exact": false,
+        "tags": [],
+        "cells": [
+         {
+          "exitPrice": 175.0329,
+          "totalReturn": -0.35173,
+          "yearlyReturn": -0.13453008704020308,
+          "vsTarget": -0.2845300870402031,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 225.04230000000004,
+          "totalReturn": -0.16650999999999982,
+          "yearlyReturn": -0.0589050032229953,
+          "vsTarget": -0.2089050032229953,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 250.04700000000003,
+          "totalReturn": -0.07389999999999985,
+          "yearlyReturn": -0.02526634494131641,
+          "vsTarget": -0.1752663449413164,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 287.55405,
+          "totalReturn": 0.06501500000000004,
+          "yearlyReturn": 0.021218267529798718,
+          "vsTarget": -0.12878173247020128,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 312.55875000000003,
+          "totalReturn": 0.15762500000000013,
+          "yearlyReturn": 0.050000000000000044,
+          "vsTarget": -0.09999999999999995,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 350.0658,
+          "totalReturn": 0.29654,
+          "yearlyReturn": 0.09042376138873176,
+          "vsTarget": -0.059576238611268234,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 387.5728500000001,
+          "totalReturn": 0.43545500000000037,
+          "yearlyReturn": 0.1280539245384149,
+          "vsTarget": -0.021946075461585085,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 437.58225000000004,
+          "totalReturn": 0.6206750000000001,
+          "yearlyReturn": 0.17462338918546672,
+          "vsTarget": 0.02462338918546672,
+          "tone": "good"
+         },
+         {
+          "exitPrice": 500.09400000000005,
+          "totalReturn": 0.8522000000000003,
+          "yearlyReturn": 0.2280874500494039,
+          "vsTarget": 0.0780874500494039,
+          "tone": "good"
+         }
+        ]
+       },
+       {
+        "growth": 0.075,
+        "epsAtExit": 13.416806249999999,
+        "exact": false,
+        "tags": [],
+        "cells": [
+         {
+          "exitPrice": 187.8352875,
+          "totalReturn": -0.30431375000000005,
+          "yearlyReturn": -0.11392366054116032,
+          "vsTarget": -0.26392366054116034,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 241.50251249999997,
+          "totalReturn": -0.10554625000000017,
+          "yearlyReturn": -0.03649797949020961,
+          "vsTarget": -0.1864979794902096,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 268.336125,
+          "totalReturn": -0.006162500000000071,
+          "yearlyReturn": -0.002058400773252589,
+          "vsTarget": -0.15205840077325258,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 308.58654375,
+          "totalReturn": 0.14291312499999997,
+          "yearlyReturn": 0.045532988185270185,
+          "vsTarget": -0.10446701181472981,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 335.42015625,
+          "totalReturn": 0.24229687499999986,
+          "yearlyReturn": 0.07499999999999996,
+          "vsTarget": -0.07500000000000004,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 375.670575,
+          "totalReturn": 0.3913724999999999,
+          "yearlyReturn": 0.11638623189798736,
+          "vsTarget": -0.03361376810201264,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 415.92099375,
+          "totalReturn": 0.540448125,
+          "yearlyReturn": 0.15491235131313896,
+          "vsTarget": 0.0049123513131389684,
+          "tone": "warn"
+         },
+         {
+          "exitPrice": 469.58821874999995,
+          "totalReturn": 0.7392156249999999,
+          "yearlyReturn": 0.20259061273750145,
+          "vsTarget": 0.05259061273750146,
+          "tone": "good"
+         },
+         {
+          "exitPrice": 536.67225,
+          "totalReturn": 0.9876749999999999,
+          "yearlyReturn": 0.25732762743153237,
+          "vsTarget": 0.10732762743153237,
+          "tone": "good"
+         }
+        ]
+       },
+       {
+        "growth": 0.1,
+        "epsAtExit": 14.374800000000006,
+        "exact": false,
+        "tags": [],
+        "cells": [
+         {
+          "exitPrice": 201.24720000000008,
+          "totalReturn": -0.25463999999999976,
+          "yearlyReturn": -0.09331723404211745,
+          "vsTarget": -0.24331723404211744,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 258.7464000000001,
+          "totalReturn": -0.041679999999999606,
+          "yearlyReturn": -0.014090955757423584,
+          "vsTarget": -0.16409095575742358,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 287.4960000000001,
+          "totalReturn": 0.06480000000000041,
+          "yearlyReturn": 0.021149543394811454,
+          "vsTarget": -0.12885045660518854,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 330.62040000000013,
+          "totalReturn": 0.2245200000000005,
+          "yearlyReturn": 0.06984770884074165,
+          "vsTarget": -0.08015229115925834,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 359.3700000000001,
+          "totalReturn": 0.3310000000000004,
+          "yearlyReturn": 0.10000000000000009,
+          "vsTarget": -0.049999999999999906,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 402.49440000000016,
+          "totalReturn": 0.4907200000000005,
+          "yearlyReturn": 0.14234870240724296,
+          "vsTarget": -0.007651297592757039,
+          "tone": "warn"
+         },
+         {
+          "exitPrice": 445.6188000000002,
+          "totalReturn": 0.6504400000000008,
+          "yearlyReturn": 0.18177077808786324,
+          "vsTarget": 0.031770778087863244,
+          "tone": "good"
+         },
+         {
+          "exitPrice": 503.1180000000002,
+          "totalReturn": 0.8634000000000008,
+          "yearlyReturn": 0.23055783628953663,
+          "vsTarget": 0.08055783628953664,
+          "tone": "good"
+         },
+         {
+          "exitPrice": 574.9920000000002,
+          "totalReturn": 1.1296000000000008,
+          "yearlyReturn": 0.2865678048136613,
+          "vsTarget": 0.1365678048136613,
+          "tone": "good"
+         }
+        ]
+       },
+       {
+        "growth": 0.125,
+        "epsAtExit": 15.377343750000001,
+        "exact": false,
+        "tags": [],
+        "cells": [
+         {
+          "exitPrice": 215.28281250000003,
+          "totalReturn": -0.20265624999999987,
+          "yearlyReturn": -0.07271080754307468,
+          "vsTarget": -0.22271080754307468,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 276.7921875,
+          "totalReturn": 0.02515624999999999,
+          "yearlyReturn": 0.008316067975361996,
+          "vsTarget": -0.141683932024638,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 307.546875,
+          "totalReturn": 0.1390625000000001,
+          "yearlyReturn": 0.044357487562875386,
+          "vsTarget": -0.10564251243712461,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 353.67890625,
+          "totalReturn": 0.3099218750000001,
+          "yearlyReturn": 0.0941624294962129,
+          "vsTarget": -0.0558375705037871,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 384.43359375000006,
+          "totalReturn": 0.4238281250000002,
+          "yearlyReturn": 0.125,
+          "vsTarget": -0.024999999999999994,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 430.56562500000007,
+          "totalReturn": 0.5946875000000003,
+          "yearlyReturn": 0.16831117291649855,
+          "vsTarget": 0.018311172916498558,
+          "tone": "good"
+         },
+         {
+          "exitPrice": 476.69765625,
+          "totalReturn": 0.7655468750000001,
+          "yearlyReturn": 0.2086292048625873,
+          "vsTarget": 0.0586292048625873,
+          "tone": "good"
+         },
+         {
+          "exitPrice": 538.20703125,
+          "totalReturn": 0.993359375,
+          "yearlyReturn": 0.25852505984157137,
+          "vsTarget": 0.10852505984157138,
+          "tone": "good"
+         },
+         {
+          "exitPrice": 615.09375,
+          "totalReturn": 1.2781250000000002,
+          "yearlyReturn": 0.31580798219578976,
+          "vsTarget": 0.16580798219578977,
+          "tone": "good"
+         }
+        ]
+       },
+       {
+        "growth": 0.15,
+        "epsAtExit": 16.425449999999998,
+        "exact": false,
+        "tags": ["required"],
+        "cells": [
+         {
+          "exitPrice": 229.95629999999997,
+          "totalReturn": -0.14831000000000016,
+          "yearlyReturn": -0.05210438104403203,
+          "vsTarget": -0.20210438104403203,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 295.6581,
+          "totalReturn": 0.09502999999999995,
+          "yearlyReturn": 0.0307230917081478,
+          "vsTarget": -0.1192769082918522,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 328.50899999999996,
+          "totalReturn": 0.2166999999999999,
+          "yearlyReturn": 0.0675654317309391,
+          "vsTarget": -0.0824345682690609,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 377.78534999999994,
+          "totalReturn": 0.3992049999999998,
+          "yearlyReturn": 0.11847715015168436,
+          "vsTarget": -0.03152284984831563,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 410.63624999999996,
+          "totalReturn": 0.5208749999999998,
+          "yearlyReturn": 0.1499999999999999,
+          "vsTarget": -8.326672684688674e-17,
+          "tone": "warn"
+         },
+         {
+          "exitPrice": 459.91259999999994,
+          "totalReturn": 0.7033799999999997,
+          "yearlyReturn": 0.19427364342575393,
+          "vsTarget": 0.044273643425753934,
+          "tone": "good"
+         },
+         {
+          "exitPrice": 509.1889499999999,
+          "totalReturn": 0.8858849999999998,
+          "yearlyReturn": 0.23548763163731135,
+          "vsTarget": 0.08548763163731135,
+          "tone": "good"
+         },
+         {
+          "exitPrice": 574.8907499999999,
+          "totalReturn": 1.1292249999999995,
+          "yearlyReturn": 0.2864922833936061,
+          "vsTarget": 0.1364922833936061,
+          "tone": "good"
+         },
+         {
+          "exitPrice": 657.0179999999999,
+          "totalReturn": 1.4333999999999998,
+          "yearlyReturn": 0.34504815957791823,
+          "vsTarget": 0.19504815957791824,
+          "tone": "good"
+         }
+        ]
+       },
+       {
+        "growth": 0.175,
+        "epsAtExit": 17.520131250000002,
+        "exact": false,
+        "tags": [],
+        "cells": [
+         {
+          "exitPrice": 245.28183750000002,
+          "totalReturn": -0.09154874999999996,
+          "yearlyReturn": -0.03149795454498916,
+          "vsTarget": -0.18149795454498915,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 315.3623625,
+          "totalReturn": 0.16800875000000004,
+          "yearlyReturn": 0.05313011544093382,
+          "vsTarget": -0.09686988455906617,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 350.40262500000006,
+          "totalReturn": 0.2977875000000003,
+          "yearlyReturn": 0.09077337589900303,
+          "vsTarget": -0.059226624100996966,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 402.96301875000006,
+          "totalReturn": 0.4924556250000003,
+          "yearlyReturn": 0.14279187080715583,
+          "vsTarget": -0.007208129192844165,
+          "tone": "warn"
+         },
+         {
+          "exitPrice": 438.00328125000004,
+          "totalReturn": 0.6222343750000001,
+          "yearlyReturn": 0.17500000000000004,
+          "vsTarget": 0.02500000000000005,
+          "tone": "good"
+         },
+         {
+          "exitPrice": 490.56367500000005,
+          "totalReturn": 0.8169025000000001,
+          "yearlyReturn": 0.22023611393500953,
+          "vsTarget": 0.07023611393500953,
+          "tone": "good"
+         },
+         {
+          "exitPrice": 543.1240687500001,
+          "totalReturn": 1.0115706250000005,
+          "yearlyReturn": 0.2623460584120356,
+          "vsTarget": 0.11234605841203563,
+          "tone": "good"
+         },
+         {
+          "exitPrice": 613.2045937500001,
+          "totalReturn": 1.2711281250000002,
+          "yearlyReturn": 0.3144595069456413,
+          "vsTarget": 0.1644595069456413,
+          "tone": "good"
+         },
+         {
+          "exitPrice": 700.8052500000001,
+          "totalReturn": 1.5955750000000006,
+          "yearlyReturn": 0.37428833696004715,
+          "vsTarget": 0.22428833696004716,
+          "tone": "good"
+         }
+        ]
+       },
+       {
+        "growth": 0.2,
+        "epsAtExit": 18.662399999999998,
+        "exact": false,
+        "tags": [],
+        "cells": [
+         {
+          "exitPrice": 261.2736,
+          "totalReturn": -0.032320000000000015,
+          "yearlyReturn": -0.010891528045946397,
+          "vsTarget": -0.1608915280459464,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 335.92319999999995,
+          "totalReturn": 0.2441599999999997,
+          "yearlyReturn": 0.0755371391737194,
+          "vsTarget": -0.07446286082628059,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 373.24799999999993,
+          "totalReturn": 0.38239999999999985,
+          "yearlyReturn": 0.11398132006706696,
+          "vsTarget": -0.036018679932933034,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 429.23519999999996,
+          "totalReturn": 0.5897599999999998,
+          "yearlyReturn": 0.16710659146262707,
+          "vsTarget": 0.01710659146262708,
+          "tone": "good"
+         },
+         {
+          "exitPrice": 466.55999999999995,
+          "totalReturn": 0.7279999999999998,
+          "yearlyReturn": 0.19999999999999996,
+          "vsTarget": 0.04999999999999996,
+          "tone": "good"
+         },
+         {
+          "exitPrice": 522.5472,
+          "totalReturn": 0.93536,
+          "yearlyReturn": 0.2461985844442649,
+          "vsTarget": 0.0961985844442649,
+          "tone": "good"
+         },
+         {
+          "exitPrice": 578.5343999999999,
+          "totalReturn": 1.1427199999999997,
+          "yearlyReturn": 0.2892044851867597,
+          "vsTarget": 0.13920448518675968,
+          "tone": "good"
+         },
+         {
+          "exitPrice": 653.184,
+          "totalReturn": 1.4192,
+          "yearlyReturn": 0.342426730497676,
+          "vsTarget": 0.19242673049767603,
+          "tone": "good"
+         },
+         {
+          "exitPrice": 746.4959999999999,
+          "totalReturn": 1.7647999999999997,
+          "yearlyReturn": 0.4035285143421756,
+          "vsTarget": 0.2535285143421756,
+          "tone": "good"
+         }
+        ]
+       },
+       {
+        "growth": 0.225,
+        "epsAtExit": 19.853268750000005,
+        "exact": false,
+        "tags": [],
+        "cells": [
+         {
+          "exitPrice": 277.94576250000006,
+          "totalReturn": 0.029428750000000115,
+          "yearlyReturn": 0.009714898453096366,
+          "vsTarget": -0.14028510154690363,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 357.3588375000001,
+          "totalReturn": 0.3235512500000004,
+          "yearlyReturn": 0.09794416290650543,
+          "vsTarget": -0.05205583709349457,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 397.06537500000013,
+          "totalReturn": 0.47061250000000054,
+          "yearlyReturn": 0.1371892642351309,
+          "vsTarget": -0.012810735764869102,
+          "tone": "warn"
+         },
+         {
+          "exitPrice": 456.62518125000014,
+          "totalReturn": 0.6912043750000005,
+          "yearlyReturn": 0.19142131211809876,
+          "vsTarget": 0.04142131211809877,
+          "tone": "good"
+         },
+         {
+          "exitPrice": 496.3317187500001,
+          "totalReturn": 0.8382656250000005,
+          "yearlyReturn": 0.2250000000000001,
+          "vsTarget": 0.0750000000000001,
+          "tone": "good"
+         },
+         {
+          "exitPrice": 555.8915250000001,
+          "totalReturn": 1.0588575000000002,
+          "yearlyReturn": 0.2721610549535205,
+          "vsTarget": 0.1221610549535205,
+          "tone": "good"
+         },
+         {
+          "exitPrice": 615.4513312500002,
+          "totalReturn": 1.2794493750000009,
+          "yearlyReturn": 0.31606291196148395,
+          "vsTarget": 0.16606291196148396,
+          "tone": "good"
+         },
+         {
+          "exitPrice": 694.8644062500002,
+          "totalReturn": 1.5735718750000007,
+          "yearlyReturn": 0.3703939540497112,
+          "vsTarget": 0.2203939540497112,
+          "tone": "good"
+         },
+         {
+          "exitPrice": 794.1307500000003,
+          "totalReturn": 1.941225000000001,
+          "yearlyReturn": 0.43276869172430454,
+          "vsTarget": 0.2827686917243045,
+          "tone": "good"
+         }
+        ]
+       },
+       {
+        "growth": 0.25,
+        "epsAtExit": 21.09375,
+        "exact": false,
+        "tags": [],
+        "cells": [
+         {
+          "exitPrice": 295.3125,
+          "totalReturn": 0.09375,
+          "yearlyReturn": 0.03032132495213924,
+          "vsTarget": -0.11967867504786076,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 379.6875,
+          "totalReturn": 0.40625,
+          "yearlyReturn": 0.12035118663929123,
+          "vsTarget": -0.029648813360708764,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 421.875,
+          "totalReturn": 0.5625,
+          "yearlyReturn": 0.16039720840319482,
+          "vsTarget": 0.01039720840319483,
+          "tone": "warn"
+         },
+         {
+          "exitPrice": 485.15625,
+          "totalReturn": 0.796875,
+          "yearlyReturn": 0.21573603277357,
+          "vsTarget": 0.06573603277357001,
+          "tone": "good"
+         },
+         {
+          "exitPrice": 527.34375,
+          "totalReturn": 0.953125,
+          "yearlyReturn": 0.25,
+          "vsTarget": 0.1,
+          "tone": "good"
+         },
+         {
+          "exitPrice": 590.625,
+          "totalReturn": 1.1875,
+          "yearlyReturn": 0.2981235254627761,
+          "vsTarget": 0.1481235254627761,
+          "tone": "good"
+         },
+         {
+          "exitPrice": 653.90625,
+          "totalReturn": 1.421875,
+          "yearlyReturn": 0.342921338736208,
+          "vsTarget": 0.192921338736208,
+          "tone": "good"
+         },
+         {
+          "exitPrice": 738.28125,
+          "totalReturn": 1.734375,
+          "yearlyReturn": 0.39836117760174594,
+          "vsTarget": 0.24836117760174595,
+          "tone": "good"
+         },
+         {
+          "exitPrice": 843.75,
+          "totalReturn": 2.125,
+          "yearlyReturn": 0.462008869106433,
+          "vsTarget": 0.312008869106433,
+          "tone": "good"
+         }
+        ]
+       },
+       {
+        "growth": 0.275,
+        "epsAtExit": 22.38485625,
+        "exact": false,
+        "tags": [],
+        "cells": [
+         {
+          "exitPrice": 313.3879875,
+          "totalReturn": 0.16069624999999998,
+          "yearlyReturn": 0.05092775145118189,
+          "vsTarget": -0.0990722485488181,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 402.92741249999995,
+          "totalReturn": 0.4923237499999997,
+          "yearlyReturn": 0.14275821037207703,
+          "vsTarget": -0.007241789627922962,
+          "tone": "warn"
+         },
+         {
+          "exitPrice": 447.69712499999997,
+          "totalReturn": 0.6581374999999998,
+          "yearlyReturn": 0.18360515257125853,
+          "vsTarget": 0.03360515257125854,
+          "tone": "good"
+         },
+         {
+          "exitPrice": 514.85169375,
+          "totalReturn": 0.9068581249999998,
+          "yearlyReturn": 0.24005075342904125,
+          "vsTarget": 0.09005075342904126,
+          "tone": "good"
+         },
+         {
+          "exitPrice": 559.62140625,
+          "totalReturn": 1.0726718749999997,
+          "yearlyReturn": 0.2749999999999999,
+          "vsTarget": 0.12499999999999992,
+          "tone": "good"
+         },
+         {
+          "exitPrice": 626.775975,
+          "totalReturn": 1.3213925,
+          "yearlyReturn": 0.32408599597203147,
+          "vsTarget": 0.17408599597203148,
+          "tone": "good"
+         },
+         {
+          "exitPrice": 693.93054375,
+          "totalReturn": 1.5701131249999998,
+          "yearlyReturn": 0.36977976551093206,
+          "vsTarget": 0.21977976551093206,
+          "tone": "good"
+         },
+         {
+          "exitPrice": 783.4699687499999,
+          "totalReturn": 1.9017406249999995,
+          "yearlyReturn": 0.4263284011537807,
+          "vsTarget": 0.27632840115378066,
+          "tone": "good"
+         },
+         {
+          "exitPrice": 895.3942499999999,
+          "totalReturn": 2.3162749999999996,
+          "yearlyReturn": 0.4912490464885617,
+          "vsTarget": 0.3412490464885617,
+          "tone": "good"
+         }
+        ]
+       },
+       {
+        "growth": 0.3,
+        "epsAtExit": 23.727600000000002,
+        "exact": false,
+        "tags": [],
+        "cells": [
+         {
+          "exitPrice": 332.18640000000005,
+          "totalReturn": 0.23032000000000008,
+          "yearlyReturn": 0.07153417795022476,
+          "vsTarget": -0.07846582204977523,
+          "tone": "bad"
+         },
+         {
+          "exitPrice": 427.09680000000003,
+          "totalReturn": 0.5818400000000001,
+          "yearlyReturn": 0.16516523410486283,
+          "vsTarget": 0.01516523410486284,
+          "tone": "good"
+         },
+         {
+          "exitPrice": 474.552,
+          "totalReturn": 0.7576,
+          "yearlyReturn": 0.20681309673932247,
+          "vsTarget": 0.05681309673932247,
+          "tone": "good"
+         },
+         {
+          "exitPrice": 545.7348000000001,
+          "totalReturn": 1.0212400000000001,
+          "yearlyReturn": 0.2643654740845127,
+          "vsTarget": 0.11436547408451272,
+          "tone": "good"
+         },
+         {
+          "exitPrice": 593.19,
+          "totalReturn": 1.197,
+          "yearlyReturn": 0.30000000000000004,
+          "vsTarget": 0.15000000000000005,
+          "tone": "good"
+         },
+         {
+          "exitPrice": 664.3728000000001,
+          "totalReturn": 1.4606400000000002,
+          "yearlyReturn": 0.35004846648128707,
+          "vsTarget": 0.20004846648128707,
+          "tone": "good"
+         },
+         {
+          "exitPrice": 735.5556,
+          "totalReturn": 1.7242800000000003,
+          "yearlyReturn": 0.39663819228565633,
+          "vsTarget": 0.24663819228565634,
+          "tone": "good"
+         },
+         {
+          "exitPrice": 830.4660000000001,
+          "totalReturn": 2.0758000000000005,
+          "yearlyReturn": 0.45429562470581586,
+          "vsTarget": 0.30429562470581584,
+          "tone": "good"
+         },
+         {
+          "exitPrice": 949.104,
+          "totalReturn": 2.5152,
+          "yearlyReturn": 0.5204892238706904,
+          "vsTarget": 0.3704892238706904,
+          "tone": "good"
+         }
+        ]
+       }
+      ],
+      "you": {"value":null,"reason":"insufficient_history"},
+      "columnSensitivity": {"value":null,"reason":"insufficient_history"}
+     }
+    },
+    "earningsPaths": {
+     "value": {
+      "history": [],
+      "future": [
+       {
+        "quartersAhead": 0,
+        "label": null,
+        "baseline": {"value":null,"reason":"insufficient_history"},
+        "required": {"value":10.8},
+        "gap": {"value":null,"reason":"insufficient_history"}
+       },
+       {
+        "quartersAhead": 1,
+        "label": null,
+        "baseline": {"value":null,"reason":"insufficient_history"},
+        "required": {"value":11.184027224489519},
+        "gap": {"value":null,"reason":"insufficient_history"}
+       },
+       {
+        "quartersAhead": 2,
+        "label": null,
+        "baseline": {"value":null,"reason":"insufficient_history"},
+        "required": {"value":11.581709718344698},
+        "gap": {"value":null,"reason":"insufficient_history"}
+       },
+       {
+        "quartersAhead": 3,
+        "label": null,
+        "baseline": {"value":null,"reason":"insufficient_history"},
+        "required": {"value":11.993533036676105},
+        "gap": {"value":null,"reason":"insufficient_history"}
+       },
+       {
+        "quartersAhead": 4,
+        "label": null,
+        "baseline": {"value":null,"reason":"insufficient_history"},
+        "required": {"value":12.42},
+        "gap": {"value":null,"reason":"insufficient_history"}
+       },
+       {
+        "quartersAhead": 5,
+        "label": null,
+        "baseline": {"value":null,"reason":"insufficient_history"},
+        "required": {"value":12.861631308162947},
+        "gap": {"value":null,"reason":"insufficient_history"}
+       },
+       {
+        "quartersAhead": 6,
+        "label": null,
+        "baseline": {"value":null,"reason":"insufficient_history"},
+        "required": {"value":13.3189661760964},
+        "gap": {"value":null,"reason":"insufficient_history"}
+       },
+       {
+        "quartersAhead": 7,
+        "label": null,
+        "baseline": {"value":null,"reason":"insufficient_history"},
+        "required": {"value":13.79256299217752},
+        "gap": {"value":null,"reason":"insufficient_history"}
+       },
+       {
+        "quartersAhead": 8,
+        "label": null,
+        "baseline": {"value":null,"reason":"insufficient_history"},
+        "required": {"value":14.283},
+        "gap": {"value":null,"reason":"insufficient_history"}
+       },
+       {
+        "quartersAhead": 9,
+        "label": null,
+        "baseline": {"value":null,"reason":"insufficient_history"},
+        "required": {"value":14.790876004387389},
+        "gap": {"value":null,"reason":"insufficient_history"}
+       },
+       {
+        "quartersAhead": 10,
+        "label": null,
+        "baseline": {"value":null,"reason":"insufficient_history"},
+        "required": {"value":15.31681110251086},
+        "gap": {"value":null,"reason":"insufficient_history"}
+       },
+       {
+        "quartersAhead": 11,
+        "label": null,
+        "baseline": {"value":null,"reason":"insufficient_history"},
+        "required": {"value":15.861447441004147},
+        "gap": {"value":null,"reason":"insufficient_history"}
+       },
+       {
+        "quartersAhead": 12,
+        "label": null,
+        "baseline": {"value":null,"reason":"insufficient_history"},
+        "required": {"value":16.425449999999998},
+        "gap": {"value":null,"reason":"insufficient_history"}
+       }
+      ],
+      "gapTone": {"value":null,"reason":"insufficient_history"},
+      "scale": {"min":9,"max":17.082468,"step":1}
+     }
+    },
+    "howDemanding": {
+     "points": [],
+     "scale": {"min":0,"max":0.05,"step":0.01},
+     "typicalRequired": {"value":null,"reason":"insufficient_history"},
+     "peak": {"value":null,"reason":"insufficient_history"},
+     "requiredAboveDelivered": 0,
+     "compared": 0
+    },
+    "scenarios": {
+     "defaults": true,
+     "cases": [
+      {
+       "name": "Bear",
+       "growth": -0.01,
+       "exitPe": 19,
+       "result": {
+        "value": {
+         "eps": 10.4792292,
+         "exitPrice": 199.10535480000001,
+         "totalReturn": -0.26257275999999996,
+         "yearlyReturn": -0.09654527819338055,
+         "vsTarget": -0.24654527819338054,
+         "tone": "bad",
+         "meetsTarget": false
+        }
+       }
+      },
+      {
+       "name": "Base",
+       "growth": 0.05,
+       "exitPe": 25,
+       "result": {
+        "value": {
+         "eps": 12.502350000000002,
+         "exitPrice": 312.55875000000003,
+         "totalReturn": 0.15762500000000013,
+         "yearlyReturn": 0.050000000000000044,
+         "vsTarget": -0.09999999999999995,
+         "tone": "bad",
+         "meetsTarget": false
+        }
+       }
+      },
+      {
+       "name": "Bull",
+       "growth": 0.11,
+       "exitPe": 30,
+       "result": {
+        "value": {
+         "eps": 14.770414800000005,
+         "exitPrice": 443.11244400000015,
+         "totalReturn": 0.6411572000000005,
+         "yearlyReturn": 0.1795510117926984,
+         "vsTarget": 0.029551011792698395,
+         "tone": "good",
+         "meetsTarget": true
+        }
+       }
+      }
+     ],
+     "meetingTarget": ["Bull"],
+     "worstYearlyReturn": {"value":-0.09654527819338055}
+    },
+    "shareCountEvents": [],
+    "priceChart": {"value":null,"reason":"insufficient_history"},
+    "financials": {
+     "quarters": [],
+     "metrics": {
+      "revenue": {
+       "values": [],
+       "yoy": [],
+       "yoyTone": [],
+       "qoq": [],
+       "qoqTone": [],
+       "scale": {"value":null,"reason":"missing_data"}
+      },
+      "operatingCosts": {
+       "values": [],
+       "yoy": [],
+       "yoyTone": [],
+       "qoq": [],
+       "qoqTone": [],
+       "scale": {"value":null,"reason":"missing_data"}
+      },
+      "operatingIncome": {
+       "values": [],
+       "yoy": [],
+       "yoyTone": [],
+       "qoq": [],
+       "qoqTone": [],
+       "scale": {"value":null,"reason":"missing_data"}
+      },
+      "eps": {
+       "values": [],
+       "yoy": [],
+       "yoyTone": [],
+       "qoq": [],
+       "qoqTone": [],
+       "scale": {"value":null,"reason":"missing_data"}
+      },
+      "freeCashFlow": {
+       "values": [],
+       "yoy": [],
+       "yoyTone": [],
+       "qoq": [],
+       "qoqTone": [],
+       "scale": {"value":null,"reason":"missing_data"}
+      },
+      "dilutedShares": {
+       "values": [],
+       "yoy": [],
+       "yoyTone": [],
+       "qoq": [],
+       "qoqTone": [],
+       "scale": {"value":null,"reason":"missing_data"}
+      }
+     },
+     "operatingMargin": [],
+     "costShareOfRevenue": [],
+     "tiles": {"value":null,"reason":"insufficient_history"},
+     "compare": {
+      "sinceStart": {
+       "revenue": [],
+       "operatingCosts": [],
+       "operatingIncome": [],
+       "eps": [],
+       "freeCashFlow": [],
+       "dilutedShares": []
+      },
+      "quarterOverQuarter": {
+       "revenue": [],
+       "operatingCosts": [],
+       "operatingIncome": [],
+       "eps": [],
+       "freeCashFlow": [],
+       "dilutedShares": []
+      },
+      "correlations": [
+       {"a":"revenue","b":"operatingCosts","result":{"value":null,"reason":"missing_data"}},
+       {"a":"revenue","b":"operatingIncome","result":{"value":null,"reason":"missing_data"}},
+       {"a":"revenue","b":"eps","result":{"value":null,"reason":"missing_data"}},
+       {"a":"revenue","b":"freeCashFlow","result":{"value":null,"reason":"missing_data"}},
+       {"a":"revenue","b":"dilutedShares","result":{"value":null,"reason":"missing_data"}},
+       {"a":"operatingCosts","b":"operatingIncome","result":{"value":null,"reason":"missing_data"}},
+       {"a":"operatingCosts","b":"eps","result":{"value":null,"reason":"missing_data"}},
+       {"a":"operatingCosts","b":"freeCashFlow","result":{"value":null,"reason":"missing_data"}},
+       {"a":"operatingCosts","b":"dilutedShares","result":{"value":null,"reason":"missing_data"}},
+       {"a":"operatingIncome","b":"eps","result":{"value":null,"reason":"missing_data"}},
+       {"a":"operatingIncome","b":"freeCashFlow","result":{"value":null,"reason":"missing_data"}},
+       {"a":"operatingIncome","b":"dilutedShares","result":{"value":null,"reason":"missing_data"}},
+       {"a":"eps","b":"freeCashFlow","result":{"value":null,"reason":"missing_data"}},
+       {"a":"eps","b":"dilutedShares","result":{"value":null,"reason":"missing_data"}},
+       {"a":"freeCashFlow","b":"dilutedShares","result":{"value":null,"reason":"missing_data"}}
+      ],
+      "changes": 0
+     }
+    }
+   },
+   "tolerance": 1e-9,
+   "note": "v1: typical P/E is the conventional median (the mean of the two middle values for an even count); the prototype takes the upper middle value. v1: the return grid has a row at the exact baseline growth, tagged with its baseline, and the YOU cell sits in it; the prototype marks the nearest row. v1: the earnings-path scale covers every plotted point, including intermediate points and negative TTM EPS; the prototype uses only the end points and clamps the minimum at 0. v1: 12-month EPS growth compares the TTM EPS known on a day with the TTM EPS known 365 days earlier; the prototype uses the TTM of four quarters earlier, which is the same value without a reporting lag. v1: the daily P/E is null when TTM EPS is not positive; the prototype divides anyway. v1: the typical required growth over the period is the conventional median, like the typical P/E. v1: the count of quarters where the price asked for more than was delivered compares only quarters with both values. v1: correlations skip quarters where either change is missing; the prototype has no missing data. v1: bar scales include negative values and zero; the prototype assumes positive values. v1: the typical P/E counts today's P/E also when the history has no quarter."
   }
  ]
 }
