@@ -53,7 +53,13 @@ describe("the walkthrough of the inputs", () => {
           <WalkthroughSlot name="main" />
         </main>
       </div>,
-      { levers: leversReducer(testLevers(), { type: "setStartingPoint", field: "ttmEps", value: -1 }) },
+      {
+        levers: leversReducer(testLevers(), {
+          type: "setStartingPoint",
+          field: "ttmEps",
+          value: -1,
+        }),
+      },
     );
     await userEvent.click(screen.getByRole("button", { name: "Walk me through these inputs" }));
     const card = screen.getByRole("region", { name: "Walkthrough of the inputs" });
