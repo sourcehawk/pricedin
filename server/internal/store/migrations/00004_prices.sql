@@ -56,8 +56,10 @@ CREATE AGGREGATE numeric_product (numeric) (
 );
 
 -- Split-adjusted bars. split_factor is the product of the ratios of every
--- split that executed after the bar's date: prices divide by it, and volume
--- multiplies by it.
+-- split that executed after the bar's date and on or before the symbol's
+-- newest bar: prices divide by it, and volume multiplies by it. Until a bar
+-- at the new share count exists, every stored bar is at the old one, so an
+-- announced split changes nothing yet.
 CREATE VIEW prices_adjusted AS
 SELECT
     p.symbol,
@@ -75,6 +77,7 @@ CROSS JOIN LATERAL (
     SELECT coalesce(numeric_product(s.split_to / s.split_from), 1) AS factor
     FROM price_splits s
     WHERE s.symbol = p.symbol AND s.execution_date > p.date
+      AND s.execution_date <= (SELECT max(n.date) FROM prices_daily n WHERE n.symbol = p.symbol)
 ) f;
 
 -- +goose Down

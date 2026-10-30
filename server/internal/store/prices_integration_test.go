@@ -268,3 +268,31 @@ func TestDividends(t *testing.T) {
 		t.Errorf("ListDividends() (-want +got):\n%s", diff)
 	}
 }
+
+func TestListAdjustedPriceBarsIgnoresASplitUntilABarOnOrAfterItExists(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	s, _ := newStore(t)
+	before := domain.PriceBar{Symbol: "NVDA", Date: date(t, "2024-06-07"), Open: 1200, High: 1216, Low: 1180, Close: 1208.88, Volume: 100, Source: "massive"}
+	mustUpsertBars(t, s, before)
+	// An announced split whose execution date is after the newest bar.
+	if _, err := s.UpsertPriceSplits(ctx, []domain.Split{{Symbol: "NVDA", Date: date(t, "2024-06-10"), From: 1, To: 10, Source: "massive"}}); err != nil {
+		t.Fatalf("UpsertPriceSplits() error = %v", err)
+	}
+
+	factor := func() float64 {
+		t.Helper()
+		got, err := s.ListAdjustedPriceBars(ctx, "NVDA", before.Date, before.Date)
+		if err != nil || len(got) != 1 {
+			t.Fatalf("ListAdjustedPriceBars() = %v, %v; want one bar", got, err)
+		}
+		return got[0].SplitFactor
+	}
+	if f := factor(); f != 1 {
+		t.Errorf("SplitFactor before the split day has a bar = %v, want 1", f)
+	}
+	mustUpsertBars(t, s, domain.PriceBar{Symbol: "NVDA", Date: date(t, "2024-06-10"), Open: 120, High: 123, Low: 117, Close: 121.79, Volume: 300, Source: "massive"})
+	if f := factor(); f != 10 {
+		t.Errorf("SplitFactor after the split day has a bar = %v, want 10", f)
+	}
+}

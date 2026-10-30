@@ -11,7 +11,9 @@ import (
 )
 
 // AdjustedBar is a daily bar divided by the splits that executed after its
-// date. Volume is multiplied by the same factor.
+// date and on or before the symbol's newest stored bar. A split with no bar
+// on or after its date is not applied yet. Volume is multiplied by the same
+// factor.
 type AdjustedBar struct {
 	domain.PriceBar
 	RawClose float64
