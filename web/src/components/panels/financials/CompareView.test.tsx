@@ -2,7 +2,7 @@ import { act, fireEvent, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
 import { withApiServer } from "@/api/testing/server";
-import { financialsHistory, serveHistory, renderPanel } from "./testing";
+import { filedOn, financialsHistory, serveHistory, renderPanel } from "./testing";
 
 withApiServer();
 
@@ -121,6 +121,44 @@ describe("CompareView", () => {
     expect(screen.getByRole("tooltip")).toHaveTextContent(
       "Revenue and Operating incomeCorrelation 0.97: strong, same direction.",
     );
+  });
+
+  it("says that a correlation rests on at most the quarter-to-quarter changes of the view", async () => {
+    await openCompare();
+    act(() => {
+      screen.getByRole("button", { name: "About this table" }).focus();
+    });
+    expect(screen.getByRole("tooltip")).toHaveTextContent(
+      "It uses at most 7 quarter-to-quarter changes, so read it as a hint.",
+    );
+  });
+
+  it("names the filing of each amount in the quarter's tooltip", async () => {
+    const { container } = await openCompare();
+    fireEvent.pointerEnter(container.querySelectorAll("rect.cmpcol")[7] as Element, {
+      pointerType: "mouse",
+      clientX: 5,
+      clientY: 5,
+    });
+    expect(screen.getByRole("tooltip")).toHaveTextContent(
+      `Diluted EPS+12%$2.75 · Form 10-Q filed ${filedOn("2026-09-30")}`,
+    );
+  });
+
+  it("keeps a tapped quarter's tooltip open until the next tap", async () => {
+    const { container } = await openCompare();
+    const col = container.querySelectorAll("rect.cmpcol")[7] as Element;
+    fireEvent.pointerDown(col, { pointerType: "touch" });
+    fireEvent.pointerEnter(col, { pointerType: "touch" });
+    fireEvent.pointerLeave(col, { pointerType: "touch" });
+    fireEvent.click(col);
+    await new Promise((r) => setTimeout(r, 300));
+    expect(screen.getByRole("tooltip")).toHaveTextContent("Q3 FY26");
+    expect(container.querySelector("line.col-guide")).toBeInTheDocument();
+    fireEvent.pointerDown(col, { pointerType: "touch" });
+    fireEvent.click(col);
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+    expect(container.querySelector("line.col-guide")).not.toBeInTheDocument();
   });
 
   it("hides the table with fewer than two metrics and asks for one with none", async () => {

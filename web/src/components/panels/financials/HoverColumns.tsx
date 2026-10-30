@@ -1,6 +1,6 @@
 "use client";
 
-import type { FocusEvent, ReactNode } from "react";
+import { useRef, type FocusEvent, type ReactNode } from "react";
 import { useTip } from "@/components/tip/TipProvider";
 import styles from "./Financials.module.css";
 import { cls } from "./metrics";
@@ -11,7 +11,7 @@ import { cls } from "./metrics";
  * onHover gets the hovered quarter's index, or null when the pointer
  * leaves, so the chart can draw its guide line. With label, each column
  * is also a focusable target named label(i), which shows the same tooltip
- * on keyboard focus.
+ * on keyboard focus. A tap shows the tooltip and the next tap hides it.
  */
 export function HoverColumns({
   count,
@@ -34,6 +34,10 @@ export function HoverColumns({
   onHover: (i: number | null) => void;
 }) {
   const t = useTip();
+  const pointer = useRef("mouse");
+  // A tap focuses a focusable column before its click, and focus shows the
+  // tip, so the toggle reads whether the tip showed before the tap began.
+  const openAtTap = useRef(false);
   return (
     <>
       {Array.from({ length: count }, (_, i) => (
@@ -60,16 +64,38 @@ export function HoverColumns({
           width={width}
           height={height}
           fill="transparent"
+          onPointerDown={(e) => {
+            pointer.current = e.pointerType;
+            openAtTap.current = t.owner === e.currentTarget;
+          }}
           onPointerEnter={(e) => {
-            onHover(i);
-            t.show(e.currentTarget, tip(i), { x: e.clientX, y: e.clientY });
+            if (e.pointerType !== "touch") {
+              onHover(i);
+              t.show(e.currentTarget, tip(i), { x: e.clientX, y: e.clientY });
+            }
           }}
           onPointerMove={(e) => {
-            t.move(e.currentTarget, { x: e.clientX, y: e.clientY });
+            if (e.pointerType !== "touch") {
+              t.move(e.currentTarget, { x: e.clientX, y: e.clientY });
+            }
           }}
           onPointerLeave={(e) => {
-            onHover(null);
-            t.leave(e.currentTarget);
+            if (e.pointerType !== "touch") {
+              onHover(null);
+              t.leave(e.currentTarget);
+            }
+          }}
+          onClick={(e) => {
+            if (pointer.current !== "touch") {
+              return;
+            }
+            if (openAtTap.current) {
+              onHover(null);
+              t.hide(e.currentTarget);
+            } else {
+              onHover(i);
+              t.show(e.currentTarget, tip(i));
+            }
           }}
         />
       ))}

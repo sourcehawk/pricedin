@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
+import type { SourcedNumber } from "@/api/types";
 import { signedPct } from "@/components/format";
+import { newestFiling } from "@/components/Sourced";
 import { InfoTip } from "@/components/tip/InfoTip";
 import { useTipHandlers } from "@/components/tip/TipProvider";
 import {
@@ -17,6 +19,7 @@ import styles from "./Financials.module.css";
 import { HoverColumns, shortLabel } from "./HoverColumns";
 import { metricValue } from "./metricFormat";
 import { cls, colorVar, metricInfo } from "./metrics";
+import type { MetricSources } from "./sources";
 
 /** CompareMode is what the compare chart plots: the change since the first quarter, or from each quarter to the next. */
 export type CompareMode = "sinceStart" | "quarterOverQuarter";
@@ -43,7 +46,15 @@ const classWords: Record<PairCorrelationV["class"], string> = {
  * since the first quarter or from quarter to quarter, and shows in a table
  * how the quarter-to-quarter changes of each pair moved together.
  */
-export function CompareView({ ticker, view }: { ticker: string; view: FinancialsView }) {
+export function CompareView({
+  ticker,
+  view,
+  sources,
+}: {
+  ticker: string;
+  view: FinancialsView;
+  sources: MetricSources;
+}) {
   const [picked, setPicked] = useView<readonly string[]>("financials.compare", defaultSelection);
   const [mode, setMode] = useView<CompareMode>("financials.compareMode", "sinceStart");
   const [hover, setHover] = useState<number | null>(null);
@@ -143,7 +154,10 @@ export function CompareView({ ticker, view }: { ticker: string; view: Financials
             </span>
             <strong>{signedPct(values(m)[i], 0)}</strong>
           </div>
-          <div className="psub">{metricValue(m, view.metrics[m].values[i] ?? null, 2)}</div>
+          <div className="psub">
+            {metricValue(m, view.metrics[m].values[i] ?? null, 2)}
+            {filingNote(sources[m][i] ?? null)}
+          </div>
         </div>
       ))}
       <div className="tm">
@@ -232,6 +246,12 @@ export function CompareView({ ticker, view }: { ticker: string; view: Financials
   );
 }
 
+/** filingNote is the text after an amount that names its filing: " · Form 10-Q filed …", or "" without a filing. */
+function filingNote(s: SourcedNumber | null): string {
+  const f = s === null ? null : newestFiling(s.source);
+  return f === null ? "" : ` · Form ${f.form} filed ${f.filed}`;
+}
+
 function pairOf(
   all: readonly PairCorrelation[],
   a: Metric,
@@ -256,7 +276,7 @@ function CorrelationTable({
             <b>How to read this table</b>
             Each cell is the correlation between the changes of two metrics from one quarter to the
             next, on a scale from −1 to +1. Near +1: when one grew faster, the other did too. Near
-            −1: when one grew, the other shrank. Near 0: no link. It uses only{" "}
+            −1: when one grew, the other shrank. Near 0: no link. It uses at most{" "}
             {view.compare.changes} quarter-to-quarter changes, so read it as a hint.
           </InfoTip>
         </caption>

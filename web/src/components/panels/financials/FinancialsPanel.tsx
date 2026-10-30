@@ -82,7 +82,7 @@ export function FinancialsPanel() {
       ) : (
         <>
           {shown === "compare" ? (
-            <CompareView ticker={ticker} view={view} />
+            <CompareView ticker={ticker} view={view} sources={sources} />
           ) : (
             <MetricChart ticker={ticker} view={view} metric={shown} sources={sources[shown]} />
           )}
