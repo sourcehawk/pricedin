@@ -66,7 +66,17 @@ The engine is a pure Go package with no I/O. It ports every calculation from the
 - the return grid, the earnings paths, "how demanding over time", and the bear, base and bull cases;
 - share-count events, the price-earnings link and the P/E bands.
 
-One function, `Evaluate`, composes all of them from one input: the stock's quarterly history plus the lever values. The evaluation endpoint returns its output. The web application runs the TypeScript port of the same function.
+One function, `Evaluate`, composes all of them from one input: the stock's history and the lever values. The history holds the fiscal quarters (split-adjusted EPS, quarter-end close, diluted shares, the financials) and the daily split-adjusted closes, each with the TTM EPS that was known on that day. The levers include the chart range, because the P/E bands and the price-earnings link depend on the visible period. The evaluation endpoint returns its output. The web application runs the TypeScript port of the same function.
+
+### Corrections to the prototype
+
+The prototype has a few defects. v1 corrects them, and the shared test cases carry the corrected rule with a note:
+
+- Typical P/E is the conventional median: for an even number of quarter-end P/Es, the average of the two middle values. The prototype takes the upper middle value, which biases the typical P/E, the trailing exit P/E and the slow-grower rule upward.
+- The return grid always has a row at the exact baseline growth, tagged with its baseline. The YOU cell sits in that row, so its return equals the return in the summary. The prototype marks the nearest row, whose return can differ from the summary.
+- Chart scales cover every plotted point, also the intermediate points of a year-by-year path that is not monotonic.
+- A chart scale with a zero-width domain (for example a constant share count) widens to a visible range instead of dividing by zero.
+- In the price chart, the hit areas of the P/E bands sit above the pointer-capture layer, so hovering a band line lifts it. In the prototype only the band labels react.
 
 "Not applicable" results are explicit. A function that cannot produce a number returns no value and a reason code (for example `needs_positive_eps`), never NaN or a magic number. JSON carries this as `null` plus a `reason` field.
 
@@ -91,7 +101,7 @@ Postgres 18. The schema has these tables:
 - `ingest_runs`: one row per job run with start, end, status, counts and error text.
 - `sessions` and `api_tokens`: owner authentication. Both store hashes, never the secrets.
 
-Raw downloads go to a blob store before any parsing: SEC JSON and archives, and the provider's price, split and dividend responses. The blob store has two implementations: a local directory (Compose and tests) and S3-compatible storage (production, for example Tigris on Fly.io or Cloudflare R2). A full reprocess reads only the blob store.
+Raw downloads go to a blob store before any parsing: SEC JSON and archives, and the provider's price, split and dividend responses, page by page. The SEC client and the price adapter take an injected recorder that receives every response body before it is decoded. A recorder failure fails the request, so no value is stored without its raw source. The blob store has two implementations: a local directory (Compose and tests) and S3-compatible storage (production, for example Tigris on Fly.io or Cloudflare R2). A full reprocess reads only the blob store.
 
 ### SEC ingestion
 
@@ -108,7 +118,7 @@ A pure package turns facts into fiscal quarters. The rules:
 - A period of about three months (80 to 100 days) is a quarter. Periods of about six, nine and twelve months are year-to-date or full-year values.
 - For each period, the value from the latest filing wins, because a later filing restates earlier periods for splits and corrections. The point-in-time variant takes an as-of date and ignores filings after it.
 - When a quarter is not reported directly, it comes from year-to-date differences: Q2 = H1 − Q1, Q3 = 9M − H1, Q4 = FY − 9M. Cash-flow values in 10-Q filings are always year-to-date, so they always take this path.
-- Diluted shares are a weighted average, so Q4 = 4 × FY − (Q1 + Q2 + Q3) when no direct Q4 value exists.
+- Diluted shares are a weighted average, so plain subtraction does not apply. A reported quarterly count always wins. Otherwise Q4 is the duration-weighted difference: (FY × FY days − Σ Qi × Qi days) / Q4 days, using the actual period lengths. The value is marked as an estimate. When the inputs do not cover the full year or give a non-positive result, Q4 shares are unavailable.
 - Revenue takes, for each period, the first available concept in a fixed priority list.
 - Free cash flow is operating cash flow minus capital spending. Operating costs are revenue minus operating income.
 - TTM values add the last four quarters. TTM dividends per share add the last four quarterly dividends.
@@ -118,8 +128,8 @@ A pure package turns facts into fiscal quarters. The rules:
 
 Per-share history must be split-adjusted, or every P/E history breaks.
 
-- Split events come from two kinds of evidence: the `StockholdersEquityNoteStockSplitConversionRatio1` concept, and restatements. When a later filing reports an earlier period's per-share value at a clean ratio of the original value (for example exactly one tenth), a split happened between the two filing dates.
-- Per-share values (EPS, dividends) from before a split, which no later filing restated, are divided by the ratio. Share counts are multiplied by it.
+- A split is confirmed only by explicit, dated evidence: a split event from the price provider (execution date and ratio), or the `StockholdersEquityNoteStockSplitConversionRatio1` concept with its period. A clean ratio between an original and a restated per-share value does not prove a split and does not date it. Restatement ratios only reconcile: they check that a confirmed split explains the restated values, and a mismatch goes to the data page as a conflict.
+- Per-share values (EPS, dividends) from periods that end before a confirmed split, and that no later filing restated, are divided by the ratio. Share counts are multiplied by it.
 - Prices use the provider's split events. When the SEC evidence and the provider disagree on a split, the evaluation keeps working and the data page lists the conflict.
 
 ### Prices
@@ -178,7 +188,7 @@ Errors use RFC 9457 problem details.
 - One owner. The owner's email and an Argon2id password hash come from the environment. `pricedin auth hash-password` makes the hash.
 - A login creates a server-side session row and sets an `HttpOnly`, `Secure`, `SameSite=Lax` cookie that holds a random token. The table stores only the token's hash. Logout deletes the row.
 - Login attempts are rate-limited per client address.
-- State-changing requests must be JSON and must come from the application's own origin.
+- State-changing requests must be JSON. Login and cookie-authenticated requests must also come from the application's own origin. Requests with a valid bearer token need no `Origin` header, because scripts do not send one.
 - API tokens let scripts and, later, agents call the API with `Authorization: Bearer`. The CLI creates and revokes them. The table stores only hashes.
 
 ## Web application

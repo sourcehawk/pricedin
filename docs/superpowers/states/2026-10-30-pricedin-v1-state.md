@@ -2,7 +2,7 @@
 feature: pricedin-v1
 spec: docs/superpowers/specs/2026-10-30-pricedin-v1-design.md
 plan: docs/superpowers/plans/2026-10-30-pricedin-v1-plan.md
-tracking_issue: #1
+tracking_issue: "#1"
 sub_pr_approval: autonomous
 sub_pr_review_loop: on
 sub_pr_target: main
@@ -51,6 +51,7 @@ status: foundational-wave
 | `domain-types` | pre-merge stub (inside #2) | #2 | pending |
 | `engine-io` | data-only (cases file) | #3 | pending |
 | `engine-cases` | data-only | #3 | pending |
+| `raw-recorder` | data-only | #5, #6 | pending |
 | `price-provider` | data-only (sequential) | #6 | pending |
 | `fundamentals-series` | data-only (sequential) | #8 | pending |
 | `openapi` | data-only (sequential) | #10 | pending |
