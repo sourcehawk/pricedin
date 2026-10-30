@@ -3,10 +3,13 @@ import {
   maxCustomGrowth,
   maxHoldingYears,
   maxMonths,
+  maxPerShare,
+  maxPrice,
   maxTargetReturn,
   minCustomExitPe,
   minCustomGrowth,
   minHoldingYears,
+  minPerShare,
   type BaselineMode,
   type ChartRange,
   type ExitPeMode,
@@ -125,9 +128,6 @@ export type LeverAction =
   /** Replaces the state, such as one read from storage. */
   | { type: "restore"; state: LeverState };
 
-const maxPerShare = 1e6;
-const minPerShare = 1e-4;
-
 function clamp(v: number, lo: number, hi: number): number {
   return Math.min(hi, Math.max(lo, v));
 }
@@ -135,16 +135,14 @@ function clamp(v: number, lo: number, hi: number): number {
 const clampRate = (v: number): number => clamp(v, minCustomGrowth, maxCustomGrowth);
 const clampMonths = (v: number): number => clamp(Math.round(v), 1, maxMonths);
 
-function startingPoint(field: StartingPointField, v: number): number | undefined {
+function startingPoint(field: StartingPointField, v: number): number {
   switch (field) {
     case "price":
-      return v >= minPerShare && v <= maxPerShare ? v : undefined;
-    case "ttmEps": {
-      const a = Math.abs(v);
-      return v === 0 || (a >= minPerShare && a <= maxPerShare) ? v : undefined;
-    }
+      return clamp(v, minPerShare, maxPrice);
+    case "ttmEps":
+      return v === 0 ? 0 : Math.sign(v) * clamp(Math.abs(v), minPerShare, maxPerShare);
     case "dividend":
-      return v > maxPerShare ? undefined : Math.max(0, v);
+      return clamp(v, 0, maxPerShare);
   }
 }
 
@@ -174,8 +172,7 @@ export function leversReducer(s: LeverState, a: LeverAction): LeverState {
       if (a.value === null) {
         return { ...s, [a.field]: null };
       }
-      const value = startingPoint(a.field, a.value);
-      return value === undefined ? s : { ...s, [a.field]: value };
+      return { ...s, [a.field]: startingPoint(a.field, a.value) };
     }
     case "setTargetReturn":
       return { ...s, targetReturn: clamp(a.value, 0, maxTargetReturn) };

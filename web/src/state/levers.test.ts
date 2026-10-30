@@ -145,12 +145,29 @@ describe("clamping to the engine's bounds", () => {
 });
 
 describe("starting point", () => {
-  it("ignores a share price that is not positive", () => {
-    const s = run(
-      { type: "setStartingPoint", field: "price", value: 120 },
-      { type: "setStartingPoint", field: "price", value: 0 },
-    );
-    expect(s.price).toBe(120);
+  it("keeps a share price of 10^8, the engine's largest", () => {
+    expect(run({ type: "setStartingPoint", field: "price", value: 1e8 }).price).toBe(1e8);
+  });
+
+  it("clamps a share price above 10^8 to 10^8", () => {
+    expect(run({ type: "setStartingPoint", field: "price", value: 1e8 + 1 }).price).toBe(1e8);
+  });
+
+  it("clamps a share price that is not positive to the smallest price", () => {
+    expect(run({ type: "setStartingPoint", field: "price", value: 0 }).price).toBe(1e-4);
+    expect(run({ type: "setStartingPoint", field: "price", value: -5 }).price).toBe(1e-4);
+  });
+
+  it("clamps TTM EPS to the engine's sizes and keeps its sign", () => {
+    const eps = (value: number) => run({ type: "setStartingPoint", field: "ttmEps", value }).ttmEps;
+    expect(eps(2e6)).toBe(1e6);
+    expect(eps(-2e6)).toBe(-1e6);
+    expect(eps(5e-5)).toBe(1e-4);
+    expect(eps(-5e-5)).toBe(-1e-4);
+  });
+
+  it("clamps a dividend above 10^6 to 10^6", () => {
+    expect(run({ type: "setStartingPoint", field: "dividend", value: 2e6 }).dividend).toBe(1e6);
   });
 
   it("accepts zero and negative EPS, which the engine reports as needing positive EPS", () => {
