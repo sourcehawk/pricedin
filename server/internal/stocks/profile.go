@@ -231,6 +231,11 @@ func (s *Service) Status(ctx context.Context) (Status, error) {
 	if err != nil {
 		return Status{}, fmt.Errorf("stocks: status: %w", err)
 	}
-	out.TrackedCompanies = int64(len(tracked))
+	// A company with several share classes has one ticker for each.
+	companies := map[domain.CIK]bool{}
+	for _, t := range tracked {
+		companies[t.CIK] = true
+	}
+	out.TrackedCompanies = int64(len(companies))
 	return out, nil
 }

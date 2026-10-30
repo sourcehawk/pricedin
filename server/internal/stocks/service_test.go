@@ -554,7 +554,8 @@ func TestStatusReportsRunsPricesAndCoverage(t *testing.T) {
 	}
 	m.Coverage = store.Coverage{Companies: 3, WithFacts: 2, WithFundamentals: 2}
 	m.SECRetryAttempts = map[domain.CIK]int{1: 2, 2: 6, 3: 7}
-	m.Tracked = []domain.Ticker{{Symbol: "KO", CIK: stockstest.CIKKO}}
+	// Two share classes of one company count once.
+	m.Tracked = []domain.Ticker{{Symbol: "KO", CIK: stockstest.CIKKO}, {Symbol: "GOOG", CIK: 1652044}, {Symbol: "GOOGL", CIK: 1652044}}
 	svc := stocks.New(m, stocks.Options{Now: func() time.Time { return stockstest.Now }, SECRetryAttempts: 6})
 	got, err := svc.Status(context.Background())
 	if err != nil {
@@ -569,7 +570,7 @@ func TestStatusReportsRunsPricesAndCoverage(t *testing.T) {
 		LatestPriceDate:  &latest,
 		Companies:        stocks.Coverage{Total: 3, WithFacts: 2, WithFundamentals: 2},
 		SECRetries:       stocks.SECRetries{Waiting: 1, Exhausted: 2},
-		TrackedCompanies: 1,
+		TrackedCompanies: 2,
 	}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("Status() (-want +got):\n%s", diff)

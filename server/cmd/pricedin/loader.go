@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"sync"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -23,14 +24,28 @@ func newCompanyLoader(ctx context.Context, cfg config.Config, pool *pgxpool.Pool
 		logger.InfoContext(ctx, "loading a company on demand is off: the ingestion settings are missing", slog.Any("error", err))
 		return stocks.UnavailableLoader{}, func() {}
 	}
-	l := &runnerLoader{build: func(ctx context.Context) (*ingest.Runner, error) {
+	return startLoader(ctx, func(ctx context.Context) (*ingest.Runner, error) {
 		opts, err := ingestOptions(ctx, cfg, logger, pool, true, true)
 		if err != nil {
 			return nil, err
 		}
 		return ingest.New(ctx, opts)
-	}}
-	if _, err := l.runner(ctx); errors.Is(err, ingest.ErrSessionRequired) {
+	}, startupProbeTimeout, logger)
+}
+
+// startupProbeTimeout bounds the start of the runner before serve opens
+// its listeners, so that a database that does not answer cannot hold up
+// the health probes.
+const startupProbeTimeout = 10 * time.Second
+
+// startLoader tries to start the runner with build within timeout. When
+// the database needs a session connection that it does not have, loading
+// is off. On any other failure the first load tries again.
+func startLoader(ctx context.Context, build func(context.Context) (*ingest.Runner, error), timeout time.Duration, logger *slog.Logger) (stocks.CompanyLoader, func()) {
+	l := &runnerLoader{build: build}
+	probe, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	if _, err := l.runner(probe); errors.Is(err, ingest.ErrSessionRequired) {
 		logger.ErrorContext(ctx, "loading a company on demand is off", slog.Any("error", err))
 		return stocks.UnavailableLoader{}, func() {}
 	} else if err != nil {
