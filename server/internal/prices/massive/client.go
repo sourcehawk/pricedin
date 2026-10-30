@@ -354,6 +354,11 @@ func nextRel(next string) (string, error) {
 		// The parse error repeats the URL, which can carry a key.
 		return "", errors.New("massive: next_url is not a valid URL")
 	}
+	// The client puts the path after its base URL, so a path without a
+	// leading slash would extend the host name.
+	if !strings.HasPrefix(u.EscapedPath(), "/") {
+		return "", errors.New("massive: next_url has no absolute path")
+	}
 	q := u.Query()
 	for k := range q {
 		if strings.EqualFold(k, "apikey") {

@@ -784,3 +784,23 @@ func TestRetryAfterIsHonoredUpToTenMinutes(t *testing.T) {
 		})
 	}
 }
+
+func TestANextURLWithoutALeadingSlashIsRejected(t *testing.T) {
+	for _, next := range []string{".attacker.example/stolen?cursor=p2", "@attacker.example/x", "?cursor=p2"} {
+		t.Run(next, func(t *testing.T) {
+			var calls atomic.Int32
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				calls.Add(1)
+				serveJSON(`{"status":"OK","results":[],"next_url":"` + next + `"}`)(w, r)
+			}))
+			defer srv.Close()
+
+			if _, err := newClient(t, srv, nil).Splits(t.Context(), "NVDA"); err == nil {
+				t.Error("Splits() error = nil, want an error for the next_url")
+			}
+			if calls.Load() != 1 {
+				t.Errorf("requests = %d, want 1: the client must not follow the next_url", calls.Load())
+			}
+		})
+	}
+}
