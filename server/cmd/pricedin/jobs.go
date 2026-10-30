@@ -45,11 +45,12 @@ func newJobsCmd(getenv func(string) string, stdout io.Writer) *cobra.Command {
 	})
 	var wait bool
 	run := &cobra.Command{
-		Use:   "run <job> [args]",
+		Use:   "run [--wait] <job> [args]",
 		Short: "Run one job and exit; see `pricedin jobs list`",
 		Long: "run runs one ingestion job and prints its counts as JSON. When another process\n" +
 			"runs the same job, it logs that and exits with success, or with --wait it waits\n" +
-			"for that run to end and then runs the job.",
+			"for that run to end and then runs the job. Put --wait before the job: the flags\n" +
+			"after the job, such as those of reprocess, go to the job.",
 		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			job, ok := ingest.LookupJob(args[0])
@@ -60,6 +61,7 @@ func newJobsCmd(getenv func(string) string, stdout io.Writer) *cobra.Command {
 		},
 	}
 	run.Flags().BoolVar(&wait, "wait", false, "wait for a run of the same job in another process, instead of skipping")
+	run.Flags().SetInterspersed(false)
 	cmd.AddCommand(run)
 	return cmd
 }
@@ -120,6 +122,9 @@ func newSchedulerCmd(getenv func(string) string, stdout io.Writer) *cobra.Comman
 // runJob builds a runner with the clients that job needs, runs it, and
 // prints its result as JSON to out.
 func runJob(ctx context.Context, getenv func(string) string, logOut, out io.Writer, job ingest.Job, args []string, wait bool) error {
+	if err := job.CheckArgs(args); err != nil {
+		return fmt.Errorf("%s: %w", job.Name, err)
+	}
 	r, _, logger, cleanup, err := buildRunner(ctx, getenv, logOut, job.SEC, job.Prices, wait)
 	if err != nil {
 		return err
@@ -197,7 +202,7 @@ func ingestOptions(ctx context.Context, cfg config.Config, logger *slog.Logger, 
 	}
 	rec := ingest.NewRecorder(bs, time.Now)
 	opts := ingest.Options{
-		Pool: pool, LockURL: cfg.Database.LockURL, Blob: bs, Universe: cfg.Ingest.Universe,
+		Pool: pool, LockURL: cfg.Database.LockURL, Blob: bs, StoredPrices: massive.Stored{}, Universe: cfg.Ingest.Universe,
 		PricesBackfillDays: cfg.Ingest.PricesBackfillDays, Logger: logger,
 	}
 	if withSEC {
