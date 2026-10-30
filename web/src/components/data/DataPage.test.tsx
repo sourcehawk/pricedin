@@ -1,0 +1,117 @@
+import { screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { http, HttpResponse } from "msw";
+import { describe, expect, it, vi } from "vitest";
+import { profileFixture, statusFixture } from "@/api/testing/fixtures";
+import { apiServer, apiUrl, problem, withApiServer } from "@/api/testing/server";
+import { renderWithStock } from "@/testing/render";
+import { DataPage } from "./DataPage";
+
+vi.mock("next/link", () => ({
+  default: ({ children, href }: { children: React.ReactNode; href: string }) => (
+    <a href={href}>{children}</a>
+  ),
+}));
+
+withApiServer();
+
+describe("DataPage", () => {
+  it("shows the freshness of each source and the coverage", async () => {
+    renderWithStock(<DataPage />);
+    expect(await screen.findByText(statusFixture.latestPriceDate ?? "")).toBeInTheDocument();
+    expect(screen.getByText("2026-10-28")).toBeInTheDocument();
+    expect(
+      screen.getByText(/last read by sec-bulk; latest GRMN filing 2026-09-30/),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/of 3 known \(2 with facts\)/)).toBeInTheDocument();
+  });
+
+  it("lists the latest run of each job with its status and error", async () => {
+    renderWithStock(<DataPage />);
+    const table = await screen.findByRole("table");
+    const failed = within(table).getByRole("row", { name: /sec-daily/ });
+    expect(failed).toHaveTextContent("failed");
+    expect(failed).toHaveTextContent("fetch daily index: 503 Service Unavailable");
+    expect(within(table).getByRole("row", { name: /prices-daily/ })).toHaveTextContent(
+      "bars 5,321",
+    );
+  });
+
+  it("dates the SEC filings by a job that fetches filings, not by the ticker map", async () => {
+    apiServer.use(
+      http.get(apiUrl("/api/v1/status"), () =>
+        HttpResponse.json({
+          ...statusFixture,
+          ingestRuns: [
+            ...statusFixture.ingestRuns,
+            {
+              id: 12,
+              job: "sec-tickers",
+              startedAt: "2026-10-30T01:00:00Z",
+              finishedAt: "2026-10-30T01:00:05Z",
+              status: "succeeded",
+              abandoned: false,
+              stats: {},
+              error: "",
+            },
+          ],
+        }),
+      ),
+    );
+    renderWithStock(<DataPage />);
+    const tile = (await screen.findByText("SEC filings")).closest(".tile");
+    expect(tile).toHaveTextContent("2026-10-28");
+    expect(tile).toHaveTextContent("last read by sec-bulk");
+  });
+
+  it("says when the newest run of a filing job did not succeed", async () => {
+    renderWithStock(<DataPage />);
+    const tile = (await screen.findByText("SEC filings")).closest(".tile");
+    expect(tile).toHaveTextContent(
+      "The newest sec-daily run failed, so the filings can be newer than this date shows.",
+    );
+  });
+
+  it("marks a run that a dead process left behind", async () => {
+    renderWithStock(<DataPage />);
+    const row = await screen.findByRole("row", { name: /prices-backfill/ });
+    expect(row).toHaveTextContent("abandoned");
+  });
+
+  it("counts the companies that wait for an SEC retry and the tracked ones", async () => {
+    renderWithStock(<DataPage />);
+    const tile = (name: string) => screen.getByText(name).closest(".tile");
+    await screen.findByText("SEC retries");
+    expect(tile("SEC retries")).toHaveTextContent(
+      /^SEC retries\s*2\s*companies wait for another try; 1 failed too often and is no longer tried$/,
+    );
+    expect(tile("Tracked")).toHaveTextContent(/^Tracked\s*4\s*companies loaded on demand/);
+  });
+
+  it("loads a company on demand", async () => {
+    let loaded = "";
+    apiServer.use(
+      http.post(apiUrl("/api/v1/stocks/:t/load"), ({ params }) => {
+        loaded = String(params.t);
+        return HttpResponse.json(profileFixture);
+      }),
+    );
+    renderWithStock(<DataPage />);
+    await userEvent.type(screen.getByLabelText("Ticker"), "aapl");
+    await userEvent.click(screen.getByRole("button", { name: "Load or refresh" }));
+    expect(await screen.findByText(/AAPL is loaded\./)).toBeInTheDocument();
+    expect(loaded).toBe("AAPL");
+  });
+
+  it("says why a load failed", async () => {
+    apiServer.use(
+      http.post(apiUrl("/api/v1/stocks/:t/load"), () => problem(404, "Unknown ticker")),
+    );
+    renderWithStock(<DataPage />);
+    await userEvent.type(screen.getByLabelText("Ticker"), "zzzz");
+    await userEvent.click(screen.getByRole("button", { name: "Load or refresh" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "ZZZZ could not be loaded. Unknown ticker",
+    );
+  });
+});

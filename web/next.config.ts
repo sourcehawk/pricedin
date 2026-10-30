@@ -11,6 +11,12 @@ const nextConfig: NextConfig = {
   turbopack: { root: workspaceRoot },
   poweredByHeader: false,
   reactStrictMode: true,
+  experimental: {
+    // proxy.ts forwards /api/* through Next's proxy, which ends a request
+    // after 30 s by default. A company load may take 2 minutes on the API,
+    // with 10 s more to write its answer (server/internal/httpapi).
+    proxyTimeout: 150_000,
+  },
 };
 
 export default nextConfig;
