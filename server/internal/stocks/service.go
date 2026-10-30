@@ -129,11 +129,15 @@ type stock struct {
 	today   domain.Date
 	// symbol is the price provider's symbol of the ticker.
 	symbol string
-	// bars, splits and dividends are the provider's, from the day the
-	// ticker came to this company.
-	bars      []prices.AdjustedBar
-	splits    []domain.Split
+	// rawBars and dividends are the provider's, from the day the ticker
+	// came to this company.
+	rawBars   []domain.PriceBar
 	dividends []domain.Dividend
+	// splits are the splits in effect: the provider's, and after
+	// withFundamentals the confirmed ones, which add the splits that only
+	// the filings give. bars are rawBars adjusted for them.
+	splits []domain.Split
+	bars   []prices.AdjustedBar
 	// The fundamentals; set by withFundamentals.
 	series      fundamentals.Series
 	filings     map[string]domain.Filing
@@ -175,14 +179,16 @@ func (s *Service) open(ctx context.Context, ticker string) (*stock, error) {
 // from the day the symbol came to the company: a symbol that belonged to
 // another company before carries that company's history too.
 func (s *Service) readPrices(ctx context.Context, st *stock) error {
-	rows, err := s.store.ListSymbolTickers(ctx, st.ticker.Symbol)
-	if err != nil {
-		return err
-	}
 	from := earliest
-	for _, r := range rows {
-		if r.CIK != st.ticker.CIK && r.ValidTo != nil && r.ValidTo.After(from) {
-			from = *r.ValidTo
+	for _, symbol := range slices.Compact([]string{st.ticker.Symbol, st.symbol}) {
+		rows, err := s.store.ListSymbolTickers(ctx, symbol)
+		if err != nil {
+			return err
+		}
+		for _, r := range rows {
+			if r.CIK != st.ticker.CIK && r.ValidTo != nil && r.ValidTo.After(from) {
+				from = *r.ValidTo
+			}
 		}
 	}
 	since := func(d domain.Date) bool { return !d.Before(from) && !d.After(st.today) }
@@ -191,18 +197,19 @@ func (s *Service) readPrices(ctx context.Context, st *stock) error {
 	if err != nil {
 		return err
 	}
+	var provider []domain.Split
 	for _, sp := range splits {
-		if since(sp.Date) && sp.From > 0 && sp.To > 0 {
+		if since(sp.Date) {
 			sp.CIK = st.ticker.CIK
-			st.splits = append(st.splits, sp)
+			provider = append(provider, sp)
 		}
 	}
 	bars, err := s.store.ListPriceBars(ctx, st.symbol, from, st.today)
 	if err != nil {
 		return err
 	}
-	bars = slices.DeleteFunc(bars, func(b domain.PriceBar) bool { return !(b.Close > 0) })
-	if st.bars, err = prices.AdjustForSplits(bars, st.splits, st.today); err != nil {
+	st.rawBars = slices.DeleteFunc(bars, func(b domain.PriceBar) bool { return !(b.Close > 0) })
+	if err := st.applySplits(provider); err != nil {
 		return err
 	}
 	dividends, err := s.store.ListDividends(ctx, st.symbol)
@@ -217,8 +224,8 @@ func (s *Service) readPrices(ctx context.Context, st *stock) error {
 	return nil
 }
 
-// withFundamentals derives the stock's quarters from its stored facts,
-// with the provider's splits.
+// withFundamentals derives the stock's quarters. After it, the closes and
+// the TTM dividend follow the same confirmed splits as the EPS.
 func (s *Service) withFundamentals(ctx context.Context, st *stock) error {
 	if !st.loaded {
 		return ErrNotLoaded
@@ -236,11 +243,29 @@ func (s *Service) withFundamentals(ctx context.Context, st *stock) error {
 		st.filings[f.Accession] = f
 	}
 	// Bars come from the provider, so its splits were fetched with them.
-	opts := fundamentals.Options{Splits: st.splits, ProviderChecked: len(st.bars) > 0}
+	opts := fundamentals.Options{AsOf: &st.today, Splits: st.splits, ProviderChecked: len(st.rawBars) > 0}
 	if st.series, err = fundamentals.Derive(st.ticker.CIK, facts, opts); err != nil {
 		return fmt.Errorf("stocks: %s: %w", st.ticker.Symbol, err)
 	}
+	if err := st.applySplits(st.series.Splits); err != nil {
+		return fmt.Errorf("stocks: %s: %w", st.ticker.Symbol, err)
+	}
 	return nil
+}
+
+// applySplits makes splits the splits in effect and adjusts the bars for
+// them. Splits from the filings carry no symbol; they get the provider's.
+func (st *stock) applySplits(splits []domain.Split) error {
+	st.splits = make([]domain.Split, 0, len(splits))
+	for _, sp := range splits {
+		if sp.From > 0 && sp.To > 0 && !sp.Date.After(st.today) {
+			sp.Symbol = st.symbol
+			st.splits = append(st.splits, sp)
+		}
+	}
+	var err error
+	st.bars, err = prices.AdjustForSplits(st.rawBars, st.splits, st.today)
+	return err
 }
 
 // priceSymbol maps an SEC ticker to the provider's symbol: SEC writes a

@@ -20,8 +20,16 @@ type LeversInput struct {
 	HoldingYears *int                  `json:"holdingYears"`
 	ExitPE       *engine.ExitPELever   `json:"exitPe"`
 	Baseline     *engine.BaselineLever `json:"baseline"`
-	Scenarios    []engine.ScenarioCase `json:"scenarios"`
+	Scenarios    []ScenarioInput       `json:"scenarios"`
 	ChartRange   *engine.ChartRange    `json:"chartRange"`
+}
+
+// ScenarioInput is one bear, base or bull case of the levers. Every field
+// is required; a nil field is missing or null.
+type ScenarioInput struct {
+	Name   *string  `json:"name"`
+	Growth *float64 `json:"growth"`
+	ExitPE *float64 `json:"exitPe"`
 }
 
 // The defaults of the levers that do not come from the stock.
@@ -52,7 +60,8 @@ type Evaluation struct {
 // Evaluate runs the engine on the stock's full history with the levers. It
 // gives ErrNotLoaded for a company that is not loaded, a
 // *MissingInputError when a price or TTM EPS is neither given nor stored,
-// and an error wrapping engine.ErrInvalidInput for levers out of bounds.
+// and an error wrapping engine.ErrInvalidInput for levers out of bounds
+// and for a case without a name, growth or exit P/E.
 func (s *Service) Evaluate(ctx context.Context, ticker string, in LeversInput) (Evaluation, error) {
 	st, err := s.open(ctx, ticker)
 	if err != nil {
@@ -92,7 +101,7 @@ func (s *Service) Evaluate(ctx context.Context, ticker string, in LeversInput) (
 		TargetReturn: DefaultTargetReturn, HoldingYears: DefaultHoldingYears,
 		ExitPE:     engine.ExitPELever{Mode: engine.ExitPEEstimated},
 		Baseline:   engine.BaselineLever{Mode: engine.BaselineWeighted},
-		Scenarios:  in.Scenarios,
+		Scenarios:  make([]engine.ScenarioCase, 0, len(in.Scenarios)),
 		ChartRange: engine.Range3Y,
 	}
 	if in.TargetReturn != nil {
@@ -110,8 +119,13 @@ func (s *Service) Evaluate(ctx context.Context, ticker string, in LeversInput) (
 	if in.ChartRange != nil && *in.ChartRange != "" {
 		l.ChartRange = *in.ChartRange
 	}
-	if l.Scenarios == nil {
-		l.Scenarios = []engine.ScenarioCase{}
+	for i, c := range in.Scenarios {
+		for field, missing := range map[string]bool{"name": c.Name == nil, "growth": c.Growth == nil, "exitPe": c.ExitPE == nil} {
+			if missing {
+				return Evaluation{}, fmt.Errorf("stocks: evaluate %s: %w: scenarios[%d].%s is required", st.ticker.Symbol, engine.ErrInvalidInput, i, field)
+			}
+		}
+		l.Scenarios = append(l.Scenarios, engine.ScenarioCase{Name: *c.Name, Growth: *c.Growth, ExitPE: *c.ExitPE})
 	}
 	if l.Baseline.Custom.Rates == nil {
 		l.Baseline.Custom.Rates = []float64{}

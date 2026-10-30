@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"math"
+	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -574,3 +576,112 @@ func TestTheThreeYearHistoryEvaluatesLikeTheFullOne(t *testing.T) {
 		}
 	}
 }
+
+func TestEvaluateRejectsCasesWithMissingFields(t *testing.T) {
+	svc := newService(t, stockstest.Fixture(t), nil)
+	name, growth, pe := "Bear", 0.05, 15.0
+	for field, c := range map[string]stocks.ScenarioInput{
+		"name":   {Growth: &growth, ExitPE: &pe},
+		"growth": {Name: &name, ExitPE: &pe},
+		"exitPe": {Name: &name, Growth: &growth},
+	} {
+		_, err := svc.Evaluate(context.Background(), "KO", stocks.LeversInput{Scenarios: []stocks.ScenarioInput{c}})
+		if !errors.Is(err, engine.ErrInvalidInput) || !strings.Contains(err.Error(), "scenarios[0]."+field) {
+			t.Errorf("a case without %s: error = %v, want an invalid input naming it", field, err)
+		}
+	}
+	got, err := svc.Evaluate(context.Background(), "KO", stocks.LeversInput{Scenarios: []stocks.ScenarioInput{{Name: &name, Growth: &growth, ExitPE: &pe}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []engine.ScenarioCase{{Name: "Bear", Growth: 0.05, ExitPE: 15}}; !cmp.Equal(want, got.Levers.Scenarios) {
+		t.Errorf("Levers.Scenarios = %+v, want %+v", got.Levers.Scenarios, want)
+	}
+}
+
+// A share class is BRK-B for SEC and BRK.B for the price provider. When
+// the provider's mapping shows an earlier issuer of the symbol, its bars
+// are not the current company's either.
+func TestTheProvidersMappingAlsoBoundsTheBars(t *testing.T) {
+	m := stockstest.Fixture(t)
+	until := date(t, "2026-03-02")
+	m.Companies = append(m.Companies, domain.Company{CIK: 1, Name: "Old Foo"}, domain.Company{CIK: 2, Name: "Foo Class A"})
+	m.Tickers = append(m.Tickers,
+		store.TickerRecord{Ticker: domain.Ticker{Symbol: "FOO-A", CIK: 2, ValidFrom: date(t, "2026-01-01")}, Source: store.TickerSourceSEC},
+		store.TickerRecord{Ticker: domain.Ticker{Symbol: "FOO.A", CIK: 1, ValidFrom: date(t, "2020-01-01"), ValidTo: &until}, Source: "massive"},
+	)
+	for _, b := range []struct {
+		day   string
+		close float64
+	}{{"2026-02-27", 500}, {"2026-03-02", 20}} {
+		m.Bars = append(m.Bars, domain.PriceBar{Symbol: "FOO.A", Date: date(t, b.day), Close: b.close, Source: "massive"})
+	}
+	p, err := newService(t, m, nil).Profile(context.Background(), "FOO-A")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.LatestClose == nil || p.LatestClose.Value != 20 || p.Freshness.LatestClose == nil {
+		t.Fatalf("LatestClose = %+v, want 20", p.LatestClose)
+	}
+	h := reusedHistory(t, m, "FOO-A", 2)
+	if len(h.History.Daily) != 1 {
+		t.Errorf("daily = %+v, want only the bar from 2026-03-02", h.History.Daily)
+	}
+}
+
+// reusedHistory loads NVIDIA's facts as the company's and returns its
+// history.
+func reusedHistory(t *testing.T, m *stockstest.Store, ticker string, cik domain.CIK) stocks.History {
+	t.Helper()
+	m.Loaded[cik] = true
+	m.Facts = append(m.Facts, nvdaFactsAs(t, m, cik)...)
+	h, err := newService(t, m, nil).History(context.Background(), ticker, stocks.RangeMax)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return h
+}
+
+// Without the provider's event, NVIDIA's 2024 split is known from its
+// filings only. The closes must follow the split that the EPS follows.
+func TestASplitKnownOnlyFromFilingsAdjustsTheClosesToo(t *testing.T) {
+	m := stockstest.Fixture(t)
+	m.Splits = slices.DeleteFunc(m.Splits, func(s domain.Split) bool { return s.Symbol == "NVDA" })
+	h, err := newService(t, m, nil).History(context.Background(), "NVDA", stocks.RangeMax)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, d := range h.History.Daily {
+		if d.Date == date(t, "2024-05-01") && d.Close > 200 {
+			t.Errorf("close on 2024-05-01 = %v, want it divided by 10 for the split that the filings give", d.Close)
+		}
+	}
+}
+
+// Facts filed after today are not known today: a restatement filed
+// tomorrow does not change today's quarter.
+func TestFactsFiledAfterTodayAreNotUsed(t *testing.T) {
+	m := stockstest.Fixture(t)
+	restated := domain.Fact{
+		CIK: stockstest.CIKKO, Taxonomy: "us-gaap", Concept: "EarningsPerShareDiluted", Unit: "USD/shares",
+		PeriodStart: ptr(date(t, "2026-07-04")), PeriodEnd: date(t, "2026-10-02"), Value: 0.5, Form: "10-Q/A",
+		FiscalYear: 2026, FiscalPeriod: "Q3", Filed: date(t, "2026-11-05"), Accession: "0001628280-26-999999",
+	}
+	m.Facts = append(m.Facts, restated)
+	got := mustFundamentals(t, newService(t, m, nil), "KO")
+	last := got.Quarters[len(got.Quarters)-1]
+	if v := last.Values["eps_diluted"]; last.PeriodEnd != date(t, "2026-10-02") || !near(v.Value, 0.93) {
+		t.Errorf("%s EPS = %v, want 0.93 as filed on 2026-10-28: the restatement of 2026-11-05 is not known yet", last.Label, v.Value)
+	}
+}
+
+func mustFundamentals(t *testing.T, svc *stocks.Service, ticker string) stocks.Fundamentals {
+	t.Helper()
+	f, err := svc.Fundamentals(context.Background(), ticker)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return f
+}
+
+func ptr[T any](v T) *T { return &v }
