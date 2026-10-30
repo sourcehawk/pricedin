@@ -37,6 +37,22 @@ function latestSecRun(runs: readonly IngestRun[]): IngestRun | undefined {
     .sort((a, b) => ((a.finishedAt ?? "") < (b.finishedAt ?? "") ? 1 : -1))[0];
 }
 
+/**
+ * unsettledFilingRuns are the filing jobs whose newest run did not succeed.
+ * The status lists only the newest run of each job, so an earlier success
+ * of such a job, which can be newer than latestSecRun, is not visible.
+ */
+function unsettledFilingRuns(runs: readonly IngestRun[]): IngestRun[] {
+  return runs.filter((r) => filingJobs.has(r.job) && r.status !== "succeeded");
+}
+
+function runState(r: IngestRun): string {
+  if (r.abandoned) {
+    return "was abandoned";
+  }
+  return r.status === "running" ? "is still running" : "failed";
+}
+
 function LoadForm() {
   const id = useId();
   const [ticker, setTicker] = useState("");
@@ -112,6 +128,7 @@ export function DataPage() {
   const { profile } = useStock();
   const s = status.data;
   const sec = s === undefined ? undefined : latestSecRun(s.ingestRuns);
+  const unsettled = s === undefined ? [] : unsettledFilingRuns(s.ingestRuns);
   const stock = profile.data;
   return (
     <main>
@@ -139,6 +156,12 @@ export function DataPage() {
                 {stock?.freshness.latestFiled != null &&
                   `; latest ${stock.ticker.symbol} filing ${stock.freshness.latestFiled}`}
               </span>
+              {unsettled.map((r) => (
+                <span key={r.id} className="small warnc" style={{ display: "block" }}>
+                  The newest {r.job} run {runState(r)}, so the filings can be newer than this date
+                  shows.
+                </span>
+              ))}
             </div>
             <div className="tile">
               <span className="eyebrow">Prices</span>

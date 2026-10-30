@@ -64,6 +64,14 @@ describe("DataPage", () => {
     expect(tile).toHaveTextContent("last read by sec-bulk");
   });
 
+  it("says when the newest run of a filing job did not succeed", async () => {
+    renderWithStock(<DataPage />);
+    const tile = (await screen.findByText("SEC filings")).closest(".tile");
+    expect(tile).toHaveTextContent(
+      "The newest sec-daily run failed, so the filings can be newer than this date shows.",
+    );
+  });
+
   it("marks a run that a dead process left behind", async () => {
     renderWithStock(<DataPage />);
     const row = await screen.findByRole("row", { name: /prices-backfill/ });
