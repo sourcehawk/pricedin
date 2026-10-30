@@ -254,6 +254,9 @@ type rawIndex struct {
 	// oldest first.
 	extras     map[string][]rawFile
 	extraNames map[domain.CIK][]string
+	// failedExtras holds the error of each copy of an extra file that
+	// failed in this run, so that it counts once.
+	failedExtras map[string]error
 	// firstSubmitted holds the retrieval day of the oldest submissions file
 	// of each company, and tickerMaps the SEC ticker map files, oldest
 	// first, also those that Since or CIK leave out.
@@ -300,12 +303,14 @@ func (r *Runner) reprocess(ctx context.Context, opts ReprocessOptions) (Reproces
 		}
 	}
 	seen := map[string]bool{}
+	failedExtras := map[string]error{}
 	items := 0
 	for pass := 0; pass < reprocessPasses; pass++ {
 		idx, n, err := r.indexRaw(ctx, opts, cikSymbols, seen, &res, &fails)
 		if err != nil {
 			return res, err
 		}
+		idx.failedExtras = failedExtras
 		items += n
 		if pass > 0 && len(idx.units) == 0 {
 			break
@@ -556,14 +561,20 @@ func compareFetches(a, b *rawFetch) int {
 }
 
 // extraVersions identifies the versions of the extra submissions files of
-// cik that a submissions file of day loads.
+// cik that a submissions file of day can load.
 func (idx *rawIndex) extraVersions(cik domain.CIK, day domain.Date) string {
 	names := slices.Sorted(slices.Values(idx.extraNames[cik]))
 	parts := make([]string, 0, len(names))
 	for _, name := range slices.Compact(names) {
-		if v, ok := nearestVersion(idx.extras[name], day); ok {
-			parts = append(parts, name+"/"+v.sha)
+		copies := nearestVersions(idx.extras[name], day)
+		if len(copies) == 0 {
+			continue
 		}
+		shas := make([]string, len(copies))
+		for i := range copies {
+			shas[i] = copies[i].sha
+		}
+		parts = append(parts, name+"/"+strings.Join(shas, "+"))
 	}
 	return strings.Join(parts, ",")
 }
@@ -828,7 +839,7 @@ func (r *Runner) reprocessSubmissions(ctx context.Context, idx *rawIndex, u *raw
 	found := false
 	for _, f := range u.fetches {
 		for i := range f.files {
-			sub, err := r.readSubmissions(ctx, idx, f.files[i])
+			sub, err := r.readSubmissions(ctx, idx, f.files[i], res, fails)
 			if err != nil {
 				if err := r.versionFailed(ctx, f, 1, err, &out, fails); err != nil {
 					return out, err
@@ -1177,10 +1188,9 @@ func (r *Runner) readPages(ctx context.Context, files []rawFile, failed func(*ra
 }
 
 // readSubmissions decodes a stored submissions file with the filings of
-// the extra files that it lists. For each extra file, it takes the
-// version of the same day, else the newest earlier one, else the oldest
-// later one.
-func (r *Runner) readSubmissions(ctx context.Context, idx *rawIndex, file rawFile) (sec.Submissions, error) {
+// the extra files that it lists. It returns an error when an extra file
+// is not stored or no copy of it loads.
+func (r *Runner) readSubmissions(ctx context.Context, idx *rawIndex, file rawFile, res *ReprocessResult, fails *failures) (sec.Submissions, error) {
 	body, err := r.readRaw(ctx, file.key)
 	if err != nil {
 		return sec.Submissions{}, err
@@ -1190,15 +1200,11 @@ func (r *Runner) readSubmissions(ctx context.Context, idx *rawIndex, file rawFil
 		return sec.Submissions{}, err
 	}
 	for _, name := range sub.Files {
-		extra, ok := nearestVersion(idx.extras[name], file.day)
-		if !ok {
+		copies := nearestVersions(idx.extras[name], file.day)
+		if len(copies) == 0 {
 			return sec.Submissions{}, fmt.Errorf("%w: the extra submissions file %s is not stored", errIncomplete, name)
 		}
-		body, err := r.readRaw(ctx, extra.key)
-		if err != nil {
-			return sec.Submissions{}, err
-		}
-		filings, err := sec.ParseSubmissionsFile(sub.Company.CIK, body)
+		filings, err := r.readExtra(ctx, idx, sub.Company.CIK, copies, res, fails)
 		if err != nil {
 			return sec.Submissions{}, fmt.Errorf("%s: %w", name, err)
 		}
@@ -1207,23 +1213,76 @@ func (r *Runner) readSubmissions(ctx context.Context, idx *rawIndex, file rawFil
 	return sub, nil
 }
 
-// nearestVersion picks from versions, oldest first, the one of day, else
-// the newest earlier one, else the oldest later one.
-func nearestVersion(versions []rawFile, day domain.Date) (rawFile, bool) {
-	pick := -1
-	for i := range versions {
-		if versions[i].day.After(day) {
-			if pick < 0 {
-				return versions[i], true
-			}
-			break
+// readExtra returns the filings of the first of copies, which are copies
+// of one extra submissions file of cik, that loads. It records in res and
+// fails each copy that fails, once a run, and returns the error of the
+// last when none loads.
+func (r *Runner) readExtra(ctx context.Context, idx *rawIndex, cik domain.CIK, copies []rawFile, res *ReprocessResult, fails *failures) ([]domain.Filing, error) {
+	var lastErr error
+	for i := range copies {
+		key := copies[i].key
+		if failed, ok := idx.failedExtras[key]; ok {
+			lastErr = failed
+			continue
 		}
-		pick = i
+		body, err := r.readRaw(ctx, key)
+		var filings []domain.Filing
+		if err == nil {
+			filings, err = sec.ParseSubmissionsFile(cik, body)
+		}
+		if err == nil {
+			return filings, nil
+		}
+		if ctx.Err() != nil {
+			return nil, err
+		}
+		lastErr = err
+		idx.failedExtras[key] = err
+		res.Failed++
+		fails.add(key, err)
+		r.logger.WarnContext(ctx, "ingest: reprocess failed to load a copy of an extra submissions file", "key", key, "error", err.Error())
 	}
-	if pick < 0 {
-		return rawFile{}, false
+	return nil, lastErr
+}
+
+// nearestVersions returns from versions, oldest first, the copies of the
+// day that a submissions file of day loads, in the order to try them. The
+// day is day itself, else the next day, else the newest earlier day, else
+// the oldest later day. A fetch that goes on past midnight UTC stores its
+// extra files on the next day. It returns nil when versions is empty.
+func nearestVersions(versions []rawFile, day domain.Date) []rawFile {
+	const (
+		later = iota + 1
+		earlier
+		next
+		same
+	)
+	var pick domain.Date
+	rank := 0
+	for i := range versions {
+		d := versions[i].day
+		got := later
+		switch {
+		case d == day:
+			got = same
+		case d == day.AddDays(1):
+			got = next
+		case d.Before(day):
+			got = earlier
+		}
+		// The first later day is the oldest, and the last earlier day the
+		// newest.
+		if got > rank || (got == earlier && rank == earlier) {
+			pick, rank = d, got
+		}
 	}
-	return versions[pick], true
+	var out []rawFile
+	for i := len(versions) - 1; i >= 0; i-- {
+		if rank > 0 && versions[i].day == pick {
+			out = append(out, versions[i])
+		}
+	}
+	return out
 }
 
 // reprocessArchive stores the facts of the companies that want accepts
