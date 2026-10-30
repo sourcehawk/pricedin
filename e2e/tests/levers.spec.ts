@@ -45,6 +45,7 @@ test("the target return, the holding period and the starting point change the re
   expect((await savedLevers(page)).holdingYears).toBe(2);
   await expectPricedInMatchesApi(page, api);
   await press(r.getByRole("group", { name: "Holding period" }), "5Y");
+  expect((await savedLevers(page)).holdingYears).toBe(5);
   await expectPricedInMatchesApi(page, api);
 
   await enter(r.getByLabel("Share price ($)"), "150");
@@ -75,6 +76,7 @@ test("every exit P/E mode, the custom value and the typical P/E look-back give t
   await enter(lever(page, "typicalPeMonths").locator("input"), "24");
   expect((await savedLevers(page)).exitPe.trailingMonths).toBe(24);
   await press(modes, "Trailing");
+  expect((await savedLevers(page)).exitPe.mode).toBe("trailing");
   await expectPricedInMatchesApi(page, api);
 
   // The slider and the text field both set a custom exit P/E.
@@ -129,6 +131,7 @@ test("every growth baseline mode, custom rates year by year and the trajectory f
 
   // Typing into the baseline field sets a flat custom rate from any mode.
   await press(modes, "Weighted");
+  expect((await savedLevers(page)).baseline.mode).toBe("weighted");
   await enter(
     baseline.getByLabel("Growth baseline, percent a year; typing sets a custom rate"),
     "9.5",
@@ -155,6 +158,13 @@ test("Reset inputs restores every default, and a new stock keeps only the target
     await enter(r.getByLabel("Share price ($)"), "200");
     await press(exitModes, "Today");
     await press(baselineModes, "Trailing");
+    expect(await savedLevers(page)).toMatchObject({
+      targetReturn: 0.12,
+      holdingYears: 5,
+      price: 200,
+      exitPe: { mode: "today" },
+      baseline: { mode: "trailing" },
+    });
   };
   const expectDefaultsFor = async (ticker: string, target: string, years: string) => {
     const close = (await api.profile(ticker)).latestClose?.value;
