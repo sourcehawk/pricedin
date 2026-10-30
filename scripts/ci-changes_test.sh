@@ -87,6 +87,12 @@ check "the CI verdict script runs everything" "$every" "scripts/ci-ok.sh
 "
 check "an unknown path runs everything" "$every" "go.work
 "
+check "a local action runs everything" "$every" ".github/actions/setup/action.yml
+"
+check "the code owners file runs lint only" "$none" ".github/CODEOWNERS
+"
+check ".gitattributes runs everything" "$every" ".gitattributes
+"
 check "a last line without a newline counts" "$web_e2e" "docs/a.md
 web/package.json"
 check "all runs everything" "$every" "docs/a.md

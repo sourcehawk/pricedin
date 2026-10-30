@@ -29,8 +29,8 @@ else
 	while IFS= read -r path || [ -n "$path" ]; do
 		case $path in
 		"") ;;
-		# A change to the tools, the build or CI itself can break any job.
-		.tool-versions | Makefile | renovate.json | .github/workflows/* | scripts/ci-changes.sh | scripts/ci-ok.sh)
+		# The tools, the build, CI and the git text attributes can break any job.
+		.tool-versions | Makefile | renovate.json | .gitattributes | .github/workflows/* | scripts/ci-changes.sh | scripts/ci-ok.sh)
 			everything
 			;;
 		# The Go engine and the web engine both test against these cases.
@@ -45,7 +45,7 @@ else
 		# The integration tests run the SQL of deploy/sql.
 		deploy/sql/* | tools/price-fixtures/* | tools/sec-fixtures/*) go=true ;;
 		# Only the lint job reads these.
-		*.md | docs/* | prototype/* | .claude/* | .github/* | deploy/fly/* | tools/engine-oracle/* | scripts/deploy-gate*.sh | scripts/ci-*_test.sh | .editorconfig | .env.example | .gitattributes | .gitignore | .prettierignore | .prettierrc.json) ;;
+		*.md | docs/* | prototype/* | .claude/* | .github/CODEOWNERS | deploy/fly/* | tools/engine-oracle/* | scripts/deploy-gate*.sh | scripts/ci-*_test.sh | .editorconfig | .env.example | .gitignore | .prettierignore | .prettierrc.json) ;;
 		*) everything ;;
 		esac
 	done
