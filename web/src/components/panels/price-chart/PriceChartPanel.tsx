@@ -25,6 +25,7 @@ import { bandsStep, priceSteps } from "./steps";
 
 const ranges: readonly ChartRange[] = ["6M", "1Y", "3Y"];
 const walkthroughId = "price-chart";
+const everyOverlay: ReadonlySet<OverlayKey> = new Set(allOverlays);
 
 const vsWords = { at: "right at", above: "above", below: "below" } as const;
 
@@ -85,9 +86,9 @@ export function PriceChartPanel() {
   const ticker = history.ticker;
   const [stored, setStored] = useView<readonly string[]>(overlaysView, defaultOverlays);
   // The walkthrough shows every overlay without changing the user's choice.
-  const [tourShown, setTourShown] = useState<ReadonlySet<OverlayKey> | null>(null);
+  const [touring, setTouring] = useState(false);
   const storedSet = useMemo(() => overlaySet(stored), [stored]);
-  const shown = tourShown ?? storedSet;
+  const shown = touring ? everyOverlay : storedSet;
   const [hoverBand, setHoverBand] = useState<number | null>(null);
   const [hover] = useState(createHoverStore);
   const { active } = useWalkthrough();
@@ -105,11 +106,7 @@ export function PriceChartPanel() {
   );
 
   const onToggle = (k: OverlayKey) => {
-    if (tourShown !== null) {
-      setTourShown(toggled(tourShown, k));
-    } else {
-      setStored([...toggled(storedSet, k)]);
-    }
+    setStored([...toggled(storedSet, k)]);
   };
 
   const walkthrough = (
@@ -121,9 +118,9 @@ export function PriceChartPanel() {
       watchOut="The lines other than the price are stretched to fill the chart, so compare their direction and timing, not their heights. The two 12-month lines are the exception. In a 6M or 1Y range, EPS changes only a few times, so the correlation rests on few reports. Treat it as a hint, not proof."
       steps={steps}
       onStart={() => {
-        setTourShown(new Set(allOverlays));
+        setTouring(true);
         return () => {
-          setTourShown(null);
+          setTouring(false);
         };
       }}
     />
@@ -191,10 +188,11 @@ export function PriceChartPanel() {
           <InfoTip label="About the price–earnings link">
             <b>Price–earnings link</b>
             The correlation between the two 12-month lines, on a scale from −1 to +1. It answers:
-            when earnings growth sped up or slowed down, did the price follow? Strong (0.6 or more):
-            yes, earnings drive this stock. Moderate (0.3 to 0.6): partly. Weak (below 0.3): the
-            price moved for other reasons, such as market mood or interest rates. Negative: they
-            tended to move in opposite directions.
+            when earnings growth sped up or slowed down, did the price change move with it? Strong
+            (0.6 or more): it closely tracked earnings growth. Moderate (0.3 to 0.6): in part. Weak
+            (below 0.3): hardly, so look for other drivers, such as market mood or interest rates.
+            Negative: they tended to move in opposite directions. A correlation does not show what
+            caused the moves.
           </InfoTip>
         </>
       )}
@@ -211,7 +209,13 @@ export function PriceChartPanel() {
 
   return (
     <Panel id="price-chart" title="Price" sub={sub} actions={rangeSwitch} className="chart">
-      <Chips points={chart.points} hover={hover} shown={shown} onToggle={onToggle} />
+      <Chips
+        points={chart.points}
+        hover={hover}
+        shown={shown}
+        locked={touring}
+        onToggle={onToggle}
+      />
       {shown.has("bands") && <BandCaption chart={chart} lifted={lifted} />}
       <div className={["px", styles.plot, lifted === null ? "" : "band-hover"].join(" ").trim()}>
         <PricePlot

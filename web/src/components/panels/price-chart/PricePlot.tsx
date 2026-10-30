@@ -1,6 +1,14 @@
 "use client";
 
-import { useId, useMemo, useRef, type CSSProperties } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
 import { signedPct, times, usd } from "@/components/format";
 import { useTip, useTipHandlers } from "@/components/tip/TipProvider";
 import type { Chart, ChartPoint, ShareEvent } from "@/engine";
@@ -27,6 +35,7 @@ import {
 } from "./geometry";
 import type { HoverStore } from "./hover";
 import type { OverlayKey } from "./overlays";
+import styles from "./PriceChart.module.css";
 
 /** Marker is a share-count event with the filing that reports its share count, when known. */
 export interface Marker {
@@ -115,10 +124,11 @@ function draw(chart: Chart, bandsOn: boolean) {
     if (pair !== null) {
       shade = shadePath(runs.get(pair.upper) ?? [], runs.get(pair.lower) ?? []);
     }
+    // A band whose TTM EPS stops being positive ends before the right edge.
     const ends: { multiple: number; y: number }[] = [];
     for (const [multiple, r] of runs) {
       const end = r.at(-1)?.at(-1);
-      if (end !== undefined) {
+      if (end !== undefined && end[0] === lastX) {
         ends.push({ multiple, y: end[1] });
       }
     }
@@ -238,6 +248,24 @@ function DayTip({ p, shown }: { p: ChartPoint; shown: ReadonlySet<OverlayKey> })
   );
 }
 
+/** dayLine is the day's values as one sentence, for the screen reader. */
+function dayLine(p: ChartPoint, shown: ReadonlySet<OverlayKey>): string {
+  const parts = [`close ${usd(p.close)}`];
+  if (shown.has("eps")) {
+    parts.push(`TTM EPS ${usd(p.ttmEps)}`);
+  }
+  if (shown.has("pe")) {
+    parts.push(`P/E ${times(p.pe.value)}`);
+  }
+  if (shown.has("r12")) {
+    parts.push(`price change 12M ${signedPct(p.priceChange12m.value)}`);
+  }
+  if (shown.has("g12")) {
+    parts.push(`EPS growth 12M ${signedPct(p.epsGrowth12m.value)}`);
+  }
+  return `${dayLabel(p.date)}: ${parts.join(", ")}`;
+}
+
 function shares(n: number): string {
   return n >= 1e9 ? `${(n / 1e9).toFixed(2)}B` : `${(n / 1e6).toFixed(1)}M`;
 }
@@ -247,6 +275,10 @@ function MarkerMark({ m, x }: { m: Marker; x: number }) {
   const dilution = e.kind === "dilution";
   const color = dilution ? "var(--bad)" : "var(--good)";
   const change = signedPct(e.change, 1);
+  const tip = useTip();
+  const [node, setNode] = useState<Element | null>(null);
+  // A tap on a link opens it at once, so the first tap only shows the tip.
+  const tapOpen = useRef<boolean | null>(null);
   const handlers = useTipHandlers(() => (
     <>
       <b>
@@ -266,7 +298,7 @@ function MarkerMark({ m, x }: { m: Marker; x: number }) {
         {dilution
           ? "Each share now owns a smaller part of the profit, so EPS grows slower than profit."
           : "Each remaining share owns a larger part of the profit, so EPS grows faster than profit."}
-        {m.href !== null && " Click to open the filing."}
+        {m.href !== null && " Click, or tap again, to open the filing."}
       </div>
     </>
   ));
@@ -305,6 +337,20 @@ function MarkerMark({ m, x }: { m: Marker; x: number }) {
         data-walk="events"
         aria-label={label}
         {...handlers}
+        ref={(el) => {
+          handlers.ref(el);
+          setNode(el);
+        }}
+        onPointerDown={(ev) => {
+          tapOpen.current = ev.pointerType === "touch" ? tip.owner === node : null;
+          handlers.onPointerDown(ev);
+        }}
+        onClick={(ev) => {
+          if (tapOpen.current === false) {
+            ev.preventDefault();
+          }
+          handlers.onClick(ev);
+        }}
       >
         {body}
       </a>
@@ -351,16 +397,44 @@ export function PricePlot({
   const specs = dotSpecs(g);
   const nearest = chart.bands.value?.nearest.value ?? null;
 
-  const clear = () => {
+  const live = useRef<HTMLParagraphElement>(null);
+  const hideTip = tip.hide;
+
+  const clear = useCallback(() => {
     hover.set(null);
     guide.current?.setAttribute("visibility", "hidden");
     for (const d of dots.current) {
       d?.setAttribute("visibility", "hidden");
     }
     if (svg.current !== null) {
-      tip.hide(svg.current);
+      hideTip(svg.current);
     }
-  };
+  }, [hover, hideTip]);
+
+  // The hovered index means another day once the days change.
+  const days = `${ticker} ${chart.start} ${chart.end} ${String(chart.points.length)}`;
+  useEffect(() => {
+    clear();
+  }, [days, clear]);
+
+  // A tapped day stays after the finger lifts, until a tap elsewhere.
+  useEffect(() => {
+    const onDown = (e: PointerEvent) => {
+      const own = svg.current;
+      if (
+        own !== null &&
+        e.target instanceof Node &&
+        !own.contains(e.target) &&
+        hover.get() !== null
+      ) {
+        clear();
+      }
+    };
+    document.addEventListener("pointerdown", onDown);
+    return () => {
+      document.removeEventListener("pointerdown", onDown);
+    };
+  }, [clear, hover]);
 
   const showDay = (i: number, at: { x: number; y: number }) => {
     const p = chart.points[i];
@@ -447,6 +521,10 @@ export function PricePlot({
     const b = e.currentTarget.getBoundingClientRect();
     const cx = g.xs[i] ?? left;
     showDay(i, { x: b.left + (cx / width) * b.width, y: b.top + b.height * 0.3 });
+    const p = chart.points[i];
+    if (live.current !== null && p !== undefined) {
+      live.current.textContent = dayLine(p, shown);
+    }
   };
 
   const bandOf = (t: EventTarget): number | null => {
@@ -697,37 +775,42 @@ export function PricePlot({
   );
 
   return (
-    <svg
-      ref={svg}
-      viewBox={`0 0 ${String(width)} ${String(height)}`}
-      role="group"
-      aria-label={`${ticker} price chart. The arrow keys, Home and End move through the days.`}
-      tabIndex={0}
-      onPointerMove={onPointer}
-      onPointerDown={onPointer}
-      onPointerLeave={() => {
-        clear();
-        onBand(null);
-      }}
-      onPointerOver={(e) => {
-        const m = bandOf(e.target);
-        if (m !== null) {
-          onBand(m);
-        }
-      }}
-      onPointerOut={(e) => {
-        if (bandOf(e.target) !== null) {
+    <>
+      <svg
+        ref={svg}
+        viewBox={`0 0 ${String(width)} ${String(height)}`}
+        role="group"
+        aria-label={`${ticker} price chart. The arrow keys, Home and End move through the days.`}
+        tabIndex={0}
+        onPointerMove={onPointer}
+        onPointerDown={onPointer}
+        onPointerLeave={(e) => {
+          if (e.pointerType !== "touch") {
+            clear();
+          }
           onBand(null);
-        }
-      }}
-      onKeyDown={onKeyDown}
-      onBlur={(e) => {
-        if (e.target === e.currentTarget) {
-          clear();
-        }
-      }}
-    >
-      {content}
-    </svg>
+        }}
+        onPointerOver={(e) => {
+          const m = bandOf(e.target);
+          if (m !== null) {
+            onBand(m);
+          }
+        }}
+        onPointerOut={(e) => {
+          if (bandOf(e.target) !== null) {
+            onBand(null);
+          }
+        }}
+        onKeyDown={onKeyDown}
+        onBlur={(e) => {
+          if (e.target === e.currentTarget) {
+            clear();
+          }
+        }}
+      >
+        {content}
+      </svg>
+      <p ref={live} className={styles.srOnly} role="status" />
+    </>
   );
 }

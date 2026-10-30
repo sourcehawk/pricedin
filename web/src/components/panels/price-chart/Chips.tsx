@@ -36,11 +36,13 @@ function PriceChip({ p }: { p: ChartPoint }) {
 function Chip({
   o,
   on,
+  locked,
   p,
   onToggle,
 }: {
   o: Overlay & { key: OverlayKey };
   on: boolean;
+  locked: boolean;
   p: ChartPoint;
   onToggle: (key: OverlayKey) => void;
 }) {
@@ -48,17 +50,22 @@ function Chip({
     <>
       <b>{o.name}</b>
       {o.tip}
-      <div className="tm">Click to show or hide.</div>
+      <div className="tm">
+        {locked ? "Every line stays on during the walkthrough." : "Click to show or hide."}
+      </div>
     </>
   ));
   return (
     <button
       type="button"
       aria-pressed={on}
+      aria-disabled={locked}
       {...handlers}
       onClick={(e) => {
         handlers.onClick(e);
-        onToggle(o.key);
+        if (!locked) {
+          onToggle(o.key);
+        }
       }}
     >
       <Sample o={o} />
@@ -71,16 +78,19 @@ function Chip({
 /**
  * Chips are the legend of the price chart and its toggles. Each shows its
  * line's value on the hovered day, or on the last day when none is hovered.
+ * While locked, a click does not call onToggle.
  */
 export function Chips({
   points,
   hover,
   shown,
+  locked,
   onToggle,
 }: {
   points: readonly ChartPoint[];
   hover: HoverStore;
   shown: ReadonlySet<OverlayKey>;
+  locked: boolean;
   onToggle: (key: OverlayKey) => void;
 }) {
   const i = useSyncExternalStore(hover.subscribe, hover.get, hover.get);
@@ -92,7 +102,7 @@ export function Chips({
     <div className="chips" role="group" aria-label="Lines on the price chart">
       <PriceChip p={p} />
       {overlays.map((o) => (
-        <Chip key={o.key} o={o} on={shown.has(o.key)} p={p} onToggle={onToggle} />
+        <Chip key={o.key} o={o} on={shown.has(o.key)} locked={locked} p={p} onToggle={onToggle} />
       ))}
       <InfoTip label="About overlays">
         <b>Lines on the chart</b>
@@ -100,8 +110,9 @@ export function Chips({
         so you can compare shapes, so read their values from the chips or by hovering. Price change,
         12M: how much the share price moved over the past year. EPS growth, 12M: how much TTM EPS
         grew over the same year. These two share one scale, and the faint line is their 0%. When
-        price change runs above EPS growth, the P/E went up. Comparing 12-month changes instead of
-        levels avoids a false link: two things that both trend up always look correlated.
+        price change runs above EPS growth, the P/E went up, as long as TTM EPS stayed positive.
+        Comparing 12-month changes instead of levels avoids a false link: two things that both trend
+        up always look correlated.
       </InfoTip>
     </div>
   );

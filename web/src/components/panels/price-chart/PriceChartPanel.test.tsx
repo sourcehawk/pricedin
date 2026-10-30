@@ -31,6 +31,18 @@ const chip = (name: RegExp) => within(chips()).getByRole("button", { name });
 const chart = () => screen.getByRole("group", { name: /GRMN price chart/ });
 const walk = (key: string) => panel().querySelectorAll(`[data-walk~="${key}"]`);
 
+/** pointer fires a pointer event of type with the pointer type; jsdom has no PointerEvent. */
+function pointer(
+  el: Element | Document,
+  type: string,
+  pointerType: string,
+  init: MouseEventInit = {},
+) {
+  const e = new MouseEvent(type, { bubbles: true, cancelable: true, ...init });
+  Object.defineProperty(e, "pointerType", { value: pointerType });
+  return fireEvent(el, e);
+}
+
 /** The chart draws in a 760-unit-wide view box; a 760 px box maps client x to view box x. */
 function sizeChart() {
   const svg = chart();
@@ -130,6 +142,42 @@ describe("PriceChartPanel", () => {
     expect(within(chips()).getByText("Price").parentElement).toHaveTextContent("$102.00");
   });
 
+  it("announces the day that the arrow keys select, and not the hovered day", async () => {
+    await renderReady(<PriceChartPanel />);
+    const status = within(panel()).getByRole("status");
+    const svg = sizeChart();
+    pointer(svg, "pointermove", "mouse", { clientX: 50, clientY: 100 });
+    expect(status).toHaveTextContent(/^$/);
+    pointer(svg, "pointerout", "mouse");
+    svg.focus();
+    await userEvent.keyboard("{ArrowLeft}");
+    expect(status).toHaveTextContent("29 Sep 2026: close $267.47, TTM EPS $10.50, P/E 25.5×");
+  });
+
+  it("keeps a tapped day after the finger lifts, until a tap elsewhere", async () => {
+    await renderReady(<PriceChartPanel />);
+    const svg = sizeChart();
+    const guide = screen.getByTestId("price-guide");
+    pointer(svg, "pointerdown", "touch", { clientX: 50, clientY: 100 });
+    pointer(svg, "pointerout", "touch");
+    expect(guide).toHaveAttribute("visibility", "visible");
+    expect(within(chips()).getByText("Price").parentElement).toHaveTextContent("$102.00");
+    pointer(document.body, "pointerdown", "touch");
+    expect(guide).toHaveAttribute("visibility", "hidden");
+    expect(within(chips()).getByText("Price").parentElement).toHaveTextContent("$270.00");
+  });
+
+  it("drops the hovered day when the range changes", async () => {
+    await renderReady(<PriceChartPanel />);
+    pointer(sizeChart(), "pointermove", "mouse", { clientX: 50, clientY: 100 });
+    fireEvent.click(within(panel()).getByRole("button", { name: "1Y" }));
+    await waitFor(() => {
+      expect(within(panel()).getByTestId("price-sub")).toHaveTextContent(/^1Y: /);
+    });
+    expect(screen.getByTestId("price-guide")).toHaveAttribute("visibility", "hidden");
+    expect(within(chips()).getByText("Price").parentElement).toHaveTextContent("$270.00");
+  });
+
   it("switches the range", async () => {
     await renderReady(<PriceChartPanel />);
     const oneYear = within(panel()).getByRole("button", { name: "1Y" });
@@ -210,6 +258,17 @@ describe("PriceChartPanel", () => {
       );
     });
 
+    it("labels only the bands that reach the last day", async () => {
+      const daily = historyFixture.history.daily;
+      serveHistory({
+        ...historyFixture.history,
+        daily: daily.map((d, i) => (i >= daily.length - 3 ? { ...d, ttmEps: -1 } : d)),
+      });
+      await withBands();
+      expect(chart().querySelectorAll(".bline").length).toBeGreaterThan(0);
+      expect(within(chart()).queryAllByRole("img", { name: / band:/ })).toHaveLength(0);
+    });
+
     it("says why there are no bands without a positive TTM EPS", async () => {
       serveHistory({
         ...historyFixture.history,
@@ -263,6 +322,26 @@ describe("PriceChartPanel", () => {
       expect(marker.innerHTML).not.toContain("var(--good)");
     });
 
+    it("shows the share counts on the first tap and opens the filing on the second", async () => {
+      apiServer.use(
+        http.get(apiUrl("/api/v1/stocks/:ticker/history"), () =>
+          HttpResponse.json({
+            ...historyFixture,
+            quarters: historyFixture.quarters.map((q) =>
+              q.label === "Q4 FY25" && q.eps !== null ? { ...q, dilutedShares: q.eps } : q,
+            ),
+          }),
+        ),
+      );
+      await renderReady(<PriceChartPanel />);
+      const marker = within(chart()).getByRole("link", { name: /^Q4 FY25: buyback/ });
+      pointer(marker, "pointerdown", "touch");
+      expect(fireEvent.click(marker)).toBe(false);
+      expect(screen.getByRole("tooltip")).toHaveTextContent("Shares195.9M → 191.7M");
+      pointer(marker, "pointerdown", "touch");
+      expect(fireEvent.click(marker)).toBe(true);
+    });
+
     it("hides with its chip", async () => {
       await renderReady(<PriceChartPanel />);
       await userEvent.click(chip(/^Share changes/));
@@ -304,6 +383,14 @@ describe("PriceChartPanel", () => {
       expect(chip(/^P\/E bands/)).toHaveAttribute("aria-pressed", "false");
     });
 
+    it("keeps every overlay on while it runs, whatever chip is clicked", async () => {
+      await start();
+      expect(chip(/^TTM EPS/)).toHaveAttribute("aria-disabled", "true");
+      fireEvent.click(chip(/^TTM EPS/));
+      expect(walk("eps")).toHaveLength(1);
+      expect(chip(/^TTM EPS/)).toHaveAttribute("aria-pressed", "true");
+    });
+
     it("highlights the price line first, with the user's numbers", async () => {
       const card = await start();
       expect(card).toHaveTextContent("step 1 of 10");
@@ -319,7 +406,7 @@ describe("PriceChartPanel", () => {
       await next(card, 6);
       expect(card).toHaveTextContent("Use the P/E bands");
       expect(card).toHaveTextContent(
-        "is the 25× band, the one closest to today's P/E. Over 3Y the P/E went from 16× to 25×. The price climbed across the 17.5×, 20×, 22.5× lines",
+        "is the 25× band, the one closest to today's P/E. Over 3Y the P/E went from 16× to 25×. Between the first and the last day it moved up past the 17.5×, 20×, 22.5× lines",
       );
       expect(chart().querySelector('[data-bm="25"].bline')).toHaveClass("bh");
       expect(within(panel()).getByTestId("band-caption")).toHaveAttribute("data-thl");
