@@ -14,10 +14,7 @@ import (
 	"github.com/sourcehawk/pricedin/server/internal/sec"
 )
 
-const (
-	companyFactsZip = "www.sec.gov/Archives/edgar/daily-index/xbrl/companyfacts.zip"
-	submissionsZip  = "www.sec.gov/Archives/edgar/daily-index/bulkdata/submissions.zip"
-)
+const companyFactsZip = "www.sec.gov/Archives/edgar/daily-index/xbrl/companyfacts.zip"
 
 func buildZip(t *testing.T, files map[string]string) *bytes.Reader {
 	t.Helper()
@@ -207,65 +204,6 @@ func TestReadCompanyFactsArchiveRejectsBadEntries(t *testing.T) {
 func TestReadCompanyFactsArchiveRejectsAFileThatIsNotAZip(t *testing.T) {
 	r := bytes.NewReader([]byte("not a zip"))
 	if err := sec.ReadCompanyFactsArchive(r, r.Size(), func(domain.CIK, []domain.Fact) error { return nil }); err == nil {
-		t.Error("error = nil, want an error")
-	}
-}
-
-func TestReadSubmissionsArchiveJoinsTheExtraFiles(t *testing.T) {
-	body := readFixture(t, submissionsZip)
-	got := map[domain.CIK]sec.Submissions{}
-	err := sec.ReadSubmissionsArchive(bytes.NewReader(body), int64(len(body)), func(sub sec.Submissions) error {
-		got[sub.Company.CIK] = sub
-		return nil
-	})
-	if err != nil {
-		t.Fatalf("ReadSubmissionsArchive() error = %v", err)
-	}
-	if len(got) != 2 {
-		t.Fatalf("calls = %d, want 2 (KO and NVDA)", len(got))
-	}
-	// KO: 25 recent filings and 58 + 41 in its two extra files. NVDA: 24
-	// recent and 88 in its extra file.
-	if n := len(got[cikKO].Filings); n != 25+58+41 {
-		t.Errorf("KO filings = %d, want 124", n)
-	}
-	if n := len(got[cikNVDA].Filings); n != 24+88 {
-		t.Errorf("NVDA filings = %d, want 112", n)
-	}
-	if _, ok := findFiling(got[cikNVDA].Filings, "0001012870-99-001954"); !ok {
-		t.Error("NVDA filing of 1999 from the extra file is missing")
-	}
-	if got[cikKO].Company.Name != "COCA COLA CO" {
-		t.Errorf("KO name = %q", got[cikKO].Company.Name)
-	}
-}
-
-func TestReadSubmissionsArchiveRejectsAMissingExtraFile(t *testing.T) {
-	r := buildZip(t, map[string]string{
-		"CIK0000000001.json": `{"cik":"0000000001","filings":{"recent":{},"files":[{"name":"CIK0000000001-submissions-001.json"}]}}`,
-	})
-	err := sec.ReadSubmissionsArchive(r, r.Size(), func(sec.Submissions) error { return nil })
-	if err == nil {
-		t.Error("error = nil, want an error for the missing extra file")
-	}
-}
-
-func TestReadSubmissionsArchiveStopsAtTheCallbackError(t *testing.T) {
-	body := readFixture(t, submissionsZip)
-	stop := errors.New("stop")
-	calls := 0
-	err := sec.ReadSubmissionsArchive(bytes.NewReader(body), int64(len(body)), func(sec.Submissions) error {
-		calls++
-		return stop
-	})
-	if !errors.Is(err, stop) || calls != 1 {
-		t.Errorf("error = %v, calls = %d, want the callback error after 1 call", err, calls)
-	}
-}
-
-func TestReadSubmissionsArchiveRejectsAMainFileOfAnotherCompany(t *testing.T) {
-	r := buildZip(t, map[string]string{"CIK0000000001.json": `{"cik":"0000000002","filings":{"recent":{}}}`})
-	if err := sec.ReadSubmissionsArchive(r, r.Size(), func(sec.Submissions) error { return nil }); err == nil {
 		t.Error("error = nil, want an error")
 	}
 }
