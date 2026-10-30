@@ -34,7 +34,8 @@ CREATE UNIQUE INDEX facts_identity ON facts (
 );
 
 CREATE INDEX facts_cik_concept ON facts (cik, concept, period_end);
-CREATE INDEX facts_filed ON facts (filed);
+-- The latest filing date of a company reads the end of this index.
+CREATE INDEX facts_cik_filed ON facts (cik, filed);
 
 -- +goose StatementBegin
 CREATE FUNCTION facts_reject_change() RETURNS trigger

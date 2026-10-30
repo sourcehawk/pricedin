@@ -112,7 +112,12 @@ func (s *Store) GetLatestFiled(ctx context.Context, cik domain.CIK) (domain.Date
 // ListLatestFiled returns, for each company with stored facts, the latest
 // filing date among them.
 func (s *Store) ListLatestFiled(ctx context.Context) (map[domain.CIK]domain.Date, error) {
-	rows, err := s.db.Query(ctx, `SELECT cik, max(filed) FROM facts GROUP BY cik`)
+	// One index lookup per company, not a scan of every fact.
+	rows, err := s.db.Query(ctx, `
+		SELECT c.cik, l.filed
+		FROM companies c
+		CROSS JOIN LATERAL (SELECT max(f.filed) AS filed FROM facts f WHERE f.cik = c.cik) l
+		WHERE l.filed IS NOT NULL`)
 	if err != nil {
 		return nil, fmt.Errorf("list latest filed: %w", err)
 	}
