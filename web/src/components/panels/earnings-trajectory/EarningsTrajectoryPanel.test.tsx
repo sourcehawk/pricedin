@@ -1,14 +1,30 @@
-import { act, fireEvent, screen, within } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { withApiServer } from "@/api/testing/server";
 import { pct, signedPct, usd } from "@/components/format";
 import type { Paths } from "@/engine";
+import { useLeverDispatch } from "@/state/StockProvider";
 import { renderReady } from "@/testing/render";
 import { EarningsTrajectoryPanel } from "./EarningsTrajectoryPanel";
 import { evaluationProbe, leversWith, WhenReady } from "./testing";
 
 withApiServer();
+
+/** RaiseEps changes the TTM EPS lever without moving the pointer. */
+function RaiseEps() {
+  const dispatch = useLeverDispatch();
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        dispatch({ type: "setStartingPoint", field: "ttmEps", value: 12 });
+      }}
+    >
+      Raise EPS
+    </button>
+  );
+}
 
 async function show(levers = leversWith()) {
   const probe = evaluationProbe();
@@ -17,6 +33,7 @@ async function show(levers = leversWith()) {
       <probe.Probe />
       <div data-lever="exitPe" data-testid="lever-exitPe" />
       <div data-lever="baseline" data-testid="lever-baseline" />
+      <RaiseEps />
       <WhenReady>
         <EarningsTrajectoryPanel />
       </WhenReady>
@@ -140,6 +157,67 @@ describe("EarningsTrajectoryPanel", () => {
     expect(screen.getByRole("tooltip")).toHaveTextContent(paths.history.at(-2)?.label ?? "");
     fireEvent.keyDown(chart, { key: "End" });
     expect(screen.getByRole("tooltip")).toHaveTextContent("3 years out");
+  });
+
+  it("names a ten-year projection in full", async () => {
+    const { chart } = await show(leversWith({ type: "setHoldingYears", value: 10 }));
+    const last = columns(chart).at(-1);
+    if (last === undefined) {
+      throw new Error("no column");
+    }
+    await userEvent.hover(last);
+    expect(screen.getByRole("tooltip")).toHaveTextContent("10 years out");
+  });
+
+  it("updates an open tooltip when a lever changes", async () => {
+    const probe = evaluationProbe();
+    await renderReady(
+      <>
+        <probe.Probe />
+        <RaiseEps />
+        <WhenReady>
+          <EarningsTrajectoryPanel />
+        </WhenReady>
+      </>,
+    );
+    const chart = screen.getByRole("img", { name: /TTM EPS/ });
+    const last = columns(chart).at(-1);
+    if (last === undefined) {
+      throw new Error("no column");
+    }
+    await userEvent.hover(last);
+    fireEvent.click(screen.getByRole("button", { name: "Raise EPS" }));
+    await waitFor(() => {
+      expect(probe.current().earningsPaths.value?.future[0]?.baseline.value).toBe(12);
+    });
+    const end = probe.current().earningsPaths.value?.future.at(-1);
+    expect(screen.getByRole("tooltip")).toHaveTextContent(
+      `Baseline EPS${usd(end?.baseline.value)}`,
+    );
+  });
+
+  it("keeps a tapped tooltip when the finger lifts", async () => {
+    const { chart } = await show();
+    const col = columns(chart)[3];
+    if (col === undefined) {
+      throw new Error("no column");
+    }
+    fireEvent.pointerDown(col, { pointerType: "touch" });
+    fireEvent.pointerLeave(chart, { pointerType: "touch" });
+    expect(screen.getByRole("tooltip")).toBeInTheDocument();
+    expect(guide(chart)).toHaveAttribute("visibility", "visible");
+  });
+
+  it("announces the column values that the arrow keys reach", async () => {
+    const { chart, paths } = await show();
+    act(() => {
+      chart.focus();
+    });
+    fireEvent.keyDown(chart, { key: "ArrowLeft" });
+    const q = paths.history.at(-2);
+    expect(screen.getByRole("status")).toHaveTextContent(
+      `${q?.label ?? ""}Reported TTM EPS${usd(q?.ttmEps.value)}`,
+    );
   });
 
   it("asks for positive EPS instead of drawing the paths", async () => {

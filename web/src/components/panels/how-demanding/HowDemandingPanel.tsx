@@ -275,9 +275,10 @@ function DemandingChart({ d }: { d: Demanding }) {
       </>
     );
   };
-  const { chartProps, layer } = useColumns(
+  const { chartProps, layer, live } = useColumns(
     { count: points.length, x: X, width: (x1 - x0) / tot, y0, y1 },
     tipFor,
+    d,
   );
 
   const rp = points.map((p, i) =>
@@ -301,57 +302,66 @@ function DemandingChart({ d }: { d: Demanding }) {
     `a year; over the last year TTM EPS grew ${signedPct(today?.delivered.value)}.`;
 
   return (
-    <svg viewBox={`0 0 ${String(W)} ${String(H)}`} role="img" aria-label={label} {...chartProps}>
-      <YAxis axis={scale} y={Y} x0={x0} x1={x1} format={(v) => `${String(Math.round(v * 100))}%`} />
-      {points.map((p, i) => {
-        const text = axisLabel(p.label, i, lastIndex);
-        return (
-          text !== null && (
-            <text key={i} x={X(i)} y={y1 + 16} textAnchor="middle">
-              {text}
+    <>
+      <svg viewBox={`0 0 ${String(W)} ${String(H)}`} role="img" aria-label={label} {...chartProps}>
+        <YAxis
+          axis={scale}
+          y={Y}
+          x0={x0}
+          x1={x1}
+          format={(v) => `${String(Math.round(v * 100))}%`}
+        />
+        {points.map((p, i) => {
+          const text = axisLabel(p.label, i, lastIndex);
+          return (
+            text !== null && (
+              <text key={i} x={X(i)} y={y1 + 16} textAnchor="middle">
+                {text}
+              </text>
+            )
+          );
+        })}
+        {scale.min < 0 && <line x1={x0} y1={Y(0)} x2={x1} y2={Y(0)} stroke="var(--muted)" />}
+        <path data-walk="req" d={linePath(rp)} fill="none" stroke={accent} strokeWidth={2.2} />
+        <path data-walk="del" d={linePath(dp)} fill="none" stroke={ink} strokeWidth={2} />
+        {rp.map(
+          (p, i) =>
+            p !== null && (
+              <circle
+                key={i}
+                data-walk={i === lastReq ? "req last" : "req"}
+                cx={p[0]}
+                cy={p[1]}
+                r={i === lastReq ? 4 : 2.6}
+                fill={accent}
+              />
+            ),
+        )}
+        {dp.map(
+          (p, i) =>
+            p !== null && <circle key={i} data-walk="del" cx={p[0]} cy={p[1]} r={2.4} fill={ink} />,
+        )}
+        {peakAt !== null && (
+          <g data-walk="peak">
+            <circle cx={peakAt[0]} cy={peakAt[1]} r={6.5} fill="none" stroke={accent} />
+            <text x={peakAt[0]} y={peakAt[1] - 10} textAnchor="middle" style={{ fill: accent }}>
+              peak
             </text>
-          )
-        );
-      })}
-      {scale.min < 0 && <line x1={x0} y1={Y(0)} x2={x1} y2={Y(0)} stroke="var(--muted)" />}
-      <path data-walk="req" d={linePath(rp)} fill="none" stroke={accent} strokeWidth={2.2} />
-      <path data-walk="del" d={linePath(dp)} fill="none" stroke={ink} strokeWidth={2} />
-      {rp.map(
-        (p, i) =>
-          p !== null && (
-            <circle
-              key={i}
-              data-walk={i === lastReq ? "req last" : "req"}
-              cx={p[0]}
-              cy={p[1]}
-              r={i === lastReq ? 4 : 2.6}
-              fill={accent}
-            />
-          ),
-      )}
-      {dp.map(
-        (p, i) =>
-          p !== null && <circle key={i} data-walk="del" cx={p[0]} cy={p[1]} r={2.4} fill={ink} />,
-      )}
-      {peakAt !== null && (
-        <g data-walk="peak">
-          <circle cx={peakAt[0]} cy={peakAt[1]} r={6.5} fill="none" stroke={accent} />
-          <text x={peakAt[0]} y={peakAt[1] - 10} textAnchor="middle" style={{ fill: accent }}>
-            peak
+          </g>
+        )}
+        {reqEnd !== null && (
+          <text data-walk="req last" x={x1 + 6} y={ya} style={{ fill: accent, fontWeight: 500 }}>
+            {pct(points[lastReq]?.required.value)}
           </text>
-        </g>
-      )}
-      {reqEnd !== null && (
-        <text data-walk="req last" x={x1 + 6} y={ya} style={{ fill: accent, fontWeight: 500 }}>
-          {pct(points[lastReq]?.required.value)}
-        </text>
-      )}
-      {delEnd !== null && (
-        <text data-walk="del" x={x1 + 6} y={yb} style={{ fill: ink }}>
-          {pct(points[lastDel]?.delivered.value)}
-        </text>
-      )}
-      {layer}
-    </svg>
+        )}
+        {delEnd !== null && (
+          <text data-walk="del" x={x1 + 6} y={yb} style={{ fill: ink }}>
+            {pct(points[lastDel]?.delivered.value)}
+          </text>
+        )}
+        {layer}
+      </svg>
+      {live}
+    </>
   );
 }

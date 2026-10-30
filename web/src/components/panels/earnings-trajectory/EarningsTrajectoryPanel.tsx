@@ -30,8 +30,7 @@ function pathsOf(ev: Evaluation): Paths {
 }
 
 function yearsOut(k: number): string {
-  const y = (k / 4).toFixed(k % 4 === 0 ? 0 : 2).replace(/\.?0+$/, "");
-  return `${y} ${k === 4 ? "year" : "years"} out`;
+  return `${String(k / 4)} ${k === 4 ? "year" : "years"} out`;
 }
 
 function signedUsd(v: number | null): string {
@@ -396,9 +395,10 @@ function TrajectoryChart({ paths, years: n }: { paths: Paths; years: number }) {
       </>
     );
   };
-  const { chartProps, layer } = useColumns(
+  const { chartProps, layer, live } = useColumns(
     { count: tot + 1, x: X, width: (x1 - x0) / tot, y0, y1, start: today },
     tipFor,
+    paths,
   );
 
   const hp = history.map((q, i) => pt(i, q.ttmEps.value));
@@ -431,88 +431,91 @@ function TrajectoryChart({ paths, years: n }: { paths: Paths; years: number }) {
       : `the required path reaches ${usd(endReq)}.`);
 
   return (
-    <svg viewBox={`0 0 ${String(W)} ${String(H)}`} role="img" aria-label={label} {...chartProps}>
-      <YAxis axis={scale} y={Y} x0={x0} x1={x1} format={(v) => usd(v, decimals)} />
-      <rect x={xn} y={y0} width={x1 - xn} height={y1 - y0} fill="var(--sunk)" />
-      <line x1={xn} y1={y0} x2={xn} y2={y1} stroke={muted} strokeDasharray="2 3" />
-      <text x={xn + 4} y={y0 + 10} textAnchor="start">
-        today
-      </text>
-      {yearTicks.map((l, i) => {
-        const m = l === null ? null : /^Q1 FY(\d{2})$/.exec(l);
-        if (m === null || (tot > 30 && Number(m[1]) % 2 === 1)) {
-          return null;
-        }
-        return (
-          <text key={i} x={X(i)} y={y1 + 16} textAnchor="middle">
-            FY{m[1]}
-          </text>
-        );
-      })}
-      {shade !== null && tone !== null && (
+    <>
+      <svg viewBox={`0 0 ${String(W)} ${String(H)}`} role="img" aria-label={label} {...chartProps}>
+        <YAxis axis={scale} y={Y} x0={x0} x1={x1} format={(v) => usd(v, decimals)} />
+        <rect x={xn} y={y0} width={x1 - xn} height={y1 - y0} fill="var(--sunk)" />
+        <line x1={xn} y1={y0} x2={xn} y2={y1} stroke={muted} strokeDasharray="2 3" />
+        <text x={xn + 4} y={y0 + 10} textAnchor="start">
+          today
+        </text>
+        {yearTicks.map((l, i) => {
+          const m = l === null ? null : /^Q1 FY(\d{2})$/.exec(l);
+          if (m === null || (tot > 30 && Number(m[1]) % 2 === 1)) {
+            return null;
+          }
+          return (
+            <text key={i} x={X(i)} y={y1 + 16} textAnchor="middle">
+              FY{m[1]}
+            </text>
+          );
+        })}
+        {shade !== null && tone !== null && (
+          <path
+            className={`L-shade ${tone}`}
+            data-walk="shade"
+            d={shade}
+            fill={`color-mix(in srgb, var(--${tone}) 12%, transparent)`}
+          />
+        )}
+        <path data-walk="hist" d={linePath(hp)} fill="none" stroke={ink} strokeWidth={2.2} />
         <path
-          className={`L-shade ${tone}`}
-          data-walk="shade"
-          d={shade}
-          fill={`color-mix(in srgb, var(--${tone}) 12%, transparent)`}
-        />
-      )}
-      <path data-walk="hist" d={linePath(hp)} fill="none" stroke={ink} strokeWidth={2.2} />
-      <path
-        data-walk="base"
-        d={linePath(bp)}
-        fill="none"
-        stroke={muted}
-        strokeWidth={2}
-        strokeDasharray="5 4"
-      />
-      {endReq !== null && (
-        <path
-          data-walk="req"
-          d={linePath(rp)}
+          data-walk="base"
+          d={linePath(bp)}
           fill="none"
-          stroke={accent}
-          strokeWidth={2.2}
+          stroke={muted}
+          strokeWidth={2}
           strokeDasharray="5 4"
         />
-      )}
-      {hp.map(
-        (p, i) =>
-          p !== null && (
-            <circle
-              key={i}
-              data-walk="hist"
-              cx={p[0]}
-              cy={p[1]}
-              r={i === today ? 3.5 : 2.2}
-              fill={ink}
-            />
-          ),
-      )}
-      {future.map((f, k) => {
-        if (k === 0 || k % 4 !== 0) {
-          return null;
-        }
-        const b = bp[k];
-        const r = rp[k];
-        return (
-          <g key={k}>
-            {b && <circle data-walk="base" cx={b[0]} cy={b[1]} r={2.6} fill={muted} />}
-            {r && <circle data-walk="req" cx={r[0]} cy={r[1]} r={2.6} fill={accent} />}
-          </g>
-        );
-      })}
-      {endBase !== null && (
-        <text data-walk="base" x={x1 + 6} y={yb} style={{ fill: muted }}>
-          {usd(endBase)}
-        </text>
-      )}
-      {endReq !== null && (
-        <text data-walk="req" x={x1 + 6} y={yr} style={{ fill: accent, fontWeight: 500 }}>
-          {usd(endReq)}
-        </text>
-      )}
-      {layer}
-    </svg>
+        {endReq !== null && (
+          <path
+            data-walk="req"
+            d={linePath(rp)}
+            fill="none"
+            stroke={accent}
+            strokeWidth={2.2}
+            strokeDasharray="5 4"
+          />
+        )}
+        {hp.map(
+          (p, i) =>
+            p !== null && (
+              <circle
+                key={i}
+                data-walk="hist"
+                cx={p[0]}
+                cy={p[1]}
+                r={i === today ? 3.5 : 2.2}
+                fill={ink}
+              />
+            ),
+        )}
+        {future.map((f, k) => {
+          if (k === 0 || k % 4 !== 0) {
+            return null;
+          }
+          const b = bp[k];
+          const r = rp[k];
+          return (
+            <g key={k}>
+              {b && <circle data-walk="base" cx={b[0]} cy={b[1]} r={2.6} fill={muted} />}
+              {r && <circle data-walk="req" cx={r[0]} cy={r[1]} r={2.6} fill={accent} />}
+            </g>
+          );
+        })}
+        {endBase !== null && (
+          <text data-walk="base" x={x1 + 6} y={yb} style={{ fill: muted }}>
+            {usd(endBase)}
+          </text>
+        )}
+        {endReq !== null && (
+          <text data-walk="req" x={x1 + 6} y={yr} style={{ fill: accent, fontWeight: 500 }}>
+            {usd(endReq)}
+          </text>
+        )}
+        {layer}
+      </svg>
+      {live}
+    </>
   );
 }

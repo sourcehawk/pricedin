@@ -1,6 +1,8 @@
 "use client";
 
 import {
+  useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type CSSProperties,
@@ -91,17 +93,36 @@ const keySteps: Record<string, (i: number, count: number) => number> = {
  * the column under the pointer and a vertical guide line marks it. Spread
  * chartProps on the svg, which makes it focusable: focus shows the start
  * column, and the arrow keys, Home and End move between columns. Render
- * layer inside the svg, above the marks.
+ * layer inside the svg, above the marks, and live outside the svg: it
+ * announces the column that the keys reach. Pass as data the value that
+ * tipFor reads, and a new value when it changes: an open tooltip then shows
+ * the new values.
  */
-export function useColumns(layout: ColumnsLayout, tipFor: (i: number) => ReactNode) {
+export function useColumns(layout: ColumnsLayout, tipFor: (i: number) => ReactNode, data: unknown) {
   const tip = useTip();
   const [active, setActive] = useState<number | null>(null);
+  const [keyboard, setKeyboard] = useState(false);
   const rects = useRef<(SVGRectElement | null)[]>([]);
+  const pointerAt = useRef<{ x: number; y: number } | undefined>(undefined);
+  const latestTip = useRef(tipFor);
   const { count, x, width, y0, y1 } = layout;
   const start = layout.start ?? count - 1;
 
+  useLayoutEffect(() => {
+    latestTip.current = tipFor;
+  });
+  // The tooltip holds the content it was shown with, so new levers would
+  // leave stale values in it.
+  useEffect(() => {
+    const el = active === null ? undefined : rects.current[active];
+    if (active !== null && el && tip.owner === el) {
+      tip.show(el, latestTip.current(active), pointerAt.current);
+    }
+  }, [data, active, tip]);
+
   const show = (i: number, at?: { x: number; y: number }) => {
     const el = rects.current[i];
+    pointerAt.current = at;
     setActive(i);
     if (el) {
       tip.show(el, tipFor(i), at);
@@ -114,30 +135,55 @@ export function useColumns(layout: ColumnsLayout, tipFor: (i: number) => ReactNo
     }
   };
   const pointer = (i: number) => (e: PointerEvent<SVGRectElement>) => {
-    if (e.pointerType !== "touch" || e.type === "pointerdown") {
+    setKeyboard(false);
+    if (e.pointerType !== "touch") {
       show(i, { x: e.clientX, y: e.clientY });
+    } else if (e.type === "pointerdown") {
+      if (active === i && tip.owner === e.currentTarget) {
+        hide();
+      } else {
+        show(i, { x: e.clientX, y: e.clientY });
+      }
     }
+  };
+  const showKey = (i: number) => {
+    setKeyboard(true);
+    show(i);
   };
 
   const chartProps = {
     className: styles.plot,
     tabIndex: 0,
-    onPointerLeave: hide,
-    onFocus: (e: React.FocusEvent<SVGSVGElement>) => {
-      if (e.target === e.currentTarget && count > 0) {
-        show(active ?? start);
+    // A finger that lifts also leaves the chart; the tapped column stays.
+    onPointerLeave: (e: PointerEvent<SVGSVGElement>) => {
+      if (e.pointerType !== "touch") {
+        hide();
       }
     },
-    onBlur: hide,
+    onFocus: (e: React.FocusEvent<SVGSVGElement>) => {
+      if (e.target === e.currentTarget && count > 0) {
+        showKey(active ?? start);
+      }
+    },
+    onBlur: () => {
+      setKeyboard(false);
+      hide();
+    },
     onKeyDown: (e: KeyboardEvent<SVGSVGElement>) => {
       const step = keySteps[e.key];
       if (step === undefined || count === 0) {
         return;
       }
       e.preventDefault();
-      show(Math.min(count - 1, Math.max(0, step(active ?? start, count))));
+      showKey(Math.min(count - 1, Math.max(0, step(active ?? start, count))));
     },
   };
+
+  const live = (
+    <div role="status" className={styles.live}>
+      {keyboard && active !== null ? tipFor(active) : null}
+    </div>
+  );
 
   const gx = active === null ? 0 : x(active);
   const layer = (
@@ -158,7 +204,8 @@ export function useColumns(layout: ColumnsLayout, tipFor: (i: number) => ReactNo
           onPointerEnter={pointer(i)}
           onPointerDown={pointer(i)}
           onPointerMove={(e) => {
-            tip.move(e.currentTarget, { x: e.clientX, y: e.clientY });
+            pointerAt.current = { x: e.clientX, y: e.clientY };
+            tip.move(e.currentTarget, pointerAt.current);
           }}
         />
       ))}
@@ -176,7 +223,7 @@ export function useColumns(layout: ColumnsLayout, tipFor: (i: number) => ReactNo
       />
     </g>
   );
-  return { active, chartProps, layer };
+  return { active, chartProps, layer, live };
 }
 
 /** linePath joins the points into an SVG path; null points and points without a finite y are left out. */
