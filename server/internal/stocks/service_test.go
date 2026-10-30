@@ -3,6 +3,7 @@ package stocks_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"math"
 	"slices"
@@ -493,11 +494,44 @@ func TestLoadCallsTheLoaderAndReturnsTheProfile(t *testing.T) {
 	}
 }
 
-func TestLoadOfAnUnknownTickerDoesNotCallTheLoader(t *testing.T) {
-	loader := &stockstest.Loader{}
+// The loader can find a ticker that the store does not know yet, from a
+// fresh SEC ticker map.
+func TestLoadAsksTheLoaderForATickerTheStoreDoesNotKnow(t *testing.T) {
+	loader := &stockstest.Loader{Err: fmt.Errorf("ingest: %w", stocks.ErrUnknownTicker)}
 	svc := newService(t, stockstest.Fixture(t), loader)
-	if _, err := svc.Load(context.Background(), "ZZZZ"); !errors.Is(err, stocks.ErrUnknownTicker) {
+	if _, err := svc.Load(context.Background(), "zzzz"); !errors.Is(err, stocks.ErrUnknownTicker) {
 		t.Errorf("Load(ZZZZ) error = %v, want ErrUnknownTicker", err)
+	}
+	if diff := cmp.Diff([]string{"ZZZZ"}, loader.Symbols); diff != "" {
+		t.Errorf("loaded symbols (-want +got):\n%s", diff)
+	}
+}
+
+func TestLoadReturnsTheProfileOfANewlyLoadedTicker(t *testing.T) {
+	m := stockstest.Fixture(t)
+	loader := &loadingLoader{m: m}
+	p, err := newService(t, m, loader).Load(context.Background(), "NEW")
+	if err != nil {
+		t.Fatalf("Load(NEW) error = %v", err)
+	}
+	if p.Ticker.Symbol != "NEW" || p.Company.Name != "New Co" {
+		t.Errorf("profile = %+v, want the new company", p)
+	}
+}
+
+// loadingLoader stores a new company and ticker, as the ingestion jobs do.
+type loadingLoader struct{ m *stockstest.Store }
+
+func (l *loadingLoader) LoadCompany(_ context.Context, symbol string) error {
+	l.m.Companies = append(l.m.Companies, domain.Company{CIK: 42, Name: "New Co"})
+	l.m.Tickers = append(l.m.Tickers, store.TickerRecord{Ticker: domain.Ticker{Symbol: symbol, CIK: 42, ValidFrom: domain.NewDate(2026, 10, 30)}, Source: store.TickerSourceSEC})
+	return nil
+}
+
+func TestLoadOfAnInvalidTickerDoesNotCallTheLoader(t *testing.T) {
+	loader := &stockstest.Loader{}
+	if _, err := newService(t, stockstest.Fixture(t), loader).Load(context.Background(), "../x"); !errors.Is(err, stocks.ErrInvalidTicker) {
+		t.Errorf("Load(../x) error = %v, want ErrInvalidTicker", err)
 	}
 	if len(loader.Symbols) != 0 {
 		t.Errorf("loader called with %v, want no call", loader.Symbols)

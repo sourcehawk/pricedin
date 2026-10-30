@@ -45,7 +45,9 @@ type Store interface {
 }
 
 // CompanyLoader loads or refreshes one company's filings, facts, prices,
-// splits and dividends into the store. The ingestion jobs implement it.
+// splits and dividends into the store. The ingestion jobs implement it. It
+// returns an error wrapping ErrUnknownTicker when no company has the
+// symbol.
 type CompanyLoader interface {
 	LoadCompany(ctx context.Context, symbol string) error
 }

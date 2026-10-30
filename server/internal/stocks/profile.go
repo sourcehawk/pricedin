@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/sourcehawk/pricedin/server/internal/domain"
@@ -138,17 +139,19 @@ func (s *Service) Search(ctx context.Context, query string, limit int) ([]Search
 }
 
 // Load loads or refreshes the company of ticker with the CompanyLoader and
-// returns its new profile. It gives ErrInvalidTicker or ErrUnknownTicker
-// before it calls the loader, and ErrLoaderUnavailable without one.
+// returns its new profile. The ticker need not be stored yet. It gives
+// ErrInvalidTicker before it calls the loader, ErrLoaderUnavailable without
+// one, and the loader's error, which wraps ErrUnknownTicker when no company
+// has the ticker.
 func (s *Service) Load(ctx context.Context, ticker string) (Profile, error) {
-	st, err := s.open(ctx, ticker)
-	if err != nil {
-		return Profile{}, err
+	ticker = strings.ToUpper(strings.TrimSpace(ticker))
+	if !tickerPattern.MatchString(ticker) {
+		return Profile{}, ErrInvalidTicker
 	}
-	if err := s.loader.LoadCompany(ctx, st.ticker.Symbol); err != nil {
-		return Profile{}, fmt.Errorf("stocks: load %s: %w", st.ticker.Symbol, err)
+	if err := s.loader.LoadCompany(ctx, ticker); err != nil {
+		return Profile{}, fmt.Errorf("stocks: load %s: %w", ticker, err)
 	}
-	return s.Profile(ctx, st.ticker.Symbol)
+	return s.Profile(ctx, ticker)
 }
 
 // IngestRun is the newest run of one ingestion job.
