@@ -307,17 +307,45 @@ The blob store keeps every raw response under a key with its retrieval date and 
 | `sec/archives/companyfacts.zip/...` | The bulk archives of `sec-bulk` |
 | `prices/massive/grouped/...`, `aggs/...`, `splits/...`, `dividends/...`, `tickers/...` | Massive responses, page by page |
 
-What you can reprocess now:
+The job `reprocess` loads these files into the database again. It uses the parsers and the store methods of the other jobs, and it sends no request to SEC or Massive. Then it rebuilds the quarters of the companies whose data changed. Use it after a fix to a parser or to the normalization of the data:
 
-- **Quarters.** After a change to the derivation rules, deploy the new server, then run `fundamentals-rebuild all`. It reads only the stored facts and provider splits, and makes no request to SEC or Massive.
-- **Everything from the sources.** Load the data again with the jobs of step 8. The jobs add only what is new, so a run over a full database changes nothing.
+1. Deploy the server with the fix.
+2. Run the job on the scheduler machine. Its `companyfacts.zip` files are more than 1 GB each, and the job copies each one to a temporary file:
 
-v1 has no command that reads the raw files back into the database. The parsers of `server/internal/sec` and `server/internal/prices/massive` read stored bodies, so such a command can use them later. Until then, copy the raw files out of the bucket, for example to rebuild a database at another site:
+   ```sh
+   flyctl ssh console --app pricedin-api --machine <id> -C '/pricedin jobs run --wait reprocess'
+   ```
+
+Put the options of the job after `reprocess`:
+
+| Option | Effect |
+| --- | --- |
+| `--prefix sec`, `--prefix prices` | Reads only the SEC files, or only the Massive files. |
+| `--since YYYY-MM-DD` | Reads only the files retrieved on or after this day. |
+| `--cik N` | Reads only the files of one company: its SEC files, its entries in the archives, and the files of the symbols that the database maps to it. It does not read the ticker maps, and it marks no grouped day as loaded. |
+
+How the job loads the files:
+
+- It reads every version of each file, oldest retrieval day first. On each day, it loads the files in the order of the jobs: the SEC ticker map, submissions, company facts, the archives, then the Massive ticker list, splits and dividends, grouped daily bars and the bars of one symbol.
+- Facts and filings are never changed or removed, so each version can add rows. For the other data, such as company details, splits, dividends and bars, the newest version wins.
+- It skips a version with the same content as the version of the retrieval day before.
+- It loads a ticker map only from the day of the last sync of its source. The dated symbol map cannot go back in time. To load the older maps again, reprocess into an empty database.
+- It keeps the grouped daily bars of the covered symbols, and of each symbol that has splits, dividends or bars of its own in the blob store.
+- It counts a response as `incomplete` and skips it when a part is not stored: a page, an extra submissions file, or the dividends that the job stores with the splits.
+- The daily filing indexes, the split-adjusted bars and the ticker details hold no data to load.
+
+Like the other jobs, `reprocess` records an `ingest_runs` row with its counts, and it is safe to run again. If a file fails, the job loads the other files, and the run ends as failed with the first errors.
+
+After a change to the derivation rules only, `fundamentals-rebuild all` is enough. It reads only the stored facts and provider splits.
+
+To rebuild a database at another site, copy the raw files out of the bucket:
 
 ```sh
 AWS_ACCESS_KEY_ID=... AWS_SECRET_ACCESS_KEY=... \
   aws s3 sync s3://<bucket> ./pricedin-raw --endpoint-url https://fly.storage.tigris.dev
 ```
+
+Then set `PRICEDIN_BLOB_BACKEND=fs` and `PRICEDIN_BLOB_DIR=./pricedin-raw`, apply the migrations to the empty database, and run `reprocess`. The blob store does not record which companies were loaded on demand. To keep them current, load each one again with `ingest company <ticker>`. Then run `daily`.
 
 ## Rotate secrets
 
