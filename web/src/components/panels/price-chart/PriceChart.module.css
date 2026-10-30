@@ -1,0 +1,85 @@
+.swatch {
+  display: inline-block;
+  width: 11px;
+  height: 11px;
+  border-radius: 3px;
+  margin: 0 4px 0 2px;
+  vertical-align: -1px;
+  background: color-mix(in srgb, var(--c) 35%, transparent);
+  box-shadow: inset 0 0 0 1.5px var(--c);
+}
+
+.range {
+  min-width: 170px;
+}
+
+.priceChip {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 4px 4px 0;
+  border-radius: 6px;
+}
+
+.priceChip:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.plot {
+  container-type: inline-size;
+  overflow-x: auto;
+}
+
+/* Below this width the chart's text would shrink under 8 px, so the chart scrolls instead. */
+.plot svg {
+  min-width: 560px;
+  touch-action: pan-y pinch-zoom;
+}
+
+/* A horizontal drag scrolls the chart only while it overflows its panel. */
+@container (max-width: 559px) {
+  .plot svg {
+    touch-action: pan-x pan-y pinch-zoom;
+  }
+}
+
+.plot svg:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.plot :global(.blab):focus-visible,
+.plot :global(.pxev):focus-visible {
+  outline: 2px solid var(--accent);
+}
+
+.plot :global(.pxev) {
+  cursor: pointer;
+}
+
+.link {
+  white-space: nowrap;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.plot :global(.bhit):focus-visible {
+  outline: none;
+}
