@@ -39,7 +39,8 @@ info:
     `Authorization` header is judged by its token only.
 
     State-changing requests (POST, PUT, PATCH, DELETE) must send
-    `Content-Type: application/json`. A state-changing request with the
+    `Content-Type: application/json`. A request body never holds `null`:
+    leave an optional field out instead. A state-changing request with the
     session cookie, and every login and logout, must also send an `Origin`
     header that is one of the web app's origins (`PRICEDIN_PUBLIC_ORIGIN`).
     GET requests and requests with a bearer token need no `Origin`.

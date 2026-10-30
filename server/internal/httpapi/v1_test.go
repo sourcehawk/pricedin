@@ -383,6 +383,11 @@ func TestEvaluationErrors(t *testing.T) {
 	post("KO", `{"exitPe": {"mode": "estimated", "extra": 1}}`).problem(t, http.StatusBadRequest, "invalid-request")
 	post("KO", `{"holdingYears": "3"}`).problem(t, http.StatusBadRequest, "invalid-request")
 	post("KO", `{} {}`).problem(t, http.StatusBadRequest, "invalid-request")
+	// No field of a request body is nullable, so null is never a value.
+	post("KO", `{"baseline": {"mode": "custom", "custom": {"yearly": true, "rates": [0.3, null, 0.1]}}}`).problem(t, http.StatusBadRequest, "invalid-request")
+	post("KO", `{"price": null}`).problem(t, http.StatusBadRequest, "invalid-request")
+	post("KO", `{"scenarios": [{"name": "Bear", "growth": null, "exitPe": 12}]}`).problem(t, http.StatusBadRequest, "invalid-request")
+	post("KO", `null`).problem(t, http.StatusBadRequest, "invalid-request")
 	post("ZZZZ", `{}`).problem(t, http.StatusNotFound, "unknown-ticker")
 	post("MSFT", `{}`).problem(t, http.StatusConflict, "not-loaded")
 	if res := post("KO", ``); res.StatusCode != http.StatusOK {

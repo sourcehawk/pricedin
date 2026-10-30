@@ -5,6 +5,7 @@
 package httpapi
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -305,11 +306,12 @@ func (a *api) cookie(value string, maxAge int) *http.Cookie {
 var errEmptyBody = errors.New("the request body is empty")
 
 // decodeJSON decodes the one JSON value of the body into v and rejects
-// unknown fields. A body that is too large gives *http.MaxBytesError.
+// unknown fields and null. A body that is too large gives
+// *http.MaxBytesError.
 func decodeJSON(r *http.Request, v any) error {
 	dec := json.NewDecoder(r.Body)
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(v); err != nil {
+	var raw json.RawMessage
+	if err := dec.Decode(&raw); err != nil {
 		if errors.Is(err, io.EOF) {
 			return errEmptyBody
 		}
@@ -322,7 +324,30 @@ func decodeJSON(r *http.Request, v any) error {
 		}
 		return errors.New("the request body must hold one JSON value")
 	}
-	return nil
+	if err := rejectNull(raw); err != nil {
+		return err
+	}
+	strict := json.NewDecoder(bytes.NewReader(raw))
+	strict.DisallowUnknownFields()
+	return strict.Decode(v)
+}
+
+// rejectNull returns an error when the JSON value holds null anywhere.
+// Without it, a null field decodes as zero or as an omitted lever.
+func rejectNull(raw json.RawMessage) error {
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	for {
+		tok, err := dec.Token()
+		if errors.Is(err, io.EOF) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		if tok == nil {
+			return errors.New("null is not a value of any field; leave the field out instead")
+		}
+	}
 }
 
 // badBody writes the problem for a decodeJSON error.
