@@ -13,6 +13,7 @@ import { factor, multiple, pct, pp, signedPct, times, usd } from "@/components/f
 import { baselineName } from "@/components/copy";
 import { Seg } from "@/components/rail/Levers";
 import { InfoTip } from "@/components/tip/InfoTip";
+import { TipRow } from "@/components/tip/TipRow";
 import { useTipHandlers } from "@/components/tip/TipProvider";
 import { Walkthrough } from "@/components/walkthrough/Walkthrough";
 import { useWalkthrough } from "@/components/walkthrough/WalkthroughProvider";
@@ -455,36 +456,26 @@ function GridTable({
         <b>
           {pct(row.growth)} EPS growth a year, sell at {pe}×
         </b>
-        <div className="row">
-          <span>EPS now → in {String(n)}Y</span>
-          <span>
-            {usd(eps)} → {usd(row.epsAtExit)}
-          </span>
-        </div>
-        <div className="row">
-          <span>Share price at exit</span>
-          <span>
-            {usd(row.epsAtExit)} × {pe} = {usd(c.exitPrice)}
-          </span>
-        </div>
-        {dividends > 0 && (
-          <div className="row">
-            <span>Dividends received</span>
-            <span>{usd(dividends)}</span>
-          </div>
-        )}
-        <div className="row">
-          <span>Total return</span>
-          <span>{signedPct(c.totalReturn)}</span>
-        </div>
-        <div className="row">
-          <span>Per year</span>
-          <span>{signedPct(c.yearlyReturn)}</span>
-        </div>
-        <div className="row">
-          <span>vs {pct(r)} target</span>
-          <span>{pp(c.vsTarget)}</span>
-        </div>
+        <TipRow
+          label={<>EPS now → in {String(n)}Y</>}
+          value={
+            <>
+              {usd(eps)} → {usd(row.epsAtExit)}
+            </>
+          }
+        />
+        <TipRow
+          label="Share price at exit"
+          value={
+            <>
+              {usd(row.epsAtExit)} × {pe} = {usd(c.exitPrice)}
+            </>
+          }
+        />
+        {dividends > 0 && <TipRow label="Dividends received" value={usd(dividends)} />}
+        <TipRow label="Total return" value={signedPct(c.totalReturn)} />
+        <TipRow label="Per year" value={signedPct(c.yearlyReturn)} />
+        <TipRow label={<>vs {pct(r)} target</>} value={pp(c.vsTarget)} />
         <div className="tm">
           {peChange}Growth is an average: any path to {usd(row.epsAtExit)} gives the same result.
         </div>

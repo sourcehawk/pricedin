@@ -22,16 +22,6 @@ export function shortLabel(label: string): string {
   return label.replace(/ FY(\d\d)$/, "'$1");
 }
 
-/** TipRow is one label and value row of a chart tooltip. */
-export function TipRow({ label, value }: { label: ReactNode; value: ReactNode }) {
-  return (
-    <div className="row">
-      <span>{label}</span>
-      <span>{value}</span>
-    </div>
-  );
-}
-
 /** YAxis draws the grid line and the label of each tick of axis between x0 and x1. */
 export function YAxis({
   axis,

@@ -7,6 +7,7 @@ import { coefficient, pct, signedPct } from "@/components/format";
 import { newestFiling } from "@/components/Sourced";
 import { colorVar } from "@/components/Swatch";
 import { InfoTip } from "@/components/tip/InfoTip";
+import { TipRow } from "@/components/tip/TipRow";
 import { useTipHandlers } from "@/components/tip/TipProvider";
 import {
   allMetrics,
@@ -162,16 +163,11 @@ function CompareChart({
       <b>{quarters[i]?.label}</b>
       {selected.map((m) => (
         <div key={m}>
-          <div className="prow">
-            <span>
-              <i
-                className="sw"
-                style={colorVar(m === "dilutedShares" ? "var(--surface)" : metricInfo[m].color)}
-              />
-              {metricInfo[m].name}
-            </span>
-            <strong>{signedPct(values(m)[i], 0)}</strong>
-          </div>
+          <TipRow
+            color={m === "dilutedShares" ? "var(--surface)" : metricInfo[m].color}
+            label={metricInfo[m].name}
+            value={signedPct(values(m)[i], 0)}
+          />
           <div className="psub">
             {metricValue(m, view.metrics[m].values[i] ?? null, 2)}
             {filingNote(sources[m][i] ?? null)}

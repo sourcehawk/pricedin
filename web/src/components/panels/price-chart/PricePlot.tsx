@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { joinNames } from "@/components/copy";
 import { multiple, shareCount, signedPct, times, usd } from "@/components/format";
-import { colorVar } from "@/components/Swatch";
 import { EstimateTag, estimateNote, newestFiling } from "@/components/Sourced";
+import { TipRow } from "@/components/tip/TipRow";
 import { useTip, useTipHandlers } from "@/components/tip/TipProvider";
 import type { QuarterSources, SecSource, Source } from "@/api/types";
 import type { Chart, ChartPoint, ShareEvent } from "@/engine";
@@ -192,29 +192,7 @@ function dotSpecs(g: Drawing): {
   ];
 }
 
-function TipRow({
-  color,
-  dash = false,
-  label,
-  value,
-}: {
-  color: string;
-  dash?: boolean;
-  label: string;
-  value: string;
-}) {
-  return (
-    <div className="prow">
-      <span>
-        <i className={dash ? "sw dash" : "sw"} style={colorVar(color)} />
-        {label}
-      </span>
-      <strong>{value}</strong>
-    </div>
-  );
-}
-
-/** DayTip is the tooltip of a hovered day; the tooltip's background is the ink color, so ink lines use the surface color. */
+/** DayTip is the tooltip of a hovered day. */
 function DayTip({
   p,
   shown,
@@ -334,18 +312,17 @@ function MarkerMark({ m, x }: { m: Marker; x: number }) {
         <b>
           {e.label}: {e.kind}
         </b>
-        <div className="row">
-          <span>Shares</span>
-          <span>
-            {shareCount(e.from)}
-            <EstimateTag source={m.sources.from} /> → {shareCount(e.to)}
-            <EstimateTag source={m.sources.to} />
-          </span>
-        </div>
-        <div className="row">
-          <span>Change</span>
-          <span>{change}</span>
-        </div>
+        <TipRow
+          label="Shares"
+          value={
+            <>
+              {shareCount(e.from)}
+              <EstimateTag source={m.sources.from} /> → {shareCount(e.to)}
+              <EstimateTag source={m.sources.to} />
+            </>
+          }
+        />
+        <TipRow label="Change" value={change} />
         <div className="tm">
           {dilution
             ? "Each share now owns a smaller part of the profit or loss."

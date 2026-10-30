@@ -5,6 +5,7 @@ import type { SourcedNumber } from "@/api/types";
 import { linePath, shortLabel, useColumns } from "@/components/charts/smallChart";
 import { pct, signedPct } from "@/components/format";
 import { filingLink, newestFiling, SourceTip } from "@/components/Sourced";
+import { TipRow } from "@/components/tip/TipRow";
 import { useTipHandlers } from "@/components/tip/TipProvider";
 import type { FinancialsView, Metric, Range } from "@/engine";
 import styles from "./Financials.module.css";
@@ -77,33 +78,14 @@ function MetricPlot({
         <b>
           {q?.label} {info.name}
         </b>
-        <div className="row">
-          <span>Value</span>
-          <span>{fmt(v)}</span>
-        </div>
-        {yoy !== null && (
-          <div className="row">
-            <span>vs {quarters[i - 4]?.label}</span>
-            <span>{signedPct(yoy)}</span>
-          </div>
-        )}
-        {shares && qoq !== null && (
-          <div className="row">
-            <span>vs previous quarter</span>
-            <span>{signedPct(qoq)}</span>
-          </div>
-        )}
+        <TipRow label="Value" value={fmt(v)} />
+        {yoy !== null && <TipRow label={<>vs {quarters[i - 4]?.label}</>} value={signedPct(yoy)} />}
+        {shares && qoq !== null && <TipRow label="vs previous quarter" value={signedPct(qoq)} />}
         {metric === "operatingIncome" && (
-          <div className="row">
-            <span>Margin</span>
-            <span>{pct(view.operatingMargin[i]?.value)}</span>
-          </div>
+          <TipRow label="Margin" value={pct(view.operatingMargin[i]?.value)} />
         )}
         {metric === "operatingCosts" && (
-          <div className="row">
-            <span>Share of revenue</span>
-            <span>{pct(view.costShareOfRevenue[i]?.value)}</span>
-          </div>
+          <TipRow label="Share of revenue" value={pct(view.costShareOfRevenue[i]?.value)} />
         )}
         {s !== null && (
           <div className="tm">

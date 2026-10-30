@@ -8,7 +8,8 @@ import { Walkthrough, type WalkthroughStep } from "@/components/walkthrough/Walk
 import type { Evaluation, Paths } from "@/engine";
 import { useEvaluation } from "@/state/StockProvider";
 import { Panel } from "../Panel";
-import { endLabels, linePath, TipRow, useColumns, YAxis } from "@/components/charts/smallChart";
+import { endLabels, linePath, useColumns, YAxis } from "@/components/charts/smallChart";
+import { TipRow } from "@/components/tip/TipRow";
 import { FromLevers } from "@/components/Sourced";
 import { colorVar, LineSample, Swatch } from "@/components/Swatch";
 
