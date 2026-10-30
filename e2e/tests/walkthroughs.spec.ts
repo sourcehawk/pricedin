@@ -7,6 +7,10 @@ const walkthroughs = [
     name: "the priced-in summary",
     launcher: "Walk me through the priced-in summary with my numbers",
   },
+  {
+    name: "the price chart",
+    launcher: "Walk me through the price chart with my numbers",
+  },
   { name: "the return grid", launcher: "Walk me through this grid with my numbers" },
   {
     name: "the earnings trajectory",
