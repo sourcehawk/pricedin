@@ -26,8 +26,8 @@ status: foundational-wave
 
 | Issue | Branch | Worktree path | PR (→ base) | Status |
 | --- | --- | --- | --- | --- |
-| planning | docs/pricedin-v1-plan | (main checkout) | → main | in-progress |
-| #2 | chore/project-foundation | .claude/worktrees/project-foundation | → main | not-started |
+| planning | docs/pricedin-v1-plan | (main checkout) | #18 → main | self-merged |
+| #2 | chore/project-foundation | .claude/worktrees/project-foundation | → main | in-progress |
 | #3 | feat/go-engine | .claude/worktrees/go-engine | → main | not-started |
 | #4 | feat/database-store | .claude/worktrees/database-store | → main | not-started |
 | #5 | feat/sec-client | .claude/worktrees/sec-client | → main | not-started |
@@ -60,14 +60,15 @@ status: foundational-wave
 
 ## Bubble-up log
 
+- 2026-10-30: Copilot review of the planning PR (#18) added the spec section "Corrections to the prototype" (median, exact-baseline grid row, chart scales, band hover layering, scenario walkthrough), the `raw-recorder` contract with dated, hashed keys, the duration-weighted Q4 share rule, explicit dated split evidence, and the narrowed Origin check. Wave-2 briefs carry them.
 - 2026-10-30: Stooq requires a CAPTCHA-gated key and a JS browser check. The owner chose Massive Stocks Starter. Spec, plan and `CLAUDE.md` updated. Do not bypass Stooq's check.
 - 2026-10-30: The owner is away and wants no blocking questions. Decide and record decisions here.
 
 ## Pending snapshot
 
-1. Open and merge the planning-docs PR (Copilot review loop first).
-2. Build #2 (foundation) in `.claude/worktrees/project-foundation`, open the PR, review loop, merge.
-3. Fan out wave 2 (#3, #4, #5, #6) with subagents in worktrees.
+1. #2 (foundation) is being built by a subagent in `.claude/worktrees/project-foundation`. When its PR is open: Copilot review loop, orchestrator review, merge.
+2. Fan out wave 2 (#3, #4, #5, #6) with subagents in worktrees. Dispatch briefs are drafted in the session scratchpad (common-brief.md, brief-3..6.md); if they are lost, rebuild them from the plan.
+3. The orchestrator keeps this file on branch `chore/orchestration-state` in the main checkout and lands it on main through a PR at wave checkpoints.
 
 ## Resume checklist
 
