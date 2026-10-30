@@ -328,31 +328,34 @@ function MarkerMark({ m, x }: { m: Marker; x: number }) {
       document.removeEventListener("pointerdown", onDown, true);
     };
   }, [open, node, hideTip]);
-  const handlers = useTipHandlers(() => (
-    <>
-      <b>
-        {e.label}: {e.kind}
-      </b>
-      <div className="row">
-        <span>Shares</span>
-        <span>
-          {shareCount(e.from)}
-          <EstimateTag source={m.sources.from} /> → {shareCount(e.to)}
-          <EstimateTag source={m.sources.to} />
-        </span>
-      </div>
-      <div className="row">
-        <span>Change</span>
-        <span>{change}</span>
-      </div>
-      <div className="tm">
-        {dilution
-          ? "Each share now owns a smaller part of the profit or loss."
-          : "Each remaining share owns a larger part of the profit or loss."}
-        {m.href !== null && " Click, or tap again, to open the filing."}
-      </div>
-    </>
-  ));
+  const handlers = useTipHandlers(
+    () => (
+      <>
+        <b>
+          {e.label}: {e.kind}
+        </b>
+        <div className="row">
+          <span>Shares</span>
+          <span>
+            {shareCount(e.from)}
+            <EstimateTag source={m.sources.from} /> → {shareCount(e.to)}
+            <EstimateTag source={m.sources.to} />
+          </span>
+        </div>
+        <div className="row">
+          <span>Change</span>
+          <span>{change}</span>
+        </div>
+        <div className="tm">
+          {dilution
+            ? "Each share now owns a smaller part of the profit or loss."
+            : "Each remaining share owns a larger part of the profit or loss."}
+          {m.href !== null && " Click, or tap again, to open the filing."}
+        </div>
+      </>
+    ),
+    m,
+  );
   const label = `${e.label}: ${e.kind}, ${shareCount(e.from)}${estimateNote(m.sources.from)} to ${shareCount(e.to)}${estimateNote(m.sources.to)} diluted shares, ${change}`;
   const body = (
     <>
