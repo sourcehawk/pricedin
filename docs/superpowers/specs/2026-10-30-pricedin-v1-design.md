@@ -173,10 +173,12 @@ Derived values list their inputs. A value the owner typed has `kind: "user"`. Pr
 
 Versioned under `/api/v1`. An OpenAPI 3.1 document in `server/api/openapi.yaml` is the contract. Server tests validate responses against it. The web application generates its TypeScript types from it, and CI fails when the generated file is stale.
 
-- `GET /api/v1/search?q=`: tickers and names, with a flag for loaded data.
-- `GET /api/v1/stocks/{ticker}`: profile: company, SIC sector, latest close, TTM EPS, TTM dividend, P/E, freshness.
-- `GET /api/v1/stocks/{ticker}/prices?range=`: daily closes, and the TTM EPS that was known on each day.
-- `GET /api/v1/stocks/{ticker}/fundamentals`: the derived quarters, with sources.
+- `GET /api/v1/search?q=&limit=`: tickers and names, with a flag for loaded data.
+- `GET /api/v1/status`: data freshness: the newest run of each ingestion job, the newest close, and how many companies are loaded.
+- `GET /api/v1/openapi.yaml`: the contract itself.
+- `GET /api/v1/stocks/{ticker}`: profile: company, SIC sector, latest close, TTM EPS, TTM dividend, P/E, freshness. A company that is known but not loaded answers with `loaded: false`; the other stock endpoints answer 409 for it.
+- `GET /api/v1/stocks/{ticker}/history?range=`: the engine input: every derived quarter, and the daily closes of the range, each with the TTM EPS that was known on that day, with the sources of the quarter values. The browser runs the engine on it.
+- `GET /api/v1/stocks/{ticker}/fundamentals`: the derived quarters, with sources, the confirmed splits and the conflicts.
 - `POST /api/v1/stocks/{ticker}/evaluation`: takes the lever values, returns the full `Evaluate` output with sources and as-of dates.
 - `POST /api/v1/stocks/{ticker}/load`: loads or refreshes one company on demand.
 - `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/session`.

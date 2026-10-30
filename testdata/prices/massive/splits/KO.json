@@ -1,5 +1,15 @@
 {
   "status": "OK",
   "request_id": "38d8d7105789e5020c648f29ac7898ce",
-  "results": []
+  "results": [
+    {
+      "id": "Ecf9a5fec0e0baf592fa1df737b19ded2e350fca7f1f6d89843d955ab35da0e89",
+      "execution_date": "2012-08-13",
+      "split_from": 1,
+      "split_to": 2,
+      "ticker": "KO",
+      "adjustment_type": "forward_split",
+      "historical_adjustment_factor": 0.5
+    }
+  ]
 }

@@ -48,7 +48,7 @@ func TestMigrateUpDownAndUpAgain(t *testing.T) {
 	}
 
 	out = run(t, env, "migrate", "up")
-	if !strings.Contains(out, "up  00005_operations.sql") {
+	if !strings.Contains(out, "up  00007_session_owner.sql") {
 		t.Errorf("up:\n%s\nwant the last migration applied", out)
 	}
 	out = run(t, env, "migrate", "status")
@@ -57,7 +57,7 @@ func TestMigrateUpDownAndUpAgain(t *testing.T) {
 	}
 
 	out = run(t, env, "migrate", "down")
-	if !strings.Contains(out, "down  00005_operations.sql") || strings.Contains(out, "00004") {
+	if !strings.Contains(out, "down  00007_session_owner.sql") || strings.Contains(out, "00006") {
 		t.Errorf("down:\n%s\nwant only the last migration rolled back", out)
 	}
 	out = run(t, env, "migrate", "down", "--to", "0")
