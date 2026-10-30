@@ -121,6 +121,27 @@ describe("evaluate", () => {
       },
     ],
     [
+      "a period end that does not exist",
+      (l, h) => {
+        h.quarters[0] = { ...quarter(0, 1), periodEnd: "2026-02-30" };
+        return l;
+      },
+    ],
+    [
+      "a period end in month 13",
+      (l, h) => {
+        h.quarters[0] = { ...quarter(0, 1), periodEnd: "2026-13-01" };
+        return l;
+      },
+    ],
+    [
+      "February 29 of a year that is not a leap year",
+      (l, h) => {
+        h.daily = [{ date: "2023-02-29", close: 10, ttmEps: 1 }];
+        return l;
+      },
+    ],
+    [
       "infinite daily EPS",
       (l, h) => {
         h.daily[4] = { date: h.daily[4]?.date ?? "", close: 10, ttmEps: -Infinity };
@@ -156,6 +177,12 @@ describe("evaluate", () => {
       expect(ev.returnGrid).toEqual({ value: null, reason: "needs_positive_eps" });
       expect(ev.baselines.weighted.value).not.toBeNull();
     }
+  });
+
+  it("accepts February 29 of a leap year", () => {
+    const h = copyHistory();
+    h.daily = [{ date: "2024-02-29", close: 10, ttmEps: 1 }];
+    expect(() => evaluate(h, levers)).not.toThrow();
   });
 
   it("treats missing optional levers as their defaults", () => {

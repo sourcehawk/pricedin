@@ -1,3 +1,5 @@
+import { isDate } from "./dates";
+
 /**
  * Quarter is one fiscal quarter of a stock's history. Per-share values and
  * the close are split-adjusted; amounts are US dollars. Null was not
@@ -256,20 +258,19 @@ export function validateLevers(l: Levers): void {
   }
 }
 
-const datePattern = /^\d{4}-\d{2}-\d{2}$/;
-
 /**
  * validateHistory throws an InvalidInputError for a history that evaluate
  * cannot use: an EPS, close or TTM EPS outside the per-share bounds of
  * validateLevers, a close that is not positive, a share count or dollar
  * amount that is not zero or 0.000001 to 10^15 in size, a date that is not
- * YYYY-MM-DD, or a daily date that is not after the one before it.
+ * a YYYY-MM-DD day that exists, or a daily date that is not after the one
+ * before it.
  */
 export function validateHistory(h: History): void {
   h.quarters.forEach((q, i) => {
     const at = `quarters[${String(i)}]`;
-    if (!datePattern.test(q.periodEnd)) {
-      fail(`${at}.periodEnd must be YYYY-MM-DD, got ${JSON.stringify(q.periodEnd)}`);
+    if (!isDate(q.periodEnd)) {
+      fail(`${at}.periodEnd must be a YYYY-MM-DD date, got ${JSON.stringify(q.periodEnd)}`);
     }
     if (q.eps !== null) {
       validPerShare(`${at}.eps`, q.eps, true);
@@ -293,8 +294,8 @@ export function validateHistory(h: History): void {
   let prev: string | undefined;
   h.daily.forEach((d, i) => {
     const at = `daily[${String(i)}]`;
-    if (!datePattern.test(d.date)) {
-      fail(`${at}.date must be YYYY-MM-DD, got ${JSON.stringify(d.date)}`);
+    if (!isDate(d.date)) {
+      fail(`${at}.date must be a YYYY-MM-DD date, got ${JSON.stringify(d.date)}`);
     }
     validPerShare(`${at}.close`, d.close, false);
     if (d.ttmEps !== null) {
