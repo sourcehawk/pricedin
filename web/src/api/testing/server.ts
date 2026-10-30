@@ -1,12 +1,13 @@
 import { http, HttpResponse, type HttpHandler } from "msw";
 import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll } from "vitest";
-import type { Problem } from "../types";
+import type { Problem, ProblemType } from "../types";
 import {
   historyFixture,
   notLoadedProfile,
   profileFixture,
   searchFixture,
+  sessionFixture,
   statusFixture,
 } from "./fixtures";
 
@@ -16,21 +17,22 @@ export function apiUrl(path: string): string {
 }
 
 /** problem is an RFC 9457 problem response. */
-export function problem(status: number, title: string, init?: ResponseInit): HttpResponse<Problem> {
+export function problem(
+  status: number,
+  title: string,
+  init?: ResponseInit,
+  type: ProblemType = "about:blank",
+): HttpResponse<Problem> {
   const headers = new Headers(init?.headers);
   headers.set("Content-Type", "application/problem+json");
-  return HttpResponse.json({ title, status }, { ...init, status, headers });
+  return HttpResponse.json({ type, title, status }, { ...init, status, headers });
 }
 
 /** defaultHandlers answer every endpoint with the fixtures, for a logged-in owner. */
 export const defaultHandlers: HttpHandler[] = [
-  http.post(apiUrl("/api/auth/login"), () =>
-    HttpResponse.json({ email: "owner@example.com", expiresAt: "2026-11-29T00:00:00Z" }),
-  ),
+  http.post(apiUrl("/api/auth/login"), () => HttpResponse.json(sessionFixture)),
   http.post(apiUrl("/api/auth/logout"), () => new HttpResponse(null, { status: 204 })),
-  http.get(apiUrl("/api/auth/session"), () =>
-    HttpResponse.json({ email: "owner@example.com", expiresAt: "2026-11-29T00:00:00Z" }),
-  ),
+  http.get(apiUrl("/api/auth/session"), () => HttpResponse.json(sessionFixture)),
   http.get(apiUrl("/api/v1/search"), ({ request }) => {
     const q = (new URL(request.url).searchParams.get("q") ?? "").toLowerCase();
     const results = searchFixture.filter(

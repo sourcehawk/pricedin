@@ -1,9 +1,9 @@
 import createClient from "openapi-fetch";
-import type { Levers } from "@/engine";
 import type { paths } from "./schema";
 import type {
   EvaluationResult,
   Fundamentals,
+  LeversInput,
   Problem,
   Profile,
   Session,
@@ -54,7 +54,7 @@ export interface Api {
   history(ticker: string, range?: HistoryRange): Promise<StockHistory>;
   fundamentals(ticker: string): Promise<Fundamentals>;
   /** Fields left out of levers take the stock's defaults on the server. */
-  evaluation(ticker: string, levers: Partial<Levers>): Promise<EvaluationResult>;
+  evaluation(ticker: string, levers: LeversInput): Promise<EvaluationResult>;
   /** Loads or refreshes one company; resolves with its profile when the data is stored. */
   load(ticker: string): Promise<Profile>;
   status(): Promise<Status>;
@@ -91,6 +91,9 @@ export function createApi(opts: ApiOptions = {}): Api {
   const baseUrl = opts.baseUrl ?? (typeof window === "undefined" ? "" : window.location.origin);
   // Calls the global fetch at request time, so a test's interceptor applies.
   const client = createClient<paths>({ baseUrl, fetch: (r) => globalThis.fetch(r) });
+  // The contract declares the Origin header of a cookie POST. A browser
+  // sends its own and ignores this one; other clients send this one.
+  const origin = { Origin: baseUrl === "" ? "" : new URL(baseUrl).origin };
 
   // The types of the responses come from the Api interface: openapi-fetch's
   // own response types turn readonly arrays of the engine types into objects.
@@ -120,9 +123,16 @@ export function createApi(opts: ApiOptions = {}): Api {
 
   return {
     login: (email, password) =>
-      call<Session>(() => client.POST("/api/auth/login", { body: { email, password } }), "login"),
+      call<Session>(
+        () =>
+          client.POST("/api/auth/login", { params: { header: origin }, body: { email, password } }),
+        "login",
+      ),
     logout: async () => {
-      await call<undefined>(() => client.POST("/api/auth/logout"), "login");
+      await call<undefined>(
+        () => client.POST("/api/auth/logout", { params: { header: origin }, body: {} }),
+        "login",
+      );
     },
     session: async () => {
       try {
@@ -164,14 +174,18 @@ export function createApi(opts: ApiOptions = {}): Api {
       call<EvaluationResult>(
         () =>
           client.POST("/api/v1/stocks/{ticker}/evaluation", {
-            params: { path: { ticker } },
+            params: { path: { ticker }, header: origin },
             body: levers,
           }),
         "session",
       ),
     load: (ticker) =>
       call<Profile>(
-        () => client.POST("/api/v1/stocks/{ticker}/load", { params: { path: { ticker } } }),
+        () =>
+          client.POST("/api/v1/stocks/{ticker}/load", {
+            params: { path: { ticker }, header: origin },
+            body: {},
+          }),
         "session",
       ),
     status: () => call<Status>(() => client.GET("/api/v1/status"), "session"),

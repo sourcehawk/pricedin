@@ -113,7 +113,7 @@ export function StockProvider({
     if (quarters === undefined) {
       return null;
     }
-    const t = trajectoryFill(quarters ?? [], state.holdingYears);
+    const t = trajectoryFill(quarters, state.holdingYears);
     return t.value === null ? null : t.value.rates;
   }, [quarters, state.holdingYears]);
 

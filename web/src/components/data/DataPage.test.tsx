@@ -19,7 +19,10 @@ describe("DataPage", () => {
   it("shows the freshness of each source and the coverage", async () => {
     renderWithStock(<DataPage />);
     expect(await screen.findByText(statusFixture.latestPriceDate ?? "")).toBeInTheDocument();
-    expect(screen.getByText(statusFixture.latestFiled ?? "")).toBeInTheDocument();
+    expect(screen.getByText("2026-10-28")).toBeInTheDocument();
+    expect(
+      screen.getByText(/last read by sec-bulk; latest GRMN filing 2026-09-30/),
+    ).toBeInTheDocument();
     expect(screen.getByText(/of 3 known \(2 with facts\)/)).toBeInTheDocument();
   });
 

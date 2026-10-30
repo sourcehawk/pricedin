@@ -7,11 +7,12 @@ import { useTipHandlers } from "./tip/TipProvider";
 // Names of the derivation methods that the API reports for a derived value.
 const methods: Record<string, string> = {
   ttm: "Sum of the last four quarters",
-  ttm_dividends: "Recurring dividends with an ex-date in the last 12 months",
-  pe: "Share price divided by TTM EPS",
+  recurring_dividends_12m: "Recurring dividends with an ex-date in the last 12 months",
+  price_over_ttm_eps: "Share price divided by TTM EPS",
   ytd_difference: "Year to date minus the quarters before",
   fy_difference: "Fiscal year minus the first three quarters",
   weighted_average_q4: "Fourth quarter from the yearly weighted average",
+  reported: "As reported",
   derived: "Computed from other reported values",
 };
 

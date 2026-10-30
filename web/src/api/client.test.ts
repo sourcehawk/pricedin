@@ -1,7 +1,7 @@
 import { http, HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";
 import { ApiError, createApi, SessionExpiredError } from "./client";
-import { exampleLevers, profileFixture } from "./testing/fixtures";
+import { profileFixture, sessionFixture } from "./testing/fixtures";
 import { apiServer, apiUrl, problem, withApiServer } from "./testing/server";
 
 withApiServer();
@@ -94,7 +94,7 @@ describe("login", () => {
       http.post(apiUrl("/api/auth/login"), async ({ request }) => {
         type = request.headers.get("Content-Type");
         body = await request.json();
-        return HttpResponse.json({ email: "owner@example.com", expiresAt: "2026-11-29T00:00:00Z" });
+        return HttpResponse.json(sessionFixture);
       }),
     );
     const { api } = setup();
@@ -114,6 +114,29 @@ describe("login", () => {
   });
 });
 
+describe("state-changing calls", () => {
+  it("send JSON on load and logout, as the API requires of every POST", async () => {
+    const types: (string | null)[] = [];
+    apiServer.use(
+      http.post(apiUrl("/api/v1/stocks/:t/load"), ({ request }) => {
+        types.push(request.headers.get("Content-Type"));
+        return HttpResponse.json(profileFixture);
+      }),
+      http.post(apiUrl("/api/auth/logout"), ({ request }) => {
+        types.push(request.headers.get("Content-Type"));
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    const { api } = setup();
+    await api.load("GRMN");
+    await api.logout();
+    expect(types).toEqual([
+      expect.stringMatching(/^application\/json/),
+      expect.stringMatching(/^application\/json/),
+    ]);
+  });
+});
+
 describe("evaluation", () => {
   it("posts the levers as JSON", async () => {
     let body: unknown;
@@ -124,7 +147,8 @@ describe("evaluation", () => {
       }),
     );
     const { api } = setup();
-    await api.evaluation("GRMN", exampleLevers);
-    expect(body).toEqual(exampleLevers);
+    const levers = { targetReturn: 0.12, holdingYears: 5, exitPe: { mode: "today" as const } };
+    await api.evaluation("GRMN", levers);
+    expect(body).toEqual(levers);
   });
 });

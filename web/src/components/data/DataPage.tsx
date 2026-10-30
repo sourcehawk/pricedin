@@ -26,6 +26,13 @@ function stats(s: Record<string, number>): string {
   return parts.length === 0 ? "none" : parts.join(", ");
 }
 
+/** latestSecRun is the newest successful run of an SEC job, the freshness of the filings. */
+function latestSecRun(runs: readonly IngestRun[]): IngestRun | undefined {
+  return runs
+    .filter((r) => r.job.startsWith("sec-") && r.status === "succeeded" && r.finishedAt !== null)
+    .sort((a, b) => ((a.finishedAt ?? "") < (b.finishedAt ?? "") ? 1 : -1))[0];
+}
+
 function LoadForm() {
   const id = useId();
   const [ticker, setTicker] = useState("");
@@ -98,7 +105,10 @@ function LoadForm() {
 /** DataPage shows how fresh the stored data is, the latest ingest runs, and loads a company on demand. */
 export function DataPage() {
   const status = useStatus();
+  const { profile } = useStock();
   const s = status.data;
+  const sec = s === undefined ? undefined : latestSecRun(s.ingestRuns);
+  const stock = profile.data;
   return (
     <main>
       <section className="panel" aria-labelledby="fresh-title">
@@ -119,8 +129,12 @@ export function DataPage() {
           <div className="data-grid">
             <div className="tile">
               <span className="eyebrow">SEC filings</span>
-              <b>{s.latestFiled ?? "none"}</b>
-              <span className="small muted">latest filing loaded</span>
+              <b>{sec === undefined ? "none" : when(sec.finishedAt).slice(0, 10)}</b>
+              <span className="small muted">
+                {sec === undefined ? "no SEC job has succeeded yet" : `last read by ${sec.job}`}
+                {stock?.freshness.latestFiled != null &&
+                  `; latest ${stock.ticker.symbol} filing ${stock.freshness.latestFiled}`}
+              </span>
             </div>
             <div className="tile">
               <span className="eyebrow">Prices</span>
@@ -129,10 +143,10 @@ export function DataPage() {
             </div>
             <div className="tile">
               <span className="eyebrow">Companies</span>
-              <b>{s.coverage.withFundamentals.toLocaleString("en-US")}</b>
+              <b>{s.companies.withFundamentals.toLocaleString("en-US")}</b>
               <span className="small muted">
-                with quarters, of {s.coverage.companies.toLocaleString("en-US")} known (
-                {s.coverage.withFacts.toLocaleString("en-US")} with facts)
+                with quarters, of {s.companies.total.toLocaleString("en-US")} known (
+                {s.companies.withFacts.toLocaleString("en-US")} with facts)
               </span>
             </div>
           </div>
@@ -145,8 +159,10 @@ export function DataPage() {
             <p>The last run of each job, with the rows it reported.</p>
           </div>
         </div>
-        {s !== undefined && s.runs.length === 0 && <p className="muted">No job has run yet.</p>}
-        {s !== undefined && s.runs.length > 0 && (
+        {s !== undefined && s.ingestRuns.length === 0 && (
+          <p className="muted">No job has run yet.</p>
+        )}
+        {s !== undefined && s.ingestRuns.length > 0 && (
           <div className="runs-wrap">
             <table className="runs">
               <thead>
@@ -159,7 +175,7 @@ export function DataPage() {
                 </tr>
               </thead>
               <tbody>
-                {s.runs.map((r) => (
+                {s.ingestRuns.map((r) => (
                   <tr key={r.id}>
                     <th scope="row" className="mono">
                       {r.job}

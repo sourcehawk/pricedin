@@ -4,6 +4,7 @@ import { http, HttpResponse } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createApi } from "@/api/client";
 import { ApiProvider } from "@/api/queries";
+import { sessionFixture } from "@/api/testing/fixtures";
 import { apiServer, apiUrl, problem, withApiServer } from "@/api/testing/server";
 import { LoginForm } from "./LoginForm";
 
@@ -88,7 +89,7 @@ describe("LoginForm", () => {
         () =>
           new Promise<Response>((resolve) => {
             release = () => {
-              resolve(HttpResponse.json({ email: "o@e.c", expiresAt: "2026-11-29T00:00:00Z" }));
+              resolve(HttpResponse.json(sessionFixture));
             };
           }),
       ),

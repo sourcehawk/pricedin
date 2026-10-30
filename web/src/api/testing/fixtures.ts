@@ -1,9 +1,10 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import type { Evaluation, History, Levers } from "@/engine";
+import type { Evaluation, Levers } from "@/engine";
 import type {
   Profile,
   SecSource,
+  Session,
   SourcedNumber,
   Status,
   StockHistory,
@@ -15,7 +16,7 @@ import type {
 // data: tests only.
 
 interface Example {
-  input: { history: History; levers: Levers };
+  input: { history: StockHistory["history"]; levers: Levers };
   output: Evaluation;
 }
 
@@ -36,14 +37,14 @@ const example = JSON.parse(
 ) as Example;
 
 /** exampleHistory is the engine input of the example. */
-export const exampleHistory: History = example.input.history;
+export const exampleHistory: StockHistory["history"] = example.input.history;
 /** exampleLevers are the example's levers: the defaults with the stock's price and TTM EPS. */
 export const exampleLevers: Levers = example.input.levers;
 /** exampleEvaluation is the engine output for exampleHistory and exampleLevers. */
 export const exampleEvaluation: Evaluation = example.output;
 
-const lastQuarter = exampleHistory.quarters?.at(-1);
-const lastDay = exampleHistory.daily?.at(-1);
+const lastQuarter = exampleHistory.quarters.at(-1);
+const lastDay = exampleHistory.daily.at(-1);
 const closeDate = lastDay?.date ?? "2026-09-30";
 
 function secSource(label: string, periodEnd: string, value: number): SecSource {
@@ -62,9 +63,16 @@ function secSource(label: string, periodEnd: string, value: number): SecSource {
   };
 }
 
-const ttmInputs = (exampleHistory.quarters ?? [])
+const ttmInputs = exampleHistory.quarters
   .slice(-4)
   .map((q) => secSource(q.label, q.periodEnd, q.eps ?? 0));
+
+/** sessionFixture is the owner's session. */
+export const sessionFixture: Session = {
+  email: "owner@example.com",
+  createdAt: "2026-10-30T08:00:00Z",
+  expiresAt: "2026-11-29T08:00:00Z",
+};
 
 /** priceSourced is the latest close with its provider. */
 export const priceSourced: SourcedNumber = {
@@ -103,12 +111,12 @@ export const profileFixture: Profile = {
   ttmEps: ttmEpsSourced,
   ttmDividend: {
     value: 0,
-    source: { kind: "derived", method: "ttm_dividends", estimate: false, inputs: [] },
+    source: { kind: "derived", method: "recurring_dividends_12m", estimate: false, inputs: [] },
     asOf: closeDate,
   },
   pe: {
     value: priceSourced.value / ttmEpsSourced.value,
-    source: { kind: "derived", method: "pe", estimate: false, inputs: [] },
+    source: { kind: "derived", method: "price_over_ttm_eps", estimate: false, inputs: [] },
     asOf: closeDate,
   },
   freshness: { latestFiled: lastQuarter?.periodEnd ?? null, latestClose: closeDate },
@@ -129,7 +137,7 @@ export const historyFixture: StockHistory = {
   ticker: "GRMN",
   range: "3Y",
   history: exampleHistory,
-  quarters: (exampleHistory.quarters ?? []).map((q, i) => ({
+  quarters: exampleHistory.quarters.map((q, i) => ({
     label: q.label,
     periodEnd: q.periodEnd,
     fiscalYear: 2022 + Math.floor(i / 4),
@@ -157,9 +165,8 @@ export const searchFixture: TickerMatch[] = [
 /** statusFixture is a data page status with one failed run. */
 export const statusFixture: Status = {
   latestPriceDate: closeDate,
-  latestFiled: "2026-10-28",
-  coverage: { companies: 3, withFacts: 2, withFundamentals: 2 },
-  runs: [
+  companies: { total: 3, withFacts: 2, withFundamentals: 2 },
+  ingestRuns: [
     {
       id: 7,
       job: "prices-daily",
@@ -177,6 +184,15 @@ export const statusFixture: Status = {
       status: "failed",
       stats: {},
       error: "fetch daily index: 503 Service Unavailable",
+    },
+    {
+      id: 5,
+      job: "sec-bulk",
+      startedAt: "2026-10-28T02:00:00Z",
+      finishedAt: "2026-10-28T02:40:00Z",
+      status: "succeeded",
+      stats: { facts: 120000 },
+      error: "",
     },
   ],
 };
