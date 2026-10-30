@@ -31,8 +31,8 @@ func TestTheBoundsAreTheEngines(t *testing.T) {
 		{"amount below it", quarter(1, math.Nextafter(minAmount, 0)), false},
 		{"largest amount", quarter(1, maxAmount), true},
 		{"amount above it", quarter(1, math.Nextafter(maxAmount, 2*maxAmount)), false},
-		{"largest close", daily(maxPerShare), true},
-		{"close above it", daily(math.Nextafter(maxPerShare, 2*maxPerShare)), false},
+		{"largest close", daily(maxPrice), true},
+		{"close above it", daily(math.Nextafter(maxPrice, 2*maxPrice)), false},
 		{"smallest close", daily(minPerShare), true},
 		{"close below it", daily(math.Nextafter(minPerShare, 0)), false},
 	} {
@@ -43,6 +43,11 @@ func TestTheBoundsAreTheEngines(t *testing.T) {
 	for v, ok := range map[float64]bool{0: true, minPerShare: true, -minPerShare: true, maxPerShare: true, math.Nextafter(minPerShare, 0): false, 2 * maxPerShare: false} {
 		if perShareOK(v) != ok {
 			t.Errorf("perShareOK(%v) = %v, want %v", v, !ok, ok)
+		}
+	}
+	for v, ok := range map[float64]bool{0: false, minPerShare: true, 1.5e6: true, maxPrice: true, math.Nextafter(minPerShare, 0): false, math.Nextafter(maxPrice, 2*maxPrice): false} {
+		if closeOK(v) != ok {
+			t.Errorf("closeOK(%v) = %v, want %v", v, !ok, ok)
 		}
 	}
 }

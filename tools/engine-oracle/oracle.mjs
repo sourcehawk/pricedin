@@ -52,6 +52,8 @@ export const NOTES = {
     "v1: the estimated exit P/E uses the fade factor 0.5^(years/3) directly; the prototype's (gExit - 6%) / (g0 - 6%) gives 0 near the floor by cancellation.",
   requiredEndpoints:
     "v1: the exit price needed is the value the exit must deliver and the EPS needed is that price over the exit P/E, and the required path runs to that EPS; the prototype computes them from the required growth, which rounds to -100% at a huge P/E.",
+  inputBounds:
+    "v1: evaluate accepts a price or close of 0.0001 to 10^8, and an EPS or dividend of at most 10^6 in size; the prototype has no input bounds.",
   toneTolerance: "v1: the tone and verdict cutoffs at ±1.5 pp allow a rounding error of 1e-9.",
   positiveColumns: "v1: return-grid columns whose rounded exit P/E is zero or less drop out.",
   bandSlack:

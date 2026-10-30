@@ -344,6 +344,7 @@ func TestEvaluationOfEveryLeverMode(t *testing.T) {
 		"negative EPS":                   {"ttmEps": -1.5, "price": 50},
 		"zero EPS, long hold":            {"ttmEps": 0, "holdingYears": 10, "dividend": 1},
 		"dividends reach the target":     {"price": 10, "dividend": 5, "targetReturn": 0.05},
+		"a price of 1,500,000":           {"price": 1.5e6},
 	}
 	for _, ticker := range []string{"NVDA", "KO"} {
 		for name, body := range bodies {
@@ -385,6 +386,7 @@ func TestEvaluationErrors(t *testing.T) {
 		t.Errorf("detail = %q, want the lever's bound without internals", d)
 	}
 	post("KO", `{"exitPe": {"mode": "custom"}}`).problem(t, http.StatusBadRequest, "invalid-levers")
+	post("KO", `{"price": 100000001}`).problem(t, http.StatusBadRequest, "invalid-levers")
 	// The custom exit P/E has its bounds in every mode, since the levers echo it.
 	post("KO", `{"exitPe": {"mode": "estimated", "custom": 5000}}`).problem(t, http.StatusBadRequest, "invalid-levers")
 	post("KO", `{"target": 0.1}`).problem(t, http.StatusBadRequest, "invalid-request")
@@ -463,7 +465,7 @@ func TestStoredDataOutsideTheEngineBoundsAnswers200(t *testing.T) {
 		h.data.SetQuarterValue(t, stockstest.CIKKO, "EarningsPerShareDiluted", d, v)
 	}
 	today, _ := domain.ParseDate("2026-10-30")
-	h.data.Bars = append(h.data.Bars, domain.PriceBar{Symbol: "KO", Date: today, Close: 2e6, Source: "massive"})
+	h.data.Bars = append(h.data.Bars, domain.PriceBar{Symbol: "KO", Date: today, Close: 2e8, Source: "massive"})
 	res := h.do(t, withBearer(request(t, http.MethodPost, "/api/v1/stocks/KO/evaluation", map[string]any{}), h.token(t)), true)
 	if res.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d, body %.300s", res.StatusCode, res.body)

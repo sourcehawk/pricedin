@@ -149,17 +149,18 @@ const (
 	maxCustomExitPE = 1000 // the highest custom exit P/E
 	// maxScenario is the largest growth or exit P/E of a case. A TTM EPS of
 	// four bounded quarters cancels to no less than about 1e-20, so a P/E,
-	// and a default case built on it, stays below about 1e26.
+	// and a default case built on it, stays below about 1e28.
 	maxScenario = 1e30
 	maxMonths   = 120  // the longest look-back that a lever can ask for
-	maxPerShare = 1e6  // the largest price, EPS or dividend per share
+	maxPrice    = 1e8  // the largest price or close, far above any listed share
+	maxPerShare = 1e6  // the largest EPS or dividend per share
 	minPerShare = 1e-4 // the smallest EPS or price per share other than zero
 	maxAmount   = 1e15 // the largest share count or dollar amount
 	minAmount   = 1e-6 // the smallest share count or dollar amount other than zero
 )
 
 // Validate reports the first lever that Evaluate cannot use. The price is
-// 0.0001 to 1,000,000; EPS is zero or 0.0001 to 1,000,000 in size; the
+// 0.0001 to 100,000,000; EPS is zero or 0.0001 to 1,000,000 in size; the
 // dividend is 0 to 1,000,000. The target return is 0 to 50%, the holding
 // period 1 to 10 years, a custom exit P/E 0.5 to 1000, custom rates -50% to
 // 200%, and look-backs 0 (the default) to 120 months. A case has growth and
@@ -167,10 +168,10 @@ const (
 // that it cannot project. EPS may be zero or negative: that gives values with
 // reason needs_positive_eps instead of an error.
 func (l Levers) Validate() error {
-	if err := validPerShare("price", l.Price, false); err != nil {
+	if err := validPrice("price", l.Price); err != nil {
 		return err
 	}
-	if err := validPerShare("ttmEps", l.TTMEPS, true); err != nil {
+	if err := validEPS("ttmEps", l.TTMEPS); err != nil {
 		return err
 	}
 	switch {
@@ -231,16 +232,18 @@ func validCustomRate(name string, g float64) error {
 	return nil
 }
 
-// validPerShare checks a per-share value: positive (or, with signed, any
-// sign or zero), and zero or 0.0001 to 1,000,000 in size.
-func validPerShare(name string, v float64, signed bool) error {
+// validPrice checks a price or close: 0.0001 to 100,000,000.
+func validPrice(name string, v float64) error {
+	if !isFinite(v) || v < minPerShare || v > maxPrice {
+		return invalid("%s must be %g to %g, got %v", name, minPerShare, maxPrice, v)
+	}
+	return nil
+}
+
+// validEPS checks an EPS of any sign: zero or 0.0001 to 1,000,000 in size.
+func validEPS(name string, v float64) error {
 	a := math.Abs(v)
-	switch {
-	case !isFinite(v):
-		return invalid("%s must be finite, got %v", name, v)
-	case !signed && v <= 0:
-		return invalid("%s must be positive, got %v", name, v)
-	case v != 0 && (a < minPerShare || a > maxPerShare):
+	if !isFinite(v) || (v != 0 && (a < minPerShare || a > maxPerShare)) {
 		return invalid("%s must be zero or %g to %g in size, got %v", name, minPerShare, maxPerShare, v)
 	}
 	return nil
@@ -256,20 +259,20 @@ func validAmount(name string, v float64) error {
 	return nil
 }
 
-// Validate reports a history that Evaluate cannot use: an EPS, close or TTM
-// EPS outside the per-share bounds of Levers.Validate, a close that is not
-// positive, a share count or dollar amount that is not zero or 0.000001 to
+// Validate reports a history that Evaluate cannot use: an EPS or TTM EPS
+// outside the bounds of the EPS lever, a close outside the bounds of the
+// price lever, a share count or dollar amount that is not zero or 0.000001 to
 // 10^15 in size, or a daily date that is not after the one before it.
 func (h History) Validate() error {
 	for i, q := range h.Quarters {
 		at := fmt.Sprintf("quarters[%d]", i)
 		if q.EPS != nil {
-			if err := validPerShare(at+".eps", *q.EPS, true); err != nil {
+			if err := validEPS(at+".eps", *q.EPS); err != nil {
 				return err
 			}
 		}
 		if q.Close != nil {
-			if err := validPerShare(at+".close", *q.Close, false); err != nil {
+			if err := validPrice(at+".close", *q.Close); err != nil {
 				return err
 			}
 		}
@@ -283,11 +286,11 @@ func (h History) Validate() error {
 	}
 	for i, d := range h.Daily {
 		at := fmt.Sprintf("daily[%d]", i)
-		if err := validPerShare(at+".close", d.Close, false); err != nil {
+		if err := validPrice(at+".close", d.Close); err != nil {
 			return err
 		}
 		if d.TTMEPS != nil {
-			if err := validPerShare(at+".ttmEps", *d.TTMEPS, true); err != nil {
+			if err := validEPS(at+".ttmEps", *d.TTMEPS); err != nil {
 				return err
 			}
 		}
