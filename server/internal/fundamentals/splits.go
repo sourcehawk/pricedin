@@ -74,6 +74,12 @@ func confirmSplits(cik domain.CIK, ratios []domain.Fact, opts Options, periods m
 			})
 		}
 	}
+	if cut := opts.SplitsAsOf; cut != nil {
+		// After the matching, so that SEC evidence dated before the cutoff
+		// does not stand in for a provider event after it.
+		splits = slices.DeleteFunc(splits, func(s domain.Split) bool { return s.Date.After(*cut) })
+		conflicts = slices.DeleteFunc(conflicts, func(c Conflict) bool { return c.Split != nil && c.Split.Date.After(*cut) })
+	}
 	slices.SortStableFunc(splits, func(a, b domain.Split) int { return compareDates(a.Date, b.Date) })
 	return splits, conflicts
 }
