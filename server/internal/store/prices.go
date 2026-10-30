@@ -188,6 +188,11 @@ func (s *Store) UpsertPriceSplits(ctx context.Context, splits []domain.Split) (i
 		if err := priceSplitStage.load(ctx, tx, rows); err != nil {
 			return err
 		}
+		if _, err := tx.Exec(ctx, `
+			DELETE FROM stage_price_splits a USING stage_price_splits b
+			WHERE a.provider_id <> '' AND a.source = b.source AND a.provider_id = b.provider_id AND a.ord < b.ord`); err != nil {
+			return err
+		}
 		// A separate statement, so that the INSERT sees the freed
 		// provider IDs.
 		if _, err := tx.Exec(ctx, `

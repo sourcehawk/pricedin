@@ -341,3 +341,23 @@ func TestUpsertPriceSplitsMovesASplitWhoseDateTheProviderCorrected(t *testing.T)
 		t.Errorf("ListPriceSplits() (-want +got):\n%s", diff)
 	}
 }
+
+func TestUpsertPriceSplitsKeepsTheLaterCopyOfAProviderIDInOneBatch(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	s, _ := newStore(t)
+	first := domain.Split{Symbol: "NVDA", Date: date(t, "2024-06-07"), From: 1, To: 10, Source: "massive", Evidence: "P1"}
+	later := first
+	later.Date = date(t, "2024-06-10")
+
+	if _, err := s.UpsertPriceSplits(ctx, []domain.Split{first, later}); err != nil {
+		t.Fatalf("UpsertPriceSplits() error = %v", err)
+	}
+	got, err := s.ListPriceSplits(ctx, "NVDA")
+	if err != nil {
+		t.Fatalf("ListPriceSplits() error = %v", err)
+	}
+	if diff := cmp.Diff([]domain.Split{later}, got); diff != "" {
+		t.Errorf("ListPriceSplits() (-want +got):\n%s", diff)
+	}
+}
