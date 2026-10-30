@@ -34,3 +34,6 @@ node_modules/
 
 # Claude Code worktrees
 /.claude/worktrees/
+
+# Written by `next dev` for coding agents
+web/AGENTS.md
