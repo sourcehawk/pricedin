@@ -1,0 +1,11 @@
+*
+!package.json
+!pnpm-lock.yaml
+!pnpm-workspace.yaml
+!e2e/package.json
+!web/
+web/node_modules/
+web/.next/
+web/coverage/
+web/**/*.test.ts
+web/**/*.test.tsx
