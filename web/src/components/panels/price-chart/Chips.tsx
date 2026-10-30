@@ -16,17 +16,20 @@ function Sample({ o }: { o: Overlay }) {
 }
 
 function PriceChip({ p, close }: { p: ChartPoint; close: SourcedNumber | null }) {
-  const handlers = useTipHandlers(() => (
-    <>
-      <b>{priceOverlay.name}</b>
-      {priceOverlay.tip}
-      {close !== null && (
-        <div className="tm">
-          <SourceLine s={close.source} />. As of close {close.asOf}.
-        </div>
-      )}
-    </>
-  ));
+  const handlers = useTipHandlers(
+    () => (
+      <>
+        <b>{priceOverlay.name}</b>
+        {priceOverlay.tip}
+        {close !== null && (
+          <div className="tm">
+            <SourceLine s={close.source} />. As of close {close.asOf}.
+          </div>
+        )}
+      </>
+    ),
+    JSON.stringify(close),
+  );
   return (
     <span className={["small", styles.priceChip].join(" ")} tabIndex={0} {...handlers}>
       <Sample o={priceOverlay} />
