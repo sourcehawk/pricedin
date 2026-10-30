@@ -19,7 +19,7 @@
 package fixtureserver
 
 import (
-	"crypto/sha256"
+	"crypto/rand"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -122,9 +122,9 @@ func contentType(name string) string {
 	}
 }
 
-// requestID returns a stable request ID for a request path, in the form of
-// Massive's IDs.
-func requestID(s string) string {
-	sum := sha256.Sum256([]byte(s))
-	return hex.EncodeToString(sum[:16])
+// randomRequestID returns a new request ID in the form of Massive's.
+func randomRequestID() string {
+	id := make([]byte, 16)
+	_, _ = rand.Read(id)
+	return hex.EncodeToString(id)
 }

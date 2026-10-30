@@ -102,8 +102,8 @@ func (m *massive) handler() http.Handler {
 	mux.HandleFunc("GET /stocks/v1/dividends", m.events("dividends"))
 	mux.HandleFunc("GET /v3/reference/tickers", m.tickers)
 	mux.HandleFunc("GET /v3/reference/tickers/{symbol}", m.ticker)
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		writeStatus(w, r, http.StatusNotFound, "NOT_FOUND", "no such endpoint")
+	mux.HandleFunc("/", func(w http.ResponseWriter, _ *http.Request) {
+		writeStatus(w, http.StatusNotFound, "NOT_FOUND", "no such endpoint")
 	})
 	return mux
 }
@@ -114,9 +114,9 @@ func requireBearer(key string, next http.Handler) http.Handler {
 		auth := r.Header.Get("Authorization")
 		switch {
 		case auth == "":
-			writeStatus(w, r, http.StatusUnauthorized, "ERROR", "API Key was not provided")
+			writeStatus(w, http.StatusUnauthorized, "ERROR", "API Key was not provided")
 		case auth != "Bearer "+key:
-			writeStatus(w, r, http.StatusUnauthorized, "ERROR", "Unknown API Key")
+			writeStatus(w, http.StatusUnauthorized, "ERROR", "Unknown API Key")
 		default:
 			next.ServeHTTP(w, r)
 		}
@@ -129,11 +129,11 @@ func requireBearer(key string, next http.Handler) http.Handler {
 func (m *massive) grouped(w http.ResponseWriter, r *http.Request) {
 	date := r.PathValue("date")
 	if _, err := time.Parse(time.DateOnly, date); err != nil {
-		writeStatus(w, r, http.StatusBadRequest, "ERROR", "invalid date")
+		writeStatus(w, http.StatusBadRequest, "ERROR", "invalid date")
 		return
 	}
 	if date < m.first {
-		m.notAuthorized(w, r)
+		m.notAuthorized(w)
 		return
 	}
 	if body, err := os.ReadFile(filepath.Join(m.dir, "grouped", date+".json")); err == nil { //nolint:gosec // the date was checked above
@@ -153,7 +153,7 @@ func (m *massive) grouped(w http.ResponseWriter, r *http.Request) {
 			results = append(results, b)
 		}
 	}
-	writeBars(w, r, "", results, false)
+	writeBars(w, "", results, false)
 }
 
 // dailyBars cuts the aggregates file of the symbol to the requested range.
@@ -163,11 +163,11 @@ func (m *massive) dailyBars(w http.ResponseWriter, r *http.Request) {
 	_, errFrom := time.Parse(time.DateOnly, from)
 	_, errTo := time.Parse(time.DateOnly, to)
 	if r.PathValue("multiplier") != "1" || r.PathValue("timespan") != "day" || errFrom != nil || errTo != nil || from > to {
-		writeStatus(w, r, http.StatusBadRequest, "ERROR", "the fixture server answers daily ranges only")
+		writeStatus(w, http.StatusBadRequest, "ERROR", "the fixture server answers daily ranges only")
 		return
 	}
 	if to < m.first {
-		m.notAuthorized(w, r)
+		m.notAuthorized(w)
 		return
 	}
 	adjusted := r.URL.Query().Get("adjusted") == "true"
@@ -188,7 +188,7 @@ func (m *massive) dailyBars(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	head := fmt.Sprintf(`"ticker":%q,`, symbol)
-	writeBars(w, r, head, results, adjusted)
+	writeBars(w, head, results, adjusted)
 }
 
 // adjust divides the prices of b by the ratios of the splits after its date,
@@ -227,11 +227,11 @@ func (m *massive) events(kind string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		symbol := r.URL.Query().Get("ticker")
 		if !symbolRE.MatchString(symbol) {
-			writeStatus(w, r, http.StatusBadRequest, "ERROR", "want a ticker")
+			writeStatus(w, http.StatusBadRequest, "ERROR", "want a ticker")
 			return
 		}
 		m.serveFile(w, filepath.Join(kind, symbol+".json"), func() {
-			writeJSONBody(w, fmt.Appendf(nil, `{"status":"OK","request_id":%q,"results":[]}`, requestID(r.URL.String())))
+			writeJSONBody(w, fmt.Appendf(nil, `{"status":"OK","request_id":%q,"results":[]}`, randomRequestID()))
 		})
 	}
 }
@@ -244,11 +244,11 @@ func (m *massive) tickers(w http.ResponseWriter, r *http.Request) {
 		page = c
 	}
 	if !cursorRE.MatchString(page) {
-		writeStatus(w, r, http.StatusBadRequest, "ERROR", "invalid cursor")
+		writeStatus(w, http.StatusBadRequest, "ERROR", "invalid cursor")
 		return
 	}
 	m.serveFile(w, filepath.Join("tickers", page+".json"), func() {
-		writeStatus(w, r, http.StatusBadRequest, "ERROR", "invalid cursor")
+		writeStatus(w, http.StatusBadRequest, "ERROR", "invalid cursor")
 	})
 }
 
@@ -257,11 +257,11 @@ func (m *massive) tickers(w http.ResponseWriter, r *http.Request) {
 func (m *massive) ticker(w http.ResponseWriter, r *http.Request) {
 	symbol := r.PathValue("symbol")
 	if !symbolRE.MatchString(symbol) {
-		writeStatus(w, r, http.StatusNotFound, "NOT_FOUND", "Ticker not found.")
+		writeStatus(w, http.StatusNotFound, "NOT_FOUND", "Ticker not found.")
 		return
 	}
 	m.serveFile(w, filepath.Join("ticker", symbol+".json"), func() {
-		writeStatus(w, r, http.StatusNotFound, "NOT_FOUND", "Ticker not found.")
+		writeStatus(w, http.StatusNotFound, "NOT_FOUND", "Ticker not found.")
 	})
 }
 
@@ -279,34 +279,45 @@ func (m *massive) serveFile(w http.ResponseWriter, rel string, missing func()) {
 	}
 }
 
-func (m *massive) notAuthorized(w http.ResponseWriter, r *http.Request) {
-	writeStatus(w, r, http.StatusForbidden, "NOT_AUTHORIZED",
+func (m *massive) notAuthorized(w http.ResponseWriter) {
+	writeStatus(w, http.StatusForbidden, "NOT_AUTHORIZED",
 		"Your plan doesn't include this data timeframe. Please upgrade your plan.")
 }
 
 // writeBars writes an aggregates response. head holds the fields before
 // queryCount, such as the ticker of a per-symbol response.
-func writeBars(w http.ResponseWriter, r *http.Request, head string, results []bar, adjusted bool) {
+func writeBars(w http.ResponseWriter, head string, results []bar, adjusted bool) {
 	var b bytes.Buffer
 	fmt.Fprintf(&b, `{%s"queryCount":%d,"resultsCount":%d,"adjusted":%t,`, head, len(results), len(results), adjusted)
 	if len(results) > 0 {
 		lines, _ := json.Marshal(results) //nolint:errchkjson // bars hold only finite numbers and strings
 		fmt.Fprintf(&b, `"results":%s,`, lines)
 	}
-	fmt.Fprintf(&b, `"status":"OK","request_id":%q,"count":%d}`, requestID(r.URL.String()), len(results))
+	fmt.Fprintf(&b, `"status":"OK","request_id":%q,"count":%d}`, randomRequestID(), len(results))
 	writeJSONBody(w, b.Bytes())
 }
 
-func writeStatus(w http.ResponseWriter, r *http.Request, code int, status, message string) {
+func writeStatus(w http.ResponseWriter, code int, status, message string) {
 	body, _ := json.Marshal(map[string]string{ //nolint:errchkjson // a map of strings always marshals
-		"status": status, "request_id": requestID(r.URL.String()), "message": message,
+		"status": status, "request_id": randomRequestID(), "message": message,
 	})
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
 	_, _ = w.Write(body)
 }
 
+// writeJSONBody writes body with a new random request_id in place of its
+// own, as Massive gives every response a request ID of its own.
 func writeJSONBody(w http.ResponseWriter, body []byte) {
+	var fields map[string]json.RawMessage
+	if json.Unmarshal(body, &fields) == nil {
+		if _, ok := fields["request_id"]; ok {
+			fields["request_id"], _ = json.Marshal(randomRequestID()) //nolint:errchkjson // a string always marshals
+			if out, err := json.Marshal(fields); err == nil {
+				body = out
+			}
+		}
+	}
 	w.Header().Set("Content-Type", "application/json")
 	_, _ = w.Write(body) //nolint:gosec // fixture files and JSON documents, served as JSON
 }

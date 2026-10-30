@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -29,17 +30,40 @@ func NewRecorder(store blob.Store, now func() time.Time) *Recorder {
 	return &Recorder{store: store, now: now}
 }
 
-// Record stores body under VersionedKey(key, today in UTC, body). A body
-// that is already stored under that key is not written again. An error of
-// the blob store is returned, and fails the client's request.
+// Record stores body under VersionedKey(key, today in UTC, body). For a key
+// with prefix "prices/massive/", the hash leaves out the top-level
+// request_id; the stored body keeps it. A body that is already stored under
+// its key is not written again. An error of the blob store is returned,
+// and fails the client's request.
 func (r *Recorder) Record(ctx context.Context, key string, body []byte) error {
-	versioned, err := VersionedKey(key, domain.DateOf(r.now().UTC()), body)
+	hashed := body
+	if strings.HasPrefix(key, blob.PrefixPrices+"massive/") {
+		hashed = withoutRequestID(body)
+	}
+	versioned, err := VersionedKey(key, domain.DateOf(r.now().UTC()), hashed)
 	if err != nil {
 		return err
 	}
 	return putOnce(ctx, r.store, versioned, func() error {
 		return r.store.Put(ctx, versioned, bytes.NewReader(body))
 	})
+}
+
+// withoutRequestID returns the JSON object body without its top-level
+// request_id, in a canonical form, or body itself when it is not a JSON
+// object.
+func withoutRequestID(body []byte) []byte {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(body, &fields); err != nil {
+		return body
+	}
+	delete(fields, "request_id")
+	// Marshal sorts the keys and keeps each value's bytes.
+	out, err := json.Marshal(fields)
+	if err != nil {
+		return body
+	}
+	return out
 }
 
 // VersionedKey returns the key under which a response with the base key

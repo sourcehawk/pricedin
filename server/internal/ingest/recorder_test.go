@@ -132,3 +132,53 @@ func TestRecordFailsWhenTheBlobStoreFails(t *testing.T) {
 		t.Errorf("Record() error = %v, want the blob store's error", err)
 	}
 }
+
+func TestRecordStoresAMassiveResponseOnceWhateverItsRequestID(t *testing.T) {
+	ctx := context.Background()
+	store := newCountingStore(t)
+	rec := ingest.NewRecorder(store, fixedNow("2026-10-30T12:00:00Z"))
+	key := "prices/massive/splits/NVDA/page-1.json"
+	first := `{"status":"OK","request_id":"aaa","results":[]}`
+	second := `{"request_id":"bbb","status":"OK","results":[]}`
+	for _, body := range []string{first, second} {
+		if err := rec.Record(ctx, key, []byte(body)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	keys, err := store.List(ctx, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if store.puts != 1 || len(keys) != 1 {
+		t.Fatalf("puts = %d, keys = %v; want one stored response", store.puts, keys)
+	}
+	rc, err := store.Get(ctx, keys[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = rc.Close() }()
+	if body, _ := io.ReadAll(rc); string(body) != first {
+		t.Errorf("stored body = %s, want the first response as received", body)
+	}
+
+	if err := rec.Record(ctx, key, []byte(`{"status":"OK","request_id":"ccc","results":[{"id":"x"}]}`)); err != nil {
+		t.Fatal(err)
+	}
+	if store.puts != 2 {
+		t.Errorf("puts = %d after a changed result, want 2", store.puts)
+	}
+}
+
+func TestRecordHashesAnSECResponseAsReceived(t *testing.T) {
+	ctx := context.Background()
+	store := newCountingStore(t)
+	rec := ingest.NewRecorder(store, fixedNow("2026-10-30T12:00:00Z"))
+	for _, body := range []string{`{"request_id":"a","x":1}`, `{"request_id":"b","x":1}`} {
+		if err := rec.Record(ctx, "sec/tickers/company_tickers_exchange.json", []byte(body)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if store.puts != 2 {
+		t.Errorf("puts = %d, want 2: only Massive responses leave out request_id", store.puts)
+	}
+}
