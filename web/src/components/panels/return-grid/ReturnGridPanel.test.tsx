@@ -2,7 +2,9 @@ import { act, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { describe, expect, it } from "vitest";
-import { withApiServer } from "@/api/testing/server";
+import { http, HttpResponse } from "msw";
+import { historyFixture } from "@/api/testing/fixtures";
+import { apiServer, apiUrl, withApiServer } from "@/api/testing/server";
 import { leversReducer, type LeverAction } from "@/state/levers";
 import { useStock } from "@/state/StockProvider";
 import { renderReady, testLevers } from "@/testing/render";
@@ -333,5 +335,57 @@ describe("the walkthrough of the return grid", () => {
     expect(card.querySelector(".t-takeaway")).toHaveTextContent(
       "The weighted trend is 16.0% and the latest quarter 12.2%. Your custom growth of 30.0% clears the bar.",
     );
+  });
+  it("shows yearly returns during the walkthrough and gives the chosen view back after it", async () => {
+    const panel = await renderPanel();
+    await userEvent.click(within(panel).getByRole("button", { name: "Future price" }));
+    await userEvent.click(
+      within(panel).getByRole("button", { name: "Walk me through this grid with my numbers" }),
+    );
+    expect(cell(panel, "16.0%", youColumn)).toHaveTextContent("+8%");
+    await userEvent.click(screen.getByRole("button", { name: "End the walkthrough" }));
+    expect(cell(panel, "16.0%", youColumn)).toHaveTextContent("$337");
+    expect(within(panel).getByRole("button", { name: "Future price" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+  });
+
+  it("counts the dividends in the return where the rows meet", async () => {
+    const panel = await renderPanel({ type: "setStartingPoint", field: "dividend", value: 2 });
+    await userEvent.click(
+      within(panel).getByRole("button", { name: "Walk me through this grid with my numbers" }),
+    );
+    const card = screen.getByRole("region", { name: "Walkthrough of the return grid" });
+    await go(card, 2);
+    expect(card.querySelector(".t-you")).toHaveTextContent(
+      /= \$328\.51, plus \$6\.00 in dividends\. From today's \$270\.00 that is \+\d+\.\d% a year\.$/,
+    );
+  });
+
+  it("marks the exit P/E column and explains it when no baseline is available", async () => {
+    // Four quarters give no year-over-year growth, so the weighted trend is missing.
+    apiServer.use(
+      http.get(apiUrl("/api/v1/stocks/GRMN/history"), () =>
+        HttpResponse.json({
+          ...historyFixture,
+          history: {
+            ...historyFixture.history,
+            quarters: historyFixture.history.quarters.slice(-4),
+          },
+          quarters: historyFixture.quarters.slice(-4),
+        }),
+      ),
+    );
+    const panel = await renderPanel();
+    expect(grid(panel).querySelector("td.sel")).toBeNull();
+    expect(grid(panel).querySelector("th.colsel")).not.toBeNull();
+    await userEvent.click(
+      within(panel).getByRole("button", { name: "Walk me through this grid with my numbers" }),
+    );
+    const card = screen.getByRole("region", { name: "Walkthrough of the return grid" });
+    expect(card.querySelector(".t-you")).toHaveTextContent(/^Example: the /);
+    await next(card);
+    expect(card.querySelector(".t-you")).toHaveTextContent(/^Your column is \d+(\.\d)?×/);
   });
 });

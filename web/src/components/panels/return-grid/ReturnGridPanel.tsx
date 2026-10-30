@@ -20,6 +20,7 @@ import { useEvaluation, useView } from "@/state/StockProvider";
 import { Panel } from "../Panel";
 import {
   exampleRow,
+  exitColumn,
   growthLabel,
   peLabel,
   tagOrder,
@@ -263,12 +264,11 @@ function onArrows(e: KeyboardEvent<HTMLTableElement>) {
 }
 
 function tagTip(ev: Evaluation, grid: Grid, tag: GridTag, r: number): ReactNode {
-  const pe = grid.columns[grid.you.value?.column ?? -1]?.exitPe ?? ev.exitPe.inUse.value?.pe;
+  const col = exitColumn(grid, ev);
+  const pe = grid.columns[col]?.exitPe;
   const peText = pe === undefined ? "n/a" : `${peLabel(pe)}×`;
   const ri = taggedRow(grid, tag);
-  const row = grid.rows[ri];
-  const youCol = grid.you.value?.column ?? grid.columns.findIndex((c) => c.exitPe === pe);
-  const at = signedPct(row?.cells[youCol]?.yearlyReturn);
+  const at = signedPct(grid.rows[ri]?.cells[col]?.yearlyReturn);
   const outlined = `The outlined row (${growthLabel(grid, ri)})`;
   const b = ev.baselines;
   switch (tag) {
@@ -337,6 +337,14 @@ export function ReturnGridPanel() {
       name="the return grid"
       launcher="Walk me through this grid with my numbers"
       intro="The grid shows what you would earn under many combinations of earnings growth and the P/E you sell at, so you can see how much each one matters."
+      onStart={() => {
+        // The steps explain yearly returns, so the cells show them while the walkthrough runs.
+        const before = view;
+        setView("cagr");
+        return () => {
+          setView(before);
+        };
+      }}
       watchOut="Colors compare each return with your target, not with zero, so a cell that falls short can still be a gain. Growth is an average: a bad year followed by strong recovery can land in the same cell as steady growth, but it is harder to hold through."
       steps={steps}
     />
@@ -425,7 +433,7 @@ function GridTable({
 }) {
   const { wrap, table, boxes } = useRowBoxes(grid, view);
   const you = grid.you.value;
-  const youCol = you?.column ?? -1;
+  const youCol = exitColumn(grid, ev);
   const ex = exampleRow(grid);
   const peNow = ev.peNow.value;
   const dividends = ev.required.dividends;

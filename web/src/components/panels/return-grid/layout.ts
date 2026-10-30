@@ -1,4 +1,4 @@
-import type { Grid, GridTag, Tone } from "@/engine";
+import type { Evaluation, Grid, GridTag, Tone } from "@/engine";
 
 /** GridView is what the cells show: the yearly return, the total return or the exit share price. */
 export type GridView = "cagr" | "cum" | "px";
@@ -69,4 +69,10 @@ export function growthLabel(grid: Grid, i: number): string {
 /** peLabel is an exit P/E without a trailing ".0": 20, 22.5. */
 export function peLabel(pe: number): string {
   return pe % 1 === 0 ? String(pe) : pe.toFixed(1);
+}
+
+/** exitColumn is the index of the column of the exit P/E in use; -1 when the grid has none. */
+export function exitColumn(grid: Grid, ev: Evaluation): number {
+  const pe = ev.exitPe.inUse.value?.pe;
+  return grid.you.value?.column ?? grid.columns.findIndex((c) => c.exitPe === pe);
 }

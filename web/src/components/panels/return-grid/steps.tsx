@@ -4,7 +4,7 @@ import { pct, signedPct, times, usd, years } from "@/components/format";
 import { baselineName } from "@/components/rail/notes";
 import type { WalkthroughStep } from "@/components/walkthrough/Walkthrough";
 import { baselineLabel, dividendsReach, orDividends } from "../priced-in/steps";
-import { exampleRow, peLabel, tagStyles, toneClass } from "./layout";
+import { exampleRow, exitColumn, peLabel, tagStyles, toneClass } from "./layout";
 
 /** StepContext holds the lever values that the steps quote. */
 export interface StepContext {
@@ -27,7 +27,7 @@ const tag = (t: "required" | "weighted" | "today" | "trailing") => (
 
 const points = (x: number, decimals = 1) => (Math.abs(x) * 100).toFixed(decimals);
 
-/** The grid and the user's column; a step that needs them shows no line without them. */
+/** The grid and the column of the exit P/E in use; a step that needs them shows no line without them. */
 interface At {
   grid: Grid;
   col: number;
@@ -38,16 +38,19 @@ interface At {
 
 function at(ev: Evaluation): At | null {
   const grid = ev.returnGrid.value;
-  const you = grid?.you.value;
-  const col = grid?.columns[you?.column ?? -1];
-  if (!grid || !you || !col) {
+  if (grid === null) {
+    return null;
+  }
+  const ci = exitColumn(grid, ev);
+  const col = grid.columns[ci];
+  if (col === undefined) {
     return null;
   }
   return {
     grid,
-    col: you.column,
+    col: ci,
     pe: `${peLabel(col.exitPe)}×`,
-    cells: grid.rows.map((r) => r.cells[you.column]).filter((c) => c !== undefined),
+    cells: grid.rows.map((r) => r.cells[ci]).filter((c) => c !== undefined),
   };
 }
 
@@ -118,17 +121,19 @@ export function gridSteps({ sym, r, n, price, eps }: StepContext): WalkthroughSt
           your exit P/E. Hover over any cell in the grid, or tap it, to see the calculation.
         </p>
       ),
-      you: withGrid(({ grid, col, pe }) => {
+      you: withGrid(({ grid, col, pe }, ev) => {
         const row = grid.rows[exampleRow(grid)];
         const c = row?.cells[col];
         if (row === undefined || c === undefined) {
           return null;
         }
+        const d = ev.required.dividends;
         return (
           <>
             Here: {pct(row.growth)} growth and a {pe} exit. EPS reaches {usd(row.epsAtExit)}, so the
-            price is {usd(row.epsAtExit)} × {pe.replace("×", "")} = <b>{usd(c.exitPrice)}</b>. From
-            today&apos;s {usd(price)} that is <b>{signedPct(c.yearlyReturn)}</b> a year.
+            price is {usd(row.epsAtExit)} × {pe.replace("×", "")} = <b>{usd(c.exitPrice)}</b>
+            {d > 0 ? `, plus ${usd(d)} in dividends` : ""}. From today&apos;s {usd(price)} that is{" "}
+            <b>{signedPct(c.yearlyReturn)}</b> a year.
           </>
         );
       }),
@@ -221,11 +226,17 @@ export function gridSteps({ sym, r, n, price, eps }: StepContext): WalkthroughSt
             <>Your baseline row already beats your target: the stock beats it if growth holds.</>
           );
         }
+        if (g === null) {
+          return (
+            <>
+              Your column beats your target from <b>{pct(first.growth)}</b> growth.
+            </>
+          );
+        }
         return (
           <>
             Your column beats your target from <b>{pct(first.growth)}</b> growth,{" "}
-            <b>{g === null ? "n/a" : points(first.growth - g)} points</b> above your {pct(g)}{" "}
-            baseline.
+            <b>{points(first.growth - g)} points</b> above your {pct(g)} baseline.
           </>
         );
       }),
