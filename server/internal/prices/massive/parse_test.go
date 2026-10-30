@@ -1,9 +1,12 @@
 package massive_test
 
 import (
+	"bytes"
 	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -92,13 +95,15 @@ func TestParseTickers(t *testing.T) {
 }
 
 func TestParseTickerOverview(t *testing.T) {
-	got, err := massive.ParseTickerOverview([]byte(`{"request_id":"r1","status":"OK","results":{"ticker":"GRMN","name":"Garmin Ltd",
+	page, err := massive.ParseTickerOverview([]byte(`{"request_id":"r1","status":"OK","results":{"ticker":"GRMN","name":"Garmin Ltd",
 		"market":"stocks","primary_exchange":"XNYS","type":"CS","active":true,"cik":"0001121788","market_cap":1,"address":{"city":"X"}}}`))
 	if err != nil {
 		t.Fatalf("ParseTickerOverview() error = %v", err)
 	}
-	want := prices.ProviderTicker{Symbol: "GRMN", Name: "Garmin Ltd", CIK: 1121788, Exchange: "XNYS", Type: "CS", Source: "massive"}
-	if diff := cmp.Diff(want, got); diff != "" {
+	want := massive.Page[prices.ProviderTicker]{
+		Items: []prices.ProviderTicker{{Symbol: "GRMN", Name: "Garmin Ltd", CIK: 1121788, Exchange: "XNYS", Type: "CS", Source: "massive"}},
+	}
+	if diff := cmp.Diff(want, page); diff != "" {
 		t.Errorf("ParseTickerOverview() mismatch (-want +got):\n%s", diff)
 	}
 }
@@ -117,7 +122,6 @@ func TestParseRejectsBadInput(t *testing.T) {
 		{"split without a date", parseErr(massive.ParseSplits), `{"status":"OK","results":[{"id":"a","ticker":"NVDA","split_from":1,"split_to":10}]}`},
 		{"dividend with a bad ex-date", parseErr(massive.ParseDividends), `{"status":"OK","results":[{"id":"a","ticker":"KO","ex_dividend_date":"2024-02-30"}]}`},
 		{"dividend with a bad pay date", parseErr(massive.ParseDividends), `{"status":"OK","results":[{"id":"a","ticker":"KO","ex_dividend_date":"2024-02-01","pay_date":"soon"}]}`},
-		{"ticker with a bad CIK", parseErr(massive.ParseTickers), `{"status":"OK","results":[{"ticker":"GRMN","cik":"CIK1121788"}]}`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -235,5 +239,42 @@ func TestAdjustedDailyBarsAsksForAdjustedBars(t *testing.T) {
 	}
 	if gotAdjusted != "true" || len(got) != 1 || got[0].Close != 115 {
 		t.Errorf("AdjustedDailyBars() = %+v with adjusted=%q, want one bar with adjusted=true", got, gotAdjusted)
+	}
+}
+
+func TestAnUnreadableCIKBecomesUnknownAndIsNoted(t *testing.T) {
+	page, err := massive.ParseTickers([]byte(`{"status":"OK","results":[
+		{"ticker":"AAA","cik":"CIK1121788"},{"ticker":"BBB","cik":"0000000000"},{"ticker":"CCC","cik":"0000021344"}]}`))
+	if err != nil {
+		t.Fatalf("ParseTickers() error = %v", err)
+	}
+	ciks := map[string]domain.CIK{}
+	for _, tk := range page.Items {
+		ciks[tk.Symbol] = tk.CIK
+	}
+	if diff := cmp.Diff(map[string]domain.CIK{"AAA": 0, "BBB": 0, "CCC": 21344}, ciks); diff != "" {
+		t.Errorf("CIKs mismatch (-want +got):\n%s", diff)
+	}
+	if len(page.Notes) != 2 || !strings.Contains(page.Notes[0], "AAA") || !strings.Contains(page.Notes[1], "BBB") {
+		t.Errorf("Notes = %q, want one note for AAA and one for BBB", page.Notes)
+	}
+}
+
+func TestTickersLogsAnUnreadableCIKAtDebugLevel(t *testing.T) {
+	srv := httptest.NewServer(serveJSON(`{"status":"OK","results":[{"ticker":"AAA","cik":"CIK1121788"},{"ticker":"CCC","cik":"0000021344"}]}`))
+	defer srv.Close()
+	var logs bytes.Buffer
+	c := newClient(t, srv, func(o *massive.Options) {
+		o.Logger = slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	})
+	tickers, err := c.Tickers(t.Context())
+	if err != nil {
+		t.Fatalf("Tickers() error = %v", err)
+	}
+	if len(tickers) != 2 {
+		t.Errorf("Tickers() = %d tickers, want 2", len(tickers))
+	}
+	if got := strings.Count(logs.String(), "level=DEBUG"); got != 1 || !strings.Contains(logs.String(), "AAA") {
+		t.Errorf("logs = %q, want one debug line that names AAA", logs.String())
 	}
 }

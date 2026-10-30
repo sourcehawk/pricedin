@@ -21,6 +21,9 @@ type Page[T any] struct {
 	Items []T
 	// NextURL is Massive's link to the next page, or empty on the last page.
 	NextURL string
+	// Notes names each value that the parse function could not read and
+	// replaced, such as an invalid CIK that became 0.
+	Notes []string
 }
 
 // The parse functions decode one stored or fetched response body. They need
@@ -212,12 +215,15 @@ type tickerJSON struct {
 	CompositeFIGI   string `json:"composite_figi"`
 }
 
-func (t tickerJSON) toProvider() (prices.ProviderTicker, error) {
+// toProvider returns the ticker, and a note when its CIK is not a valid CIK
+// and became 0.
+func (t tickerJSON) toProvider() (prices.ProviderTicker, string) {
 	var cik domain.CIK
+	var note string
 	if t.CIK != "" {
 		var err error
 		if cik, err = domain.ParseCIK(t.CIK); err != nil {
-			return prices.ProviderTicker{}, fmt.Errorf("massive: ticker %s: %w", t.Ticker, err)
+			note = fmt.Sprintf("ticker %s: invalid CIK %q, using 0: %v", t.Ticker, t.CIK, err)
 		}
 	}
 	return prices.ProviderTicker{
@@ -228,10 +234,12 @@ func (t tickerJSON) toProvider() (prices.ProviderTicker, error) {
 		Type:          t.Type,
 		CompositeFIGI: t.CompositeFIGI,
 		Source:        source,
-	}, nil
+	}, note
 }
 
-// ParseTickers decodes a ticker list response (/v3/reference/tickers).
+// ParseTickers decodes a ticker list response (/v3/reference/tickers). A
+// ticker whose CIK is not a valid CIK, such as "0000000000", gets CIK 0 and
+// a note.
 func ParseTickers(body []byte) (Page[prices.ProviderTicker], error) {
 	var resp struct {
 		envelope
@@ -240,28 +248,34 @@ func ParseTickers(body []byte) (Page[prices.ProviderTicker], error) {
 	if err := decode(body, &resp, &resp.envelope); err != nil {
 		return Page[prices.ProviderTicker]{}, err
 	}
-	tickers := make([]prices.ProviderTicker, 0, len(resp.Results))
+	page := Page[prices.ProviderTicker]{Items: make([]prices.ProviderTicker, 0, len(resp.Results)), NextURL: resp.NextURL}
 	for _, r := range resp.Results {
-		t, err := r.toProvider()
-		if err != nil {
-			return Page[prices.ProviderTicker]{}, err
+		t, note := r.toProvider()
+		page.Items = append(page.Items, t)
+		if note != "" {
+			page.Notes = append(page.Notes, note)
 		}
-		tickers = append(tickers, t)
 	}
-	return Page[prices.ProviderTicker]{Items: tickers, NextURL: resp.NextURL}, nil
+	return page, nil
 }
 
 // ParseTickerOverview decodes a ticker overview response
-// (/v3/reference/tickers/{ticker}).
-func ParseTickerOverview(body []byte) (prices.ProviderTicker, error) {
+// (/v3/reference/tickers/{ticker}) into a page with one ticker. Its CIK
+// follows the rule of ParseTickers.
+func ParseTickerOverview(body []byte) (Page[prices.ProviderTicker], error) {
 	var resp struct {
 		envelope
 		Results tickerJSON `json:"results"`
 	}
 	if err := decode(body, &resp, &resp.envelope); err != nil {
-		return prices.ProviderTicker{}, err
+		return Page[prices.ProviderTicker]{}, err
 	}
-	return resp.Results.toProvider()
+	t, note := resp.Results.toProvider()
+	page := Page[prices.ProviderTicker]{Items: []prices.ProviderTicker{t}}
+	if note != "" {
+		page.Notes = []string{note}
+	}
+	return page, nil
 }
 
 func decode(body []byte, v any, env *envelope) error {

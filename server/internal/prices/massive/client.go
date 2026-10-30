@@ -280,11 +280,19 @@ func (c *Client) Ticker(ctx context.Context, symbol string) (prices.ProviderTick
 	if err != nil {
 		return prices.ProviderTicker{}, err
 	}
-	t, err := ParseTickerOverview(body)
+	page, err := ParseTickerOverview(body)
 	if err != nil {
 		return prices.ProviderTicker{}, c.withPath(err, rel)
 	}
-	return t, nil
+	c.logNotes(ctx, rel, page.Notes)
+	return page.Items[0], nil
+}
+
+// logNotes writes one debug line for each note of a parse function.
+func (c *Client) logNotes(ctx context.Context, rel string, notes []string) {
+	for _, n := range notes {
+		c.logger.DebugContext(ctx, "massive: replaced an unreadable value", "path", rel, "note", c.scrub(n))
+	}
 }
 
 // fetchAll requests rel and every page that its next_url links lead to, and
@@ -306,6 +314,7 @@ func fetchAll[T any](ctx context.Context, c *Client, rel, keyBase string, parse 
 		if err != nil {
 			return nil, c.withPath(err, rel)
 		}
+		c.logNotes(ctx, rel, p.Notes)
 		all = append(all, p.Items...)
 		if p.NextURL == "" {
 			return all, nil

@@ -257,7 +257,7 @@ func sessionServer(t *testing.T) (*httptest.Server, *[]string) {
 			serveJSON(`{"status":"DELAYED","results":[{"T":"AAPL","o":1,"h":1,"l":1,"c":3,"v":1,"t":1793332800000}]}`)(w, r)
 			return
 		}
-		serveJSON(`{"ticker":"AAPL","status":"DELAYED","results":` + bars + `}`)(w, r)
+		serveJSON(`{"ticker":"AAPL","status":"DELAYED","results":`+bars+`}`)(w, r)
 	}))
 	t.Cleanup(srv.Close)
 	return srv, &paths
