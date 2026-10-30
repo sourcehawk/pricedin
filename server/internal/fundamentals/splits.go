@@ -143,7 +143,7 @@ func reconcile(obs []observation) (observation, []Conflict) {
 	}
 
 	a, b := first.fact.Value, last.fact.Value
-	if a == b || a == 0 || b == 0 {
+	if a == 0 || b == 0 {
 		return use, nil
 	}
 	expected := first.ratio / last.ratio

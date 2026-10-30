@@ -274,3 +274,21 @@ func TestDeriveLetsTheProviderEventWinOverSECEvidenceWithAnotherRatio(t *testing
 		t.Errorf("%d split_evidence conflicts, want 1: %+v", n, s.Conflicts)
 	}
 }
+
+func TestDeriveFlagsAValueThatAFilingAfterTheSplitRepeatsUnchanged(t *testing.T) {
+	var facts []domain.Fact
+	splitYears(t, &facts, 2.10)
+
+	s := derive(t, facts, fundamentals.Options{Splits: []domain.Split{providerSplit(t, "2025-06-10", 2)}})
+	want := []fundamentals.Conflict{{
+		Kind:        fundamentals.ConflictSplitMismatch,
+		Concept:     string(sec.EarningsPerShareDiluted),
+		PeriodStart: dayPtr(t, "2024-04-01"),
+		PeriodEnd:   day(t, "2024-06-30"),
+		Observed:    1,
+		Expected:    2,
+	}}
+	if diff := cmp.Diff(want, s.Conflicts, conflictSummary); diff != "" {
+		t.Errorf("Conflicts (-want +got):\n%s", diff)
+	}
+}
