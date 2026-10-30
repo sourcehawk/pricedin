@@ -89,6 +89,40 @@ services:
       retries: 10
       start_period: 5s
 
+  # Runs the daily ingestion job at PRICEDIN_SCHEDULE_DAILY (UTC). It calls
+  # SEC and Massive, so it needs PRICEDIN_SEC_USER_AGENT and
+  # PRICEDIN_MASSIVE_API_KEY in .env, and it starts only with
+  # `--profile scheduler`. docker-compose.fixtures.yml runs it against the
+  # fixture server instead.
+  scheduler:
+    profiles: [scheduler]
+    build:
+      context: server
+    image: ${PRICEDIN_SERVER_IMAGE:-pricedin-server:dev}
+    command: ["scheduler"]
+    environment:
+      # The same database and blob settings as the server; see there.
+      PRICEDIN_DATABASE_URL: ""
+      PRICEDIN_DATABASE_HOST: db
+      PRICEDIN_DATABASE_PORT: "5432"
+      PRICEDIN_DATABASE_USER: ${POSTGRES_USER:-pricedin}
+      PRICEDIN_DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-pricedin}
+      PRICEDIN_DATABASE_NAME: ${POSTGRES_DB:-pricedin}
+      PRICEDIN_DATABASE_SSLMODE: disable
+      PRICEDIN_BLOB_BACKEND: fs
+      PRICEDIN_BLOB_DIR: /data/blob
+    env_file:
+      - path: .env
+        required: false
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    volumes:
+      - blob-data:/data/blob
+    restart: unless-stopped
+
   web:
     build:
       context: .

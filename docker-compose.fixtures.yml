@@ -1,0 +1,48 @@
+# The stack without SEC and Massive: the fixture server answers at their
+# paths from the files in testdata, and the server and the scheduler call it.
+# Use it with the base file and the fixtures profile:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.fixtures.yml --profile fixtures up
+#
+# `make up-fixtures` runs that, and `make seed` then loads the fixture
+# companies. `make test-e2e` uses the same files.
+
+x-fixture-upstreams: &fixture-upstreams
+  PRICEDIN_SEC_USER_AGENT: "PricedIn fixtures@example.com"
+  PRICEDIN_SEC_BASE_URL: http://fixtures:8090/www.sec.gov
+  PRICEDIN_SEC_DATA_BASE_URL: http://fixtures:8090/data.sec.gov
+  PRICEDIN_MASSIVE_BASE_URL: http://fixtures:8090/api.massive.com
+  PRICEDIN_MASSIVE_API_KEY: fixture-key
+  PRICEDIN_MASSIVE_RATE_LIMIT: "1000"
+  # The companies that have SEC and price fixtures.
+  PRICEDIN_UNIVERSE: NVDA,AAPL,KO,GRMN,ADM
+
+services:
+  fixtures:
+    profiles: [fixtures]
+    build:
+      context: server
+      target: fixtureserver
+    image: ${PRICEDIN_FIXTURES_IMAGE:-pricedin-fixtures:dev}
+    command: ["-addr", ":8090", "-root", "/testdata", "-massive-key", "fixture-key"]
+    volumes:
+      - ./testdata:/testdata:ro
+    healthcheck:
+      test: ["CMD", "/fixtureserver", "-check", "http://127.0.0.1:8090/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+  server:
+    environment: *fixture-upstreams
+    depends_on:
+      fixtures:
+        condition: service_healthy
+
+  scheduler:
+    profiles: [fixtures]
+    environment: *fixture-upstreams
+    depends_on:
+      fixtures:
+        condition: service_healthy

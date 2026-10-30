@@ -32,6 +32,34 @@ Before the server starts, the `migrate` service applies the database migrations.
 
 If one of these ports is in use, change it in `.env` (`PRICEDIN_WEB_PORT`, `PRICEDIN_API_PORT`, `PRICEDIN_METRICS_PORT`, `PRICEDIN_DB_PORT`). `make down` stops the stack. `make logs` follows its logs.
 
+### Load data without SEC and Massive
+
+The fixture server answers at the SEC and Massive paths from the files in `testdata/`, so you need no API key and no network access to those services:
+
+```sh
+make up-fixtures
+make seed
+```
+
+`make up-fixtures` starts the stack with the fixture server and the scheduler (Compose files `docker-compose.yml` and `docker-compose.fixtures.yml`, profile `fixtures`). `make seed` then runs the jobs that load the five fixture companies: NVDA, AAPL, KO, GRMN and ADM. `make down-fixtures` stops that stack.
+
+### Load real data
+
+The ingestion jobs need `PRICEDIN_SEC_USER_AGENT` (a name and a contact email address) for SEC, and `PRICEDIN_MASSIVE_API_KEY` for prices. Set them in `.env`. While you develop, narrow the jobs to a few tickers, or they load every NYSE and Nasdaq company:
+
+```sh
+PRICEDIN_UNIVERSE=NVDA,KO
+```
+
+| Command | What it does |
+| --- | --- |
+| `pricedin jobs list` | Lists the jobs and the latest run of each |
+| `pricedin jobs run <job> [args]` | Runs one job. For a first import, run `sec-tickers`, `sec-bulk`, `price-reference`, `prices-backfill` and `fundamentals-rebuild all`, in that order |
+| `pricedin ingest company <ticker>` | Loads one company: its SEC filings and facts, its splits, dividends and daily prices, and its quarters. It works for any ticker in the SEC ticker map, also outside `PRICEDIN_UNIVERSE` |
+| `pricedin scheduler` | Runs the `daily` job every day at `PRICEDIN_SCHEDULE_DAILY` (UTC, default 01:30) |
+
+In the Compose stack, put `docker compose exec server /pricedin` before each command, such as `docker compose exec server /pricedin ingest company GRMN`. On your host, run `go run ./cmd/pricedin` in `server/` instead. Every job is safe to run again. When another process runs the same job, `jobs run` skips it, or waits for it with `--wait`. `docker compose --profile scheduler up` also starts the scheduler.
+
 ### Tests and checks
 
 | Target | What it runs |
@@ -39,8 +67,9 @@ If one of these ports is in use, change it in `.env` (`PRICEDIN_WEB_PORT`, `PRIC
 | `make lint` | golangci-lint, ESLint, the TypeScript type check, Prettier, actionlint, shellcheck, and a check that the engine cases are current |
 | `make test` | The Go unit tests (`make test-server`) and the web unit tests (`make test-web`) |
 | `make test-integration` | The Go tests with the `integration` build tag |
-| `make test-e2e` | Builds the images, starts a separate Compose stack (project `pricedin-e2e`, web on port 3100, API on port 8180), runs Playwright, and removes that stack. The stack of `make up` is not touched |
+| `make test-e2e` | Builds the images, starts a separate Compose stack against the fixture server (project `pricedin-e2e`, web on port 3100, API on port 8180), runs Playwright, and removes that stack. The stack of `make up` is not touched |
 | `make generate-engine-cases` | Writes the shared engine cases in `testdata/engine/` from the prototype oracle in `tools/engine-oracle/` |
+| `make generate-price-fixtures` | Writes the synthetic Massive fixtures in `testdata/prices/massive/`, with closes that follow the earnings in the SEC fixtures |
 | `make ci` | Everything that CI runs, in the CI order |
 
 `make migrate` applies the migrations to the database of the Compose stack. `make migrate MIGRATE_ARGS=status` lists them, and `MIGRATE_ARGS=down` rolls back the latest one. For another database, set `PRICEDIN_DATABASE_URL` and run `go run ./cmd/pricedin migrate up` in `server/`.
@@ -51,7 +80,7 @@ If one of these ports is in use, change it in `.env` (`PRICEDIN_WEB_PORT`, `PRIC
 
 | Path | Content |
 | --- | --- |
-| `server/` | Go module: the `pricedin` command, the API, the calculation engine (`internal/engine`), and later the ingestion jobs |
+| `server/` | Go module: the `pricedin` command, the API, the calculation engine (`internal/engine`), the ingestion jobs (`internal/ingest`) and the fixture server (`cmd/fixtureserver`) |
 | `web/` | Next.js app in TypeScript, with the browser copy of the calculation engine (`src/engine`) |
 | `e2e/` | Playwright tests that run against the Compose stack |
 | `prototype/` | The prototype, the reference for behavior, calculations, copy and layout |
