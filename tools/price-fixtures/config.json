@@ -67,12 +67,7 @@
       "dividends": {
         "first_amount": 0.42,
         "annual_raise": 0.045,
-        "ex_dates": [
-          "03-14",
-          "06-14",
-          "09-14",
-          "11-29"
-        ],
+        "ex_dates": ["03-14", "06-14", "09-14", "11-29"],
         "declared_days_before": 45,
         "pay_days_after": 16
       },
@@ -99,12 +94,7 @@
       "dividends": {
         "first_amount": 0.73,
         "annual_raise": 0.05,
-        "ex_dates": [
-          "03-14",
-          "06-13",
-          "09-13",
-          "12-13"
-        ],
+        "ex_dates": ["03-14", "06-13", "09-13", "12-13"],
         "declared_yearly_on": "02-18",
         "pay_days_after": 14
       },
@@ -124,12 +114,7 @@
       "dividends": {
         "first_amount": 0.37,
         "annual_raise": 0.07,
-        "ex_dates": [
-          "02-14",
-          "05-16",
-          "08-15",
-          "11-14"
-        ],
+        "ex_dates": ["02-14", "05-16", "08-15", "11-14"],
         "declared_days_before": 40,
         "pay_days_after": 25
       },
