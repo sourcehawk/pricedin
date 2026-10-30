@@ -1,4 +1,4 @@
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import type { Evaluation } from "@/engine";
 import { pct, pp, signedPct, times, usd, years } from "@/components/format";
 import { baselineName } from "@/components/rail/notes";
@@ -11,6 +11,26 @@ const swatch = (color: string) => (
 const pill = (tone: "good" | "warn" | "bad", text: string) => (
   <span className={`pill ${tone}`}>{text}</span>
 );
+
+/** dividendsReach reports whether the dividends alone reach the target, so no EPS growth is required. */
+export function dividendsReach(ev: Evaluation): boolean {
+  return (
+    ev.required.growth.value === null && ev.required.growth.reason === "dividends_reach_target"
+  );
+}
+
+/** orDividends returns a step line that shows noGrowth in place of line when the dividends alone reach the target. */
+export function orDividends(
+  noGrowth: ReactNode,
+  line: (ev: Evaluation) => ReactNode,
+): (ev: Evaluation) => ReactNode {
+  return (ev) => (dividendsReach(ev) ? noGrowth : line(ev));
+}
+
+/** baselineLabel names the baseline in use without a leading "your". */
+export function baselineLabel(ev: Evaluation): string {
+  return baselineName(ev).replace(/^your /, "");
+}
 
 function compareLine(ev: Evaluation) {
   const b = ev.baselines;
@@ -57,7 +77,10 @@ function verdictLine(ev: Evaluation, sym: string) {
     );
   } else {
     next = (
-      <>It stays {pill("good", "Undemanding")} as long as growth holds above the requirement.</>
+      <>
+        It stays {pill("good", "Undemanding")} while the baseline stays above about{" "}
+        <b>{pct(ev.required.undemandingFrom.value)}</b> growth.
+      </>
     );
   }
   return (
@@ -99,6 +122,11 @@ export interface StepContext {
 
 /** pricedInSteps are the walkthrough steps of the priced-in panel. */
 export function pricedInSteps({ sym, r, n, price, eps }: StepContext): WalkthroughStep[] {
+  const noGrowth = (
+    <>
+      {sym} needs no EPS growth: your dividends alone reach <b>{pct(r)}</b> a year.
+    </>
+  );
   return [
     {
       title: "The big number is the bar to clear",
@@ -110,12 +138,12 @@ export function pricedInSteps({ sym, r, n, price, eps }: StepContext): Walkthrou
           price-to-earnings ratio you expect the market to pay when you sell.
         </p>
       ),
-      you: (ev) => (
+      you: orDividends(noGrowth, (ev) => (
         <>
           {sym} must grow EPS <b>{pct(ev.required.growth.value)}</b> a year on average for{" "}
           {years(n)} to give you {pct(r)} a year.
         </>
-      ),
+      )),
     },
     {
       title: "What it takes in dollars",
@@ -126,14 +154,14 @@ export function pricedInSteps({ sym, r, n, price, eps }: StepContext): Walkthrou
           sell, and the EPS the company must reach so that your exit P/E gives that price.
         </p>
       ),
-      you: (ev) => (
+      you: orDividends(noGrowth, (ev) => (
         <>
           In dollars: EPS must go from <b>{usd(eps)}</b> today to{" "}
           <b>{usd(ev.required.eps.value)}</b> in {years(n)}. At {times(ev.exitPe.inUse.value?.pe)}{" "}
           that is a share price of <b>{usd(ev.required.exitPrice.value)}</b>, which turns
           today&apos;s {usd(price)} into {pct(r)} a year.
         </>
-      ),
+      )),
     },
     {
       title: "Compare it with what the company has done",
@@ -150,7 +178,7 @@ export function pricedInSteps({ sym, r, n, price, eps }: StepContext): Walkthrou
           large dot falls short.
         </p>
       ),
-      you: compareLine,
+      you: orDividends(noGrowth, compareLine),
     },
     {
       title: "Read the gap",
@@ -162,7 +190,7 @@ export function pricedInSteps({ sym, r, n, price, eps }: StepContext): Walkthrou
           price already assumes a much better future than the company&apos;s record shows.
         </p>
       ),
-      you: (ev) => {
+      you: orDividends(noGrowth, (ev) => {
         const gap = ev.gap.value;
         const note =
           gap === null
@@ -178,7 +206,7 @@ export function pricedInSteps({ sym, r, n, price, eps }: StepContext): Walkthrou
             from the requirement. {note}
           </>
         );
-      },
+      }),
     },
     {
       title: "Read the verdict label",
@@ -202,7 +230,7 @@ export function pricedInSteps({ sym, r, n, price, eps }: StepContext): Walkthrou
           The label follows the baseline you pick in the left panel.
         </div>
       ),
-      you: (ev) => verdictLine(ev, sym),
+      you: orDividends(noGrowth, (ev) => verdictLine(ev, sym)),
     },
     {
       title: "Check the direction with the quarterly chips",
@@ -228,7 +256,7 @@ export function pricedInSteps({ sym, r, n, price, eps }: StepContext): Walkthrou
           investment has little room for error.
         </p>
       ),
-      you: (ev) => {
+      you: orDividends(noGrowth, (ev) => {
         const s = ev.sensitivity.value;
         if (s === null) {
           return null;
@@ -242,17 +270,30 @@ export function pricedInSteps({ sym, r, n, price, eps }: StepContext): Walkthrou
             {pct(ev.required.growth.value)} now.
           </>
         );
-      },
+      }),
       takeaway: (ev) => {
+        if (dividendsReach(ev)) {
+          return (
+            <>
+              <strong>{sym} in one line:</strong> your dividends alone reach {pct(r)} a year, so the
+              price requires no EPS growth.
+            </>
+          );
+        }
         const gap = ev.gap.value;
+        const b = ev.baselines;
         return (
           <>
             <strong>{sym} in one line:</strong> the price requires {pct(ev.required.growth.value)}{" "}
-            EPS growth a year; the company&apos;s weighted trend is{" "}
-            {pct(ev.baselines.weighted.value)}.{" "}
-            {gap !== null && gap >= 0
-              ? "The current pace clears the bar."
-              : "The price assumes faster growth than the company shows now."}
+            EPS growth a year; your {baselineLabel(ev)} is {pct(b.growth.value)}
+            {b.active === "weighted"
+              ? ""
+              : ` and the weighted trend ${pct(b.weighted.value)}`}.{" "}
+            {gap === null
+              ? ""
+              : gap >= 0
+                ? "Your baseline clears the bar."
+                : "The price assumes faster growth than your baseline."}
           </>
         );
       },

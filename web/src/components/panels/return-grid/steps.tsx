@@ -3,6 +3,7 @@ import type { Evaluation, Grid, GridOutcome } from "@/engine";
 import { pct, signedPct, times, usd, years } from "@/components/format";
 import { baselineName } from "@/components/rail/notes";
 import type { WalkthroughStep } from "@/components/walkthrough/Walkthrough";
+import { baselineLabel, dividendsReach, orDividends } from "../priced-in/steps";
 import { exampleRow, peLabel, tagStyles, toneClass } from "./layout";
 
 /** StepContext holds the lever values that the steps quote. */
@@ -61,6 +62,11 @@ const withGrid =
 /** gridSteps are the walkthrough steps of the return grid. */
 export function gridSteps({ sym, r, n, price, eps }: StepContext): WalkthroughStep[] {
   const target = pct(r);
+  const noGrowth = (
+    <>
+      Your dividends alone reach <b>{target}</b> a year, so the price requires no EPS growth.
+    </>
+  );
   return [
     {
       title: "Rows are EPS growth rates",
@@ -234,28 +240,35 @@ export function gridSteps({ sym, r, n, price, eps }: StepContext): WalkthroughSt
           beat your target around your own cell gives a margin of safety.
         </p>
       ),
-      you: withGrid(({ grid, cells }, ev) => {
-        const near = grid.rows.filter(
-          (_, i) => cells[i] !== undefined && toneClass(cells[i].tone) === "warn",
-        );
-        const R = pct(ev.required.growth.value);
-        if (near.length === 0) {
+      you: orDividends(
+        noGrowth,
+        withGrid(({ grid, cells }, ev) => {
+          const near = grid.rows.filter(
+            (_, i) => cells[i] !== undefined && toneClass(cells[i].tone) === "warn",
+          );
+          const R = pct(ev.required.growth.value);
+          if (near.length === 0) {
+            const crosses =
+              cells.some((c) => c.tone === "bad") && cells.some((c) => c.tone === "good");
+            return crosses ? (
+              <>
+                Your column jumps from falling short to beating your target between two rows. The
+                exact requirement, {R}, falls between them.
+              </>
+            ) : (
+              <>No row in your column lands within 1.5 pp of your target.</>
+            );
+          }
           return (
             <>
-              Your column jumps from falling short to beating your target between two rows. The
-              exact requirement, {R}, falls between them.
+              In your column the {near.length > 1 ? "rows" : "row"} near your target{" "}
+              {near.length > 1 ? "are" : "is"} <b>{near.map((x) => pct(x.growth)).join(" and ")}</b>
+              . That is where the price lands you right at your target, close to the <b>{R}</b> the
+              price requires.
             </>
           );
-        }
-        return (
-          <>
-            In your column the {near.length > 1 ? "rows" : "row"} near your target{" "}
-            {near.length > 1 ? "are" : "is"} <b>{near.map((x) => pct(x.growth)).join(" and ")}</b>.
-            That is where the price lands you right at your target, close to the <b>{R}</b> the
-            price requires.
-          </>
-        );
-      }),
+        }),
+      ),
     },
     {
       title: "Question your cell's tone",
@@ -268,31 +281,34 @@ export function gridSteps({ sym, r, n, price, eps }: StepContext): WalkthroughSt
           change flips it, the result is fragile.
         </p>
       ),
-      you: withGrid(({ pe }, ev) => {
-        const ab = ev.atBaseline.value;
-        if (ab === null) {
-          return null;
-        }
-        const tone = toneClass(ab.tone);
-        const word = {
-          bad: "falls short of your target",
-          warn: "is near your target",
-          good: "beats your target",
-        }[tone];
-        const color = { bad: "var(--bad)", warn: "var(--warn)", good: "var(--good)" }[tone];
-        return (
-          <>
-            Your cell {swatch(color)}
-            <b>{word}</b>: {signedPct(ab.yearlyReturn)} a year against your {target} target. You
-            reach the target at <b>{pct(ev.required.growth.value)}</b> growth (yours is{" "}
-            {pct(ev.baselines.growth.value)}) or at a <b>{times(ab.exitPeNeeded.value)}</b> exit P/E
-            (yours is {pe}).{" "}
-            {ab.fragile
-              ? "One small change flips the tone, so treat the result as fragile."
-              : "Neither is a small step, so the result is not fragile."}
-          </>
-        );
-      }),
+      you: orDividends(
+        noGrowth,
+        withGrid(({ pe }, ev) => {
+          const ab = ev.atBaseline.value;
+          if (ab === null) {
+            return null;
+          }
+          const tone = toneClass(ab.tone);
+          const word = {
+            bad: "falls short of your target",
+            warn: "is near your target",
+            good: "beats your target",
+          }[tone];
+          const color = { bad: "var(--bad)", warn: "var(--warn)", good: "var(--good)" }[tone];
+          return (
+            <>
+              Your cell {swatch(color)}
+              <b>{word}</b>: {signedPct(ab.yearlyReturn)} a year against your {target} target. You
+              reach the target at <b>{pct(ev.required.growth.value)}</b> growth (yours is{" "}
+              {pct(ev.baselines.growth.value)}) or at a <b>{times(ab.exitPeNeeded.value)}</b> exit
+              P/E (yours is {pe}).{" "}
+              {ab.fragile
+                ? "One small change flips the tone, so treat the result as fragile."
+                : "Neither is a small step, so the result is not fragile."}
+            </>
+          );
+        }),
+      ),
     },
     {
       title: "Move across a row to see what the P/E does",
@@ -354,22 +370,25 @@ export function gridSteps({ sym, r, n, price, eps }: StepContext): WalkthroughSt
           your target and rows below it beat it.
         </p>
       ),
-      you: withGrid(({ pe }, ev) => {
-        const gap = ev.gap.value;
-        return (
-          <>
-            Today&apos;s price requires <b>{pct(ev.required.growth.value)}</b> EPS growth a year for
-            your {target} target at {pe}. Your baseline is {pct(ev.baselines.growth.value)}
-            {gap === null ? (
-              "."
-            ) : (
-              <>
-                , <b>{points(gap)} pp</b> {gap >= 0 ? "above it." : "short of it."}
-              </>
-            )}
-          </>
-        );
-      }),
+      you: orDividends(
+        noGrowth,
+        withGrid(({ pe }, ev) => {
+          const gap = ev.gap.value;
+          return (
+            <>
+              Today&apos;s price requires <b>{pct(ev.required.growth.value)}</b> EPS growth a year
+              for your {target} target at {pe}. Your baseline is {pct(ev.baselines.growth.value)}
+              {gap === null ? (
+                "."
+              ) : (
+                <>
+                  , <b>{points(gap)} pp</b> {gap >= 0 ? "above it." : "short of it."}
+                </>
+              )}
+            </>
+          );
+        }),
+      ),
     },
     {
       title: <>{tag("weighted")} marks the weighted trend</>,
@@ -465,6 +484,14 @@ export function gridSteps({ sym, r, n, price, eps }: StepContext): WalkthroughSt
         );
       },
       takeaway: (ev) => {
+        if (dividendsReach(ev)) {
+          return (
+            <>
+              <strong>{sym} in one line:</strong> your dividends alone reach {target} a year, so the
+              price requires no EPS growth.
+            </>
+          );
+        }
         const gap = ev.gap.value;
         const pe = ev.exitPe.inUse.value?.pe;
         return (
@@ -472,10 +499,15 @@ export function gridSteps({ sym, r, n, price, eps }: StepContext): WalkthroughSt
             <strong>{sym} in one line:</strong> the price requires {pct(ev.required.growth.value)}{" "}
             EPS growth a year for {target} at a {pe === undefined ? "n/a" : `${peLabel(pe)}×`} exit.
             The weighted trend is {pct(ev.baselines.weighted.value)} and the latest quarter{" "}
-            {pct(ev.baselines.today.value)}, so{" "}
-            {gap !== null && gap >= 0
-              ? "the current pace clears the bar."
-              : "the price assumes growth speeds up."}
+            {pct(ev.baselines.today.value)}.{" "}
+            {gap === null ? null : (
+              <>
+                Your {baselineLabel(ev)} of {pct(ev.baselines.growth.value)}{" "}
+                {gap >= 0
+                  ? "clears the bar."
+                  : "falls short, so the price assumes growth speeds up."}
+              </>
+            )}
           </>
         );
       },

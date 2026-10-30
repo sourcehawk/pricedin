@@ -1,7 +1,9 @@
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
-import { withApiServer } from "@/api/testing/server";
+import { http, HttpResponse } from "msw";
+import { historyFixture } from "@/api/testing/fixtures";
+import { apiServer, apiUrl, withApiServer } from "@/api/testing/server";
 import type { ReactNode } from "react";
 import { leversReducer, type LeverAction } from "@/state/levers";
 import { useStock } from "@/state/StockProvider";
@@ -155,6 +157,45 @@ describe("the priced-in panel", () => {
       within(panel).getByText("Undemanding: your dividends alone reach the target"),
     ).toHaveClass("good");
   });
+
+  it("links a YoY chip whose quarter EPS was derived to the newest filing behind it", async () => {
+    const quarters = historyFixture.quarters.map((q, i, all) => {
+      if (i !== all.length - 1 || q.eps?.kind !== "sec") {
+        return q;
+      }
+      const fy = { ...q.eps, form: "10-K", filed: "2026-11-02", url: "https://www.sec.gov/fy.htm" };
+      return {
+        ...q,
+        eps: {
+          kind: "derived" as const,
+          method: "fy_difference" as const,
+          estimate: false,
+          inputs: [fy, q.eps],
+        },
+      };
+    });
+    apiServer.use(
+      http.get(apiUrl("/api/v1/stocks/GRMN/history"), () =>
+        HttpResponse.json({ ...historyFixture, quarters }),
+      ),
+    );
+    const panel = await renderPanel();
+    const chips = within(panel).getByRole("list", { name: "Quarterly EPS growth, year over year" });
+    const last = within(chips).getAllByRole("listitem").at(-1) as HTMLElement;
+    expect(within(last).getByRole("link")).toHaveAttribute("href", "https://www.sec.gov/fy.htm");
+  });
+
+  it("explains a missing requirement for negative EPS also with a custom exit P/E", async () => {
+    const panel = await renderPanel(
+      { type: "setExitPe", value: 20 },
+      { type: "setStartingPoint", field: "ttmEps", value: -1 },
+    );
+    expect(within(panel).getByTestId("required-growth")).toHaveTextContent("n/a");
+    expect(panel).toHaveTextContent(
+      "A P/E model needs positive EPS. Loss-making companies need a different method.",
+    );
+    expect(panel).not.toHaveTextContent("exiting at");
+  });
 });
 
 describe("the walkthrough of the priced-in summary", () => {
@@ -220,7 +261,7 @@ describe("the walkthrough of the priced-in summary", () => {
     expect(document.querySelector('[data-lever="targetReturn"]')).toHaveAttribute("data-tside");
     expect(document.querySelector('[data-lever="exitPe"]')).toHaveAttribute("data-tside");
     expect(card.querySelector(".t-takeaway")).toHaveTextContent(
-      "GRMN in one line: the price requires 23.9% EPS growth a year; the company's weighted trend is 16.0%. The price assumes faster growth than the company shows now.",
+      "GRMN in one line: the price requires 23.9% EPS growth a year; your weighted trend is 16.0%. The price assumes faster growth than your baseline.",
     );
     expect(within(card).getByRole("button", { name: "Finish" })).toBeInTheDocument();
   });
@@ -243,5 +284,43 @@ describe("the walkthrough of the priced-in summary", () => {
         await next(card);
       }
     }
+  });
+  it("keeps an undemanding label only while the baseline stays 1.5 pp above the requirement", async () => {
+    const { card } = await start({ type: "setTargetReturn", value: 0.05 });
+    for (let i = 0; i < 4; i++) {
+      await next(card);
+    }
+    expect(card.querySelector(".t-you")).toHaveTextContent(
+      /It stays Undemanding while the baseline stays above about \d+\.\d% growth\.$/,
+    );
+  });
+
+  it("says no growth is needed in every step when the dividends alone reach the target", async () => {
+    const { card } = await start(
+      { type: "setStartingPoint", field: "dividend", value: 130 },
+      { type: "setTargetReturn", value: 0.1 },
+    );
+    expect(card.querySelector(".t-you")).toHaveTextContent(
+      "GRMN needs no EPS growth: your dividends alone reach 10.0% a year.",
+    );
+    for (let i = 0; i < 7; i++) {
+      expect(card).not.toHaveTextContent("n/a");
+      if (i < 6) {
+        await next(card);
+      }
+    }
+  });
+
+  it("draws its conclusion from the baseline in use, and names it", async () => {
+    const { card } = await start(
+      { type: "setBaselineMode", mode: "custom" },
+      { type: "setCustomRate", value: 0.3 },
+    );
+    for (let i = 0; i < 6; i++) {
+      await next(card);
+    }
+    expect(card.querySelector(".t-takeaway")).toHaveTextContent(
+      "GRMN in one line: the price requires 23.9% EPS growth a year; your custom growth is 30.0% and the weighted trend 16.0%. Your baseline clears the bar.",
+    );
   });
 });
