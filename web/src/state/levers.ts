@@ -228,7 +228,11 @@ export function leversReducer(s: LeverState, a: LeverAction): LeverState {
       if (!Number.isInteger(a.index) || a.index < 0 || a.index >= a.current.length) {
         return s;
       }
-      const rates = a.current.map((r, i) => (i === a.index ? clampRate(a.value) : r));
+      // The page shows the deferred evaluation, so current can trail the
+      // state by an edit; a rate in the state wins.
+      const rates = a.current.map((r, i) =>
+        i === a.index ? clampRate(a.value) : (s.baseline.rates[i] ?? r),
+      );
       return { ...s, baseline: { ...s.baseline, rates, ratesSource: "user" } };
     }
     case "followTrajectory":

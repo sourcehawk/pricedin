@@ -206,6 +206,16 @@ describe("growth baseline", () => {
     });
   });
 
+  it("keeps an earlier year edit when the next one comes with the same displayed rates", () => {
+    const shown = [0.12, 0.1, 0.09];
+    const s = run(
+      { type: "followTrajectory", rates: shown },
+      { type: "setYearRate", index: 0, value: 0.2, current: shown },
+      { type: "setYearRate", index: 1, value: 0.15, current: shown },
+    );
+    expect(s.baseline.rates).toEqual([0.2, 0.15, 0.09]);
+  });
+
   it("makes the year rates the user's own when one year is edited", () => {
     const s = run(
       { type: "followTrajectory", rates: [0.12, 0.1, 0.09] },
