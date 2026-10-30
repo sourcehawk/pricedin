@@ -13,6 +13,36 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Decides which test jobs a pull request needs, from the paths it changes.
+  # A push to main runs every job.
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      go: ${{ steps.decide.outputs.go }}
+      web: ${{ steps.decide.outputs.web }}
+      e2e: ${{ steps.decide.outputs.e2e }}
+    steps:
+      # The checkout of a pull request is its merge commit. Its first parent
+      # is the head of the base branch, so the difference between the two is
+      # the change of the pull request.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Decide which jobs the change needs
+        id: decide
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          if [ "$EVENT_NAME" = pull_request ]; then
+            git -c core.quotePath=false diff --name-only --no-renames HEAD^1 HEAD >"$RUNNER_TEMP/changed"
+            cat "$RUNNER_TEMP/changed"
+            scripts/ci-changes.sh <"$RUNNER_TEMP/changed"
+          else
+            scripts/ci-changes.sh all
+          fi
+
   lint:
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -52,6 +82,8 @@ jobs:
       - run: make test-scripts
 
   test-server:
+    needs: changes
+    if: needs.changes.outputs.go == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -64,6 +96,8 @@ jobs:
       - run: make test-server
 
   test-integration:
+    needs: changes
+    if: needs.changes.outputs.go == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -76,6 +110,8 @@ jobs:
       - run: make test-integration
 
   test-web:
+    needs: changes
+    if: needs.changes.outputs.web == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -88,30 +124,11 @@ jobs:
       - run: make deps-node
       - run: make test-web
 
-  build:
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with:
-          go-version-file: .tool-versions
-          cache-dependency-path: server/go.sum
-      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version-file: .tool-versions
-          cache: pnpm
-      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
-      # Gives the docker CLI in `make images` access to the GitHub Actions cache.
-      - uses: crazy-max/ghaction-github-runtime@04d248b84655b509d8c44dc1d6f990c879747487 # v4.0.0
-      - run: make deps-go deps-node
-      - run: make build
-      - run: make images
-        env:
-          DOCKER_BUILD_FLAGS: --cache-from type=gha --cache-to type=gha,mode=max
-
+  # The images that e2e builds compile the same server binary and web app
+  # as make build, so CI runs no separate build job.
   e2e:
+    needs: changes
+    if: needs.changes.outputs.e2e == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -122,14 +139,18 @@ jobs:
           node-version-file: .tool-versions
           cache: pnpm
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      # Gives the docker CLI in `make images` access to the GitHub Actions cache.
       - uses: crazy-max/ghaction-github-runtime@04d248b84655b509d8c44dc1d6f990c879747487 # v4.0.0
       - run: make deps-node
       - run: make browsers
         env:
           PLAYWRIGHT_INSTALL_FLAGS: --with-deps
+      # Only a push to main writes the image cache. No other pull request can
+      # read what a pull request writes, and those writes count against the
+      # cache size limit that main uses too.
       - run: make test-e2e
         env:
-          DOCKER_BUILD_FLAGS: --cache-from type=gha
+          DOCKER_GHA_CACHE: ${{ github.event_name == 'push' && 'write' || 'read' }}
       - name: Upload the Playwright report and traces
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -142,19 +163,29 @@ jobs:
           retention-days: 14
           if-no-files-found: ignore
 
+  # The one required check. A job that the change does not need is skipped,
+  # and that counts as a pass.
   ci-ok:
     if: always()
-    needs: [lint, test-server, test-integration, test-web, build, e2e]
+    needs: [changes, lint, test-server, test-integration, test-web, e2e]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Fail unless every job succeeded
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Fail unless every job that the change needs succeeded
         env:
-          RESULTS: ${{ join(needs.*.result, ' ') }}
+          CHANGES: ${{ needs.changes.result }}
+          LINT: ${{ needs.lint.result }}
+          TEST_SERVER: ${{ needs.test-server.result }}
+          TEST_INTEGRATION: ${{ needs.test-integration.result }}
+          TEST_WEB: ${{ needs.test-web.result }}
+          E2E: ${{ needs.e2e.result }}
+          NEEDS_GO: ${{ needs.changes.outputs.go }}
+          NEEDS_WEB: ${{ needs.changes.outputs.web }}
+          NEEDS_E2E: ${{ needs.changes.outputs.e2e }}
         run: |
-          echo "results: $RESULTS"
-          for result in $RESULTS; do
-            if [ "$result" != success ]; then
-              exit 1
-            fi
-          done
+          scripts/ci-ok.sh "changes=$CHANGES" "lint=$LINT" \
+            "test-server=$TEST_SERVER:$NEEDS_GO" "test-integration=$TEST_INTEGRATION:$NEEDS_GO" \
+            "test-web=$TEST_WEB:$NEEDS_WEB" "e2e=$E2E:$NEEDS_E2E"
