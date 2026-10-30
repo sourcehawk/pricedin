@@ -59,8 +59,8 @@ export function TopBar() {
   const { state, profile, levers, evaluation, provenance } = useStock();
   const path = usePathname();
   const p = profile.data;
-  const price = levers?.price ?? p?.latestClose?.value ?? null;
-  const eps = levers?.ttmEps ?? p?.ttmEps?.value ?? null;
+  const price = state.price ?? p?.latestClose?.value ?? null;
+  const eps = state.ttmEps ?? p?.ttmEps?.value ?? null;
   // A null P/E from the engine means that the EPS in use is not positive.
   const pe =
     evaluation !== null ? evaluation.peNow.value : levers === null ? (p?.pe?.value ?? null) : null;

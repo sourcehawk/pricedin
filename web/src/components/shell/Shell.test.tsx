@@ -96,6 +96,19 @@ describe("TopBar", () => {
     expect(pe).toHaveTextContent(/n\/a$/);
   });
 
+  it("shows a typed price when the stock has no TTM EPS for the engine yet", async () => {
+    apiServer.use(
+      http.get(apiUrl("/api/v1/stocks/:t"), () =>
+        HttpResponse.json({ ...profileFixture, ttmEps: null, pe: null }),
+      ),
+    );
+    renderWithStock(<TopBar />, {
+      levers: leversReducer(testLevers(), { type: "setStartingPoint", field: "price", value: 250 }),
+    });
+    const price = (await screen.findByText("Price")).closest(".stat");
+    expect(price).toHaveTextContent("$250.00");
+  });
+
   it("stays and says so when the logout fails", async () => {
     apiServer.use(http.post(apiUrl("/api/auth/logout"), () => HttpResponse.error()));
     await renderReady(<TopBar />);
