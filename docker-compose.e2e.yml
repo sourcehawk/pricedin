@@ -11,6 +11,8 @@ services:
       - PRICEDIN_OWNER_EMAIL
       - PRICEDIN_OWNER_PASSWORD_HASH
       - PRICEDIN_PROXY_SECRET
+      # A PRICEDIN_PUBLIC_ORIGIN in .env is for the stack of `make up`.
+      - PRICEDIN_PUBLIC_ORIGIN=${PRICEDIN_E2E_BASE_URL:?set PRICEDIN_E2E_BASE_URL to the web app of the test stack}
       # ADM stays out of the seed, so that the tests can load it on demand.
       - PRICEDIN_UNIVERSE=NVDA,AAPL,KO,GRMN
 
