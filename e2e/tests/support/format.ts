@@ -28,8 +28,8 @@ export function usd(x: Value): string {
   return `${x < 0 ? "-" : ""}$${abs}`;
 }
 
-/** wholePct shows a fraction as a signed whole percent, as the return grid does: "+96%". */
-export function wholePct(x: number): string {
-  const t = (x * 100).toFixed(0);
-  return Number(t) === 0 ? "0%" : `${x > 0 ? "+" : ""}${t}%`;
+/** signedPct shows a fraction as a signed percent: "+96.4%" with 1 decimal, "+96%" with 0. */
+export function signedPct(x: number, decimals: number): string {
+  const t = (x * 100).toFixed(decimals);
+  return Number(t) === 0 ? `${(0).toFixed(decimals)}%` : `${x > 0 ? "+" : ""}${t}%`;
 }

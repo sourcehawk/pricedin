@@ -1,5 +1,5 @@
 import { expect, isPhone, test } from "./support/fixtures";
-import { pct, wholePct } from "./support/format";
+import { pct, signedPct } from "./support/format";
 import { evaluateAsPage, pickStock, pricedInPanel } from "./support/stock";
 
 test("the YOU cell sits in the baseline's row and shows the summary's yearly return", async ({
@@ -21,13 +21,13 @@ test("the YOU cell sits in the baseline's row and shows the summary's yearly ret
   const row = you.locator("xpath=ancestor::tr[1]");
   await expect(row.locator("th")).toContainText(pct(ev.baselines.weighted.value));
   await expect(row.locator("th .tags")).toContainText("Wtd");
-  await expect(you).toHaveText(wholePct(at.yearlyReturn));
+  await expect(you).toHaveText(signedPct(at.yearlyReturn, 0));
 
   const summary = pricedInPanel(page)
     .locator("dl.kv dt", { hasText: "Annual return at baseline" })
     .locator("xpath=following-sibling::dd[1]");
-  const shown = Number((await summary.innerText()).replace(/[+%]/g, "")) / 100;
-  await expect(you).toHaveText(wholePct(shown));
+  // The summary shows the same return as the YOU cell, at one decimal.
+  await expect(summary).toHaveText(signedPct(at.yearlyReturn, 1));
 });
 
 test("hovering a row tag outlines its row", async ({ page }) => {
