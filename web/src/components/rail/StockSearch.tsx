@@ -43,7 +43,10 @@ export function StockSearch({ inputId }: { inputId: string }) {
   const load = useLoadCompany();
   // The newest pick; a load that finishes after a newer pick selects nothing.
   const lastPick = useRef<string | null>(null);
-  const hits: TickerMatch[] = open && query.trim() !== "" ? (search.data ?? []) : [];
+  // Results show only for the text in the box, so Enter during the debounce
+  // cannot pick a match of the text before the last keystroke.
+  const hits: TickerMatch[] =
+    open && query.trim() !== "" && query === text ? (search.data ?? []) : [];
   const current = Math.min(active, Math.max(0, hits.length - 1));
 
   // Keep the active option in view inside the list; the page never scrolls.

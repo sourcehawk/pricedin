@@ -75,6 +75,22 @@ describe("StockSearch", () => {
     expect(box).toHaveAttribute("aria-expanded", "false");
   });
 
+  it("does not pick a result of the text before the last keystroke", async () => {
+    const box = await setup();
+    await userEvent.type(box, "g");
+    await waitFor(() => {
+      expect(options()).toHaveLength(3);
+    });
+    await userEvent.type(box, "e{Enter}");
+    expect(screen.getByRole("status", { name: "ticker" })).toHaveTextContent("GRMN");
+    expect(screen.getByRole("listbox")).toHaveTextContent("Searching…");
+    await waitFor(() => {
+      expect(options()).toHaveLength(1);
+    });
+    await userEvent.keyboard("{Enter}");
+    expect(screen.getByRole("status", { name: "ticker" })).toHaveTextContent("GE");
+  });
+
   it("closes on Escape without picking", async () => {
     const box = await setup();
     await userEvent.type(box, "ge");
