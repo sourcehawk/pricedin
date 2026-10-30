@@ -158,6 +158,23 @@ export function monthTicks(t0: number, t1: number, range: ChartRange): Tick[] {
   return out;
 }
 
+const rangeMonths: Record<ChartRange, number> = { "6M": 6, "1Y": 12, "3Y": 36 };
+
+/**
+ * spanLabel names the period that the chart shows: "over 3Y" when the days
+ * cover the range, and "since 2 Jan 2026" when the history starts later.
+ */
+export function spanLabel(start: string, end: string, range: ChartRange): string {
+  const e = new Date(dayTime(end));
+  const nominal = Date.UTC(
+    e.getUTCFullYear(),
+    e.getUTCMonth() - rangeMonths[range],
+    e.getUTCDate(),
+  );
+  // Weekends and holidays move the first trading day a few days later.
+  return dayTime(start) - nominal > 10 * 86_400_000 ? `since ${dayLabel(start)}` : `over ${range}`;
+}
+
 /** dayLabel shows a YYYY-MM-DD date as "30 Sep 2026". */
 export function dayLabel(date: string): string {
   const d = new Date(dayTime(date));

@@ -2,12 +2,23 @@ import type { CSSProperties, ReactNode } from "react";
 import { pct, signedPct, times, usd } from "@/components/format";
 import type { WalkthroughStep } from "@/components/walkthrough/Walkthrough";
 import type { Chart, Evaluation } from "@/engine";
-import { multipleLabel } from "./geometry";
+import { multipleLabel, spanLabel } from "./geometry";
 
 const lg = (color: string, dash = false) => (
   <span className={dash ? "lg d" : "lg"} style={{ "--c": color } as CSSProperties} />
 );
 const sq = (color: string) => <i className="sq" style={{ "--c": color } as CSSProperties} />;
+
+/** span names the period of the chart, such as "over 3Y". */
+function span(c: Chart): string {
+  return spanLabel(c.start, c.end, c.range);
+}
+
+/** Span starts a sentence with the period of the chart, such as "Over 3Y". */
+function Span({ c }: { c: Chart }) {
+  const s = span(c);
+  return <>{s.charAt(0).toUpperCase() + s.slice(1)}</>;
+}
 
 /** withChart gives a line only when the evaluation has a chart. */
 function withChart(f: (c: Chart, ev: Evaluation) => ReactNode) {
@@ -36,27 +47,23 @@ const usual: Record<string, string> = {
   close: "close to its usual level",
 };
 
-/** why explains in one sentence where the price change of the range came from. */
+/** why says in one sentence what the P/E change of the range means. */
 function why(c: Chart): string {
-  const trend = c.peTrend.value;
-  const up = c.priceChange >= 0;
-  if (trend === "expanded") {
-    if (!up) {
-      return "The price fell less than earnings did, so the stock got more expensive compared with its earnings.";
-    }
-    const share = c.earningsShareOfGain.value;
-    if (share === null) {
-      return "All of the price gain came from investors paying more, because earnings did not grow.";
-    }
-    const e = Math.round(share * 100);
-    return `About ${String(e)}% of the price gain came from higher earnings and ${String(100 - e)}% from investors paying more for each dollar of earnings.`;
+  const share = c.earningsShareOfGain.value;
+  switch (c.peTrend.value) {
+    case "expanded":
+      if (share !== null && share <= 1) {
+        const e = Math.round(share * 100);
+        return `The price did better than earnings: measured on a log scale, about ${String(e)}% of the price gain came from higher earnings and ${String(100 - e)}% from a higher P/E.`;
+      }
+      return "The price did better than earnings, so the stock got more expensive compared with its earnings.";
+    case "contracted":
+      return "Earnings did better than the price, so the stock got cheaper compared with its earnings.";
+    case "steady":
+      return "The P/E moved less than 5%, so the price roughly followed earnings.";
+    default:
+      return "";
   }
-  if (trend === "contracted") {
-    return up
-      ? "Earnings grew faster than the price, so the stock got cheaper compared with its earnings."
-      : "The price fell more than earnings did, so the stock got cheaper compared with its earnings.";
-  }
-  return trend === "steady" ? "The price roughly followed earnings." : "";
 }
 
 /** bandsStep is the index of the step that lifts the band nearest today's P/E. */
@@ -78,7 +85,7 @@ export function priceSteps(ticker: string): WalkthroughStep[] {
         const { f, l } = ends(c);
         return (
           <>
-            Over {c.range} the price went from <b>{usd(f.close)}</b> to <b>{usd(l.close)}</b>,{" "}
+            <Span c={c} /> the price went from <b>{usd(f.close)}</b> to <b>{usd(l.close)}</b>,{" "}
             <b>{signedPct(c.priceChange)}</b>. Every line is switched on for this walkthrough; your
             own choice comes back at the end.
           </>
@@ -99,7 +106,7 @@ export function priceSteps(ticker: string): WalkthroughStep[] {
         const { f, l } = ends(c);
         return (
           <>
-            TTM EPS went from <b>{usd(f.ttmEps)}</b> to <b>{usd(l.ttmEps)}</b> over {c.range},{" "}
+            TTM EPS went from <b>{usd(f.ttmEps)}</b> to <b>{usd(l.ttmEps)}</b> {span(c)},{" "}
             <b>{signedPct(c.epsChange.value)}</b>.
           </>
         );
@@ -116,8 +123,8 @@ export function priceSteps(ticker: string): WalkthroughStep[] {
       highlight: ["pe"],
       you: withChart((c) => (
         <>
-          The P/E went from <b>{times(c.peStart.value)}</b> to <b>{times(c.peEnd.value)}</b> over{" "}
-          {c.range}.
+          The P/E went from <b>{times(c.peStart.value)}</b> to <b>{times(c.peEnd.value)}</b>{" "}
+          {span(c)}.
         </>
       )),
     },
@@ -163,7 +170,7 @@ export function priceSteps(ticker: string): WalkthroughStep[] {
         if (share === null) {
           return (
             <>
-              Over {c.range} the price moved <b>{signedPct(c.priceChange)}</b> while earnings moved{" "}
+              <Span c={c} /> the price moved <b>{signedPct(c.priceChange)}</b> while earnings moved{" "}
               <b>{signedPct(c.epsChange.value)}</b>.
             </>
           );
@@ -171,7 +178,7 @@ export function priceSteps(ticker: string): WalkthroughStep[] {
         if (share > 1) {
           return (
             <>
-              Over {c.range} earnings grew faster than the price, so investors now pay less per
+              <Span c={c} /> earnings grew faster than the price, so investors now pay less per
               dollar of earnings.
             </>
           );
@@ -179,8 +186,8 @@ export function priceSteps(ticker: string): WalkthroughStep[] {
         const e = Math.round(share * 100);
         return (
           <>
-            About <b>{e}%</b> of the price gain over {c.range} came from higher earnings and{" "}
-            <b>{100 - e}%</b> from investors paying more per dollar of earnings.
+            Measured on a log scale, about <b>{e}%</b> of the price gain {span(c)} came from higher
+            earnings and <b>{100 - e}%</b> from investors paying more per dollar of earnings.
           </>
         );
       }),
@@ -236,10 +243,10 @@ export function priceSteps(ticker: string): WalkthroughStep[] {
         return (
           <>
             The {lg("var(--s3)")} line is the <b>{multipleLabel(near)}</b> band, the one closest to
-            today&apos;s P/E. Over {c.range} the P/E went from <b>{a.toFixed(0)}×</b> to{" "}
+            today&apos;s P/E. <Span c={c} /> the P/E went from <b>{a.toFixed(0)}×</b> to{" "}
             <b>{z.toFixed(0)}×</b>.{" "}
             {b.crossed.length === 0 ? (
-              "The P/E ended the range close to where it started, so from start to end the price mostly followed earnings."
+              "No band line lies between the first and the last P/E."
             ) : (
               <>
                 Between the first and the last day it moved {rose ? "up" : "down"} past the{" "}
@@ -339,14 +346,14 @@ export function priceSteps(ticker: string): WalkthroughStep[] {
         }
         return (
           <>
-            Over {c.range} the correlation is <b>{link.correlation.toFixed(2)}</b>, {link.class}:{" "}
+            <Span c={c} /> the correlation is <b>{link.correlation.toFixed(2)}</b>, {link.class}:{" "}
             {linkMeaning[link.class]}
           </>
         );
       }),
       takeaway: withChart((c) => (
         <>
-          <strong>{ticker} in one line:</strong> over {c.range} the price changed{" "}
+          <strong>{ticker} in one line:</strong> {span(c)} the price changed{" "}
           {signedPct(c.priceChange)} and TTM EPS {signedPct(c.epsChange.value)}, so the P/E went
           from {times(c.peStart.value)} to {times(c.peEnd.value)}. {why(c)}
         </>
