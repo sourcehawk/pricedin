@@ -163,8 +163,9 @@ export function Sourced({
   user?: boolean;
   children: ReactNode;
 }) {
-  const handlers = useTipHandlers(() =>
-    user ? <b>You typed this</b> : value ? <SourceTip value={value} /> : null,
+  const handlers = useTipHandlers(
+    () => (user ? <b>You typed this</b> : value ? <SourceTip value={value} /> : null),
+    JSON.stringify([user, value]),
   );
   if (!user && !value) {
     return <span>{children}</span>;
