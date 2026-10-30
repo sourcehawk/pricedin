@@ -110,6 +110,48 @@ describe("useHistory", () => {
     expect(result.current.data).toEqual(historyFixture);
   });
 
+  it("reads a failed history again when the window gets the focus", async () => {
+    let reads = 0;
+    apiServer.use(
+      http.get(apiUrl("/api/v1/stocks/GRMN/history"), () => {
+        reads++;
+        return reads === 2 ? problem(503, "Unavailable") : HttpResponse.json(historyFixture);
+      }),
+    );
+    const before: Profile["freshness"] = { latestFiled: "2026-08-01", latestClose: "2026-10-28" };
+    const after: Profile["freshness"] = { latestFiled: "2026-08-01", latestClose: "2026-10-29" };
+    const client = newQueryClient();
+    client.setDefaultOptions({ queries: { ...client.getDefaultOptions().queries, retry: false } });
+    const { result, rerender, unmount } = renderHook(
+      ({ freshness }: { freshness: Profile["freshness"] }) => useHistory("GRMN", freshness),
+      {
+        wrapper: ({ children }: { children: ReactNode }) => (
+          <ApiProvider api={createApi()} queryClient={client}>
+            {children}
+          </ApiProvider>
+        ),
+        initialProps: { freshness: before },
+      },
+    );
+    await waitFor(() => {
+      expect(result.current.isSuccess).toBe(true);
+    });
+    rerender({ freshness: after });
+    await waitFor(() => {
+      expect(result.current.isError).toBe(true);
+    });
+    act(() => {
+      focusManager.setFocused(false);
+      focusManager.setFocused(true);
+    });
+    await waitFor(() => {
+      expect(result.current.isSuccess).toBe(true);
+    });
+    expect(reads).toBe(3);
+    unmount();
+    focusManager.setFocused(undefined);
+  });
+
   it("is idle without the freshness of a loaded stock", () => {
     const { result } = renderHook(() => useHistory("GRMN", null), { wrapper });
     expect(result.current.fetchStatus).toBe("idle");

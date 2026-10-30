@@ -1,12 +1,12 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
-import { QueryClient } from "@tanstack/react-query";
+import { focusManager, QueryClient } from "@tanstack/react-query";
 import { http, HttpResponse } from "msw";
 import { memo, useEffect } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createApi } from "@/api/client";
 import { ApiProvider } from "@/api/queries";
 import { exampleHistory, profileFixture } from "@/api/testing/fixtures";
-import { apiServer, apiUrl, withApiServer } from "@/api/testing/server";
+import { apiServer, apiUrl, problem, withApiServer } from "@/api/testing/server";
 import { evaluate } from "@/engine";
 import { renderWithStock, testLevers } from "@/testing/render";
 import { engineLevers } from "./levers";
@@ -99,6 +99,47 @@ describe("StockProvider", () => {
     });
     expect(current().levers?.dividend).toBe(0);
     expect(current().provenance.dividend).toBeNull();
+  });
+
+  it("evaluates with the profile of the history it keeps after a newer history fails", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    const { unmount } = renderWithStock(<Probe />);
+    try {
+      await waitFor(() => {
+        expect(current().evaluation).not.toBeNull();
+      });
+      const price = current().levers?.price;
+      // The next profile has a newer close at a new price, and its history fails.
+      apiServer.use(
+        http.get(apiUrl("/api/v1/stocks/:t"), () =>
+          HttpResponse.json({
+            ...profileFixture,
+            latestClose: profileFixture.latestClose && {
+              ...profileFixture.latestClose,
+              value: 27,
+            },
+            freshness: { ...profileFixture.freshness, latestClose: "2099-01-01" },
+          }),
+        ),
+        http.get(apiUrl("/api/v1/stocks/:t/history"), () => problem(503, "Unavailable")),
+      );
+      vi.setSystemTime(Date.now() + 5 * 60_000 + 1);
+      act(() => {
+        focusManager.setFocused(false);
+        focusManager.setFocused(true);
+      });
+      await waitFor(() => {
+        expect(current().history.isError).toBe(true);
+      });
+      expect(current().profile.data?.latestClose?.value).toBe(27);
+      expect(current().levers?.price).toBe(price);
+      expect(current().evaluation).not.toBeNull();
+    } finally {
+      // A focus change refetches the queries of a mounted page.
+      unmount();
+      vi.useRealTimers();
+      focusManager.setFocused(undefined);
+    }
   });
 
   it("does not read the history of a stock whose data is not loaded", async () => {

@@ -109,6 +109,8 @@ export function useHistory(ticker: string | null, freshness: Profile["freshness"
     placeholderData: (previous, previousQuery) =>
       previousQuery?.queryKey[1] === ticker ? previous : undefined,
     staleTime: Number.POSITIVE_INFINITY,
+    // Only a history that failed to load is stale, so focus reads that one again.
+    refetchOnWindowFocus: true,
     gcTime: 60 * 60_000,
   });
   const [kept, setKept] = useState<StockHistory | undefined>(undefined);

@@ -6,6 +6,7 @@ import {
   useEffect,
   useMemo,
   useReducer,
+  useState,
   useDeferredValue,
   useSyncExternalStore,
   type Dispatch,
@@ -123,6 +124,20 @@ export function StockProvider({
   const profile = useProfile(state.ticker);
   const loaded = profile.data?.loaded === true;
   const history = useHistory(state.ticker, loaded ? (profile.data?.freshness ?? null) : null);
+  // After a newer history fails, the page keeps the last one; its starting
+  // point must come from the profile that was read with it, or a split
+  // would mix two share bases.
+  const [paired, setPaired] = useState<Profile | undefined>(undefined);
+  if (
+    profile.data !== undefined &&
+    history.data !== undefined &&
+    !history.isError &&
+    !history.isPlaceholderData &&
+    paired !== profile.data
+  ) {
+    setPaired(profile.data);
+  }
+  const start = history.isError && paired?.ticker.symbol === state.ticker ? paired : profile.data;
 
   // The engine and the panels run on a deferred copy of the levers, so a
   // slider drag stays responsive while the panels catch up.
@@ -137,9 +152,8 @@ export function StockProvider({
   }, [quarters, evaluated.holdingYears]);
 
   const levers = useMemo(
-    () =>
-      loaded ? engineLevers(evaluated, stockStartingPoint(profile.data), trajectoryRates) : null,
-    [loaded, evaluated, profile.data, trajectoryRates],
+    () => (loaded ? engineLevers(evaluated, stockStartingPoint(start), trajectoryRates) : null),
+    [loaded, evaluated, start, trajectoryRates],
   );
 
   const result = useMemo((): { ev: Evaluation | null; err: InvalidInputError | null } => {
@@ -172,7 +186,7 @@ export function StockProvider({
     }
   }, [ev, state.scenarios]);
 
-  const p = profile.data;
+  const p = start;
   const value = useMemo(
     (): StockData => ({
       state,
