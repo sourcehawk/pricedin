@@ -7,7 +7,8 @@ import "math"
 // is treated as missing, so that stored data never fails an evaluation.
 const (
 	minPerShare = 1e-4 // the smallest EPS, close or dividend other than zero
-	maxPerShare = 1e6
+	maxPerShare = 1e6  // the largest EPS or dividend
+	maxPrice    = 1e8  // the largest close
 	minAmount   = 1e-6 // the smallest share count or dollar amount other than zero
 	maxAmount   = 1e15
 )
@@ -20,7 +21,7 @@ func perShareOK(v float64) bool {
 
 // closeOK reports whether the engine accepts v as a close.
 func closeOK(v float64) bool {
-	return v >= minPerShare && v <= maxPerShare
+	return v >= minPerShare && v <= maxPrice
 }
 
 // amountOK reports whether the engine accepts v as a share count or an

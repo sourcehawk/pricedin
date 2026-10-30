@@ -1186,7 +1186,7 @@ components:
       description: The levers of an evaluation; each one is optional.
       additionalProperties: false
       properties:
-        price: { type: number, minimum: 0.0001, maximum: 1000000, description: "Default the latest close." }
+        price: { type: number, minimum: 0.0001, maximum: 100000000, description: "Default the latest close." }
         ttmEps: { type: number, minimum: -1000000, maximum: 1000000, description: "Default the stock's TTM EPS. Zero or 0.0001 to 1,000,000 in size." }
         dividend: { type: number, minimum: 0, maximum: 1000000, description: "Yearly per share. Default the TTM dividend." }
         targetReturn: { type: number, minimum: 0, maximum: 0.5, default: 0.15 }

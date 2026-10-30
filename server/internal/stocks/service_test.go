@@ -793,12 +793,25 @@ func TestStoredDataOutsideTheEngineBoundsStillEvaluates(t *testing.T) {
 				}
 			},
 		},
-		"a close of 2e6": {
+		"a close of 1,500,000": {
 			edit: func(t *testing.T, m *stockstest.Store) {
-				m.Bars = append(m.Bars, domain.PriceBar{Symbol: "KO", Date: date(t, "2026-10-30"), Close: 2e6, Source: "massive"})
+				m.Bars = append(m.Bars, domain.PriceBar{Symbol: "KO", Date: date(t, "2026-10-30"), Close: 1.5e6, Source: "massive"})
+			},
+			check: func(t *testing.T, ev stocks.Evaluation, h stocks.History) {
+				if ev.Levers.Price != 1.5e6 {
+					t.Errorf("price = %v, want the last close, 1500000", ev.Levers.Price)
+				}
+				if last := h.History.Daily[len(h.History.Daily)-1]; last.Close != 1.5e6 {
+					t.Errorf("last daily close = %v on %s, want 1500000", last.Close, last.Date)
+				}
+			},
+		},
+		"a close above 10^8": {
+			edit: func(t *testing.T, m *stockstest.Store) {
+				m.Bars = append(m.Bars, domain.PriceBar{Symbol: "KO", Date: date(t, "2026-10-30"), Close: 2e8, Source: "massive"})
 				for i := range m.Bars {
 					if m.Bars[i].Symbol == "KO" && m.Bars[i].Date == date(t, "2025-03-03") {
-						m.Bars[i].Close = 2e6
+						m.Bars[i].Close = 2e8
 					}
 				}
 			},
@@ -807,7 +820,7 @@ func TestStoredDataOutsideTheEngineBoundsStillEvaluates(t *testing.T) {
 					t.Errorf("price = %v, want the last close within bounds, 82.14", ev.Levers.Price)
 				}
 				for _, d := range h.History.Daily {
-					if d.Close > 1e6 {
+					if d.Close > 1e8 {
 						t.Errorf("daily close %v on %s, want it left out", d.Close, d.Date)
 					}
 				}
