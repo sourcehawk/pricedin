@@ -129,6 +129,34 @@ describe("PriceChartPanel", () => {
     );
   });
 
+  it("names the source of the price chip's close in its tooltip", async () => {
+    await renderReady(
+      <WhenReady>
+        <PriceChartPanel />
+      </WhenReady>,
+    );
+    within(chips()).getByText("Price").parentElement?.focus();
+    const tip = await screen.findByRole("tooltip");
+    expect(tip).toHaveTextContent("Close on 2026-09-30 from Massive. As of close 2026-09-30.");
+  });
+
+  it("names the raw close of a close before a reverse split", async () => {
+    serveHistory({
+      ...historyFixture,
+      prices: { provider: "massive", symbol: "GRMN", splits: [{ date: "2024-01-02", ratio: 0.1 }] },
+    });
+    await renderReady(
+      <WhenReady>
+        <PriceChartPanel />
+      </WhenReady>,
+    );
+    const low = historyFixture.history.daily.find((d) => usd(d.close) === "$101.55")?.close ?? 0;
+    within(within(panel()).getByTestId("price-sub")).getByText("$101.55").focus();
+    expect(await screen.findByRole("tooltip")).toHaveTextContent(
+      `${usd(low * 0.1)} as reported, multiplied by 10 for later reverse stock splits`,
+    );
+  });
+
   it("starts with the TTM EPS, P/E and share-change overlays on", async () => {
     await renderReady(
       <WhenReady>
@@ -848,6 +876,20 @@ describe("PriceChartPanel", () => {
         expect(e).toHaveAttribute("data-thl");
       }
       expect(walk("eps")[0]).not.toHaveAttribute("data-thl");
+    });
+
+    it("sources the first and the last close of the price step", async () => {
+      const card = await start();
+      const sourced = (text: string) =>
+        within(card).getByText(text).closest(".sourced") as HTMLElement;
+      sourced("$102.00").focus();
+      const first = await screen.findByRole("tooltip");
+      expect(first).toHaveTextContent("Close on 2023-09-30 from Massive");
+      expect(first).toHaveTextContent("As of close 2023-09-30");
+      sourced("$270.00").focus();
+      await waitFor(() => {
+        expect(screen.getByRole("tooltip")).toHaveTextContent("Close on 2026-09-30 from Massive");
+      });
     });
 
     it("lifts the band nearest today's P/E on the bands step", async () => {

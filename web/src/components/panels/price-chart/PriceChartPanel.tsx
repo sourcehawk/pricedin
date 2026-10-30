@@ -184,7 +184,13 @@ export function PriceChartPanel() {
   };
   const [hover] = useState(createHoverStore);
   const { active } = useWalkthrough();
-  const steps = useMemo(() => priceSteps(ticker), [ticker]);
+  const feed = history.prices;
+  const latest = profile.latestClose;
+  const sourceOf = useCallback(
+    (date: string, close: number) => closeSourced(date, close, feed, latest),
+    [feed, latest],
+  );
+  const steps = useMemo(() => priceSteps(ticker, sourceOf), [ticker, sourceOf]);
   const chart = ev.priceChart.value;
 
   const markers = useMemo(
@@ -267,14 +273,12 @@ export function PriceChartPanel() {
   const last = chart.points.at(-1);
   const link = chart.link.value;
   const period = spanLabel(chart.start, chart.end, chart.range);
-  const sourcedOn = (date: string, close: number) =>
-    closeSourced(date, close, history.prices, profile.latestClose);
   // The high and the low can close on several days; the first of them is their source.
   const sourced = (v: number) => {
     const p = chart.points.find((x) => x.close === v);
-    return p === undefined ? null : sourcedOn(p.date, v);
+    return p === undefined ? null : sourceOf(p.date, v);
   };
-  const lastClose = last === undefined ? null : sourcedOn(last.date, last.close);
+  const lastClose = last === undefined ? null : sourceOf(last.date, last.close);
 
   const sub = (
     <span data-testid="price-sub">
@@ -320,6 +324,7 @@ export function PriceChartPanel() {
         shown={shown}
         locked={touring}
         onToggle={onToggle}
+        sourceOf={sourceOf}
       />
       {shown.has("bands") && (
         <BandCaption

@@ -62,8 +62,10 @@ export function SourceLine({ s }: { s: Source }) {
       return (
         <>
           Close on {s.closeDate} from {providerName(s.provider)}
-          {s.splitFactor !== 1 &&
+          {s.splitFactor > 1 &&
             `, ${usd(s.rawClose)} as reported, divided by ${factor(s.splitFactor)} for later stock splits`}
+          {s.splitFactor < 1 &&
+            `, ${usd(s.rawClose)} as reported, multiplied by ${factor(1 / s.splitFactor)} for later reverse stock splits`}
         </>
       );
     case "dividend":

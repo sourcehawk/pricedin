@@ -1,6 +1,8 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
+import type { SourcedNumber } from "@/api/types";
+import { SourceLine } from "@/components/Sourced";
 import { colorVar } from "@/components/Swatch";
 import { InfoTip } from "@/components/tip/InfoTip";
 import { useTipHandlers } from "@/components/tip/TipProvider";
@@ -13,11 +15,16 @@ function Sample({ o }: { o: Overlay }) {
   return <span className={o.dash === true ? "sw dash" : "sw"} style={colorVar(o.color)} />;
 }
 
-function PriceChip({ p }: { p: ChartPoint }) {
+function PriceChip({ p, close }: { p: ChartPoint; close: SourcedNumber | null }) {
   const handlers = useTipHandlers(() => (
     <>
       <b>{priceOverlay.name}</b>
       {priceOverlay.tip}
+      {close !== null && (
+        <div className="tm">
+          <SourceLine s={close.source} />. As of close {close.asOf}.
+        </div>
+      )}
     </>
   ));
   return (
@@ -82,12 +89,15 @@ export function Chips({
   shown,
   locked,
   onToggle,
+  sourceOf,
 }: {
   points: readonly ChartPoint[];
   hover: HoverStore;
   shown: ReadonlySet<OverlayKey>;
   locked: boolean;
   onToggle: (key: OverlayKey) => void;
+  /** Returns the close of a day with its source, or null when it has none. */
+  sourceOf: (date: string, close: number) => SourcedNumber | null;
 }) {
   const i = useSyncExternalStore(hover.subscribe, hover.get, hover.get);
   const p = (i === null ? undefined : points[i]) ?? points.at(-1);
@@ -96,7 +106,7 @@ export function Chips({
   }
   return (
     <div className="chips" role="group" aria-label="Lines on the price chart">
-      <PriceChip p={p} />
+      <PriceChip p={p} close={sourceOf(p.date, p.close)} />
       {overlays.map((o) => (
         <Chip key={o.key} o={o} on={shown.has(o.key)} locked={locked} p={p} onToggle={onToggle} />
       ))}
