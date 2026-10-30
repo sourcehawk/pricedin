@@ -45,7 +45,7 @@ make seed
 
 ### Load real data
 
-The ingestion jobs need `PRICEDIN_SEC_USER_AGENT` (a name and a contact email address) for SEC, and `PRICEDIN_MASSIVE_API_KEY` for prices. Set them in `.env`. While you develop, narrow the jobs to a few tickers, or they load every NYSE and Nasdaq company:
+The ingestion jobs need `PRICEDIN_SEC_USER_AGENT` (a name and a contact email address) for SEC, and `PRICEDIN_MASSIVE_API_KEY` for prices. Set them in `.env`. While you develop, add this line to `.env` to narrow the jobs to a few tickers, or they load every NYSE and Nasdaq company:
 
 ```sh
 PRICEDIN_UNIVERSE=NVDA,KO
