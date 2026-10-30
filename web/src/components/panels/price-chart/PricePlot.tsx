@@ -37,7 +37,6 @@ import {
 } from "./geometry";
 import type { HoverStore } from "./hover";
 import type { OverlayKey } from "./overlays";
-import styles from "./PriceChart.module.css";
 
 /** Marker is a share-count event with the filing that reports its share count, when known. */
 export interface Marker {
@@ -974,7 +973,7 @@ export function PricePlot({
       >
         {content}
       </svg>
-      <p ref={live} className={styles.srOnly} role="status" />
+      <p ref={live} className="sr-only" role="status" />
     </>
   );
 }

@@ -2,6 +2,7 @@ import { act, fireEvent, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
 import { withApiServer } from "@/api/testing/server";
+import { column, columns, guide } from "@/testing/charts";
 import {
   filedOn,
   filingUrl,
@@ -37,6 +38,11 @@ async function pick(name: string) {
   await userEvent.click(
     within(screen.getByRole("group", { name: "Financial metric" })).getByRole("button", { name }),
   );
+}
+
+/** chart returns the metric chart. */
+function chart(): HTMLElement {
+  return screen.getByRole("group", { name: /^Quarterly / });
 }
 
 describe("FinancialsPanel metric chart", () => {
@@ -122,34 +128,47 @@ describe("FinancialsPanel metric chart", () => {
 
   it("snaps the tooltip to the hovered quarter and draws a guide line there", async () => {
     const { container } = await renderPanel();
-    const columns = container.querySelectorAll("rect.cmpcol");
-    expect(columns).toHaveLength(8);
-    fireEvent.pointerEnter(columns[7] as Element, { pointerType: "mouse", clientX: 5, clientY: 5 });
+    expect(columns(container)).toHaveLength(8);
+    const col = column(container, 7);
+    fireEvent.pointerEnter(col, { pointerType: "mouse", clientX: 5, clientY: 5 });
     const tip = screen.getByRole("tooltip");
     expect(tip).toHaveTextContent("Q3 FY26 Revenue");
     expect(tip).toHaveTextContent("vs Q3 FY25+12.0%");
-    expect(container.querySelector("line.col-guide")).toBeInTheDocument();
-    fireEvent.pointerLeave(columns[7] as Element, { pointerType: "mouse" });
-    expect(container.querySelector("line.col-guide")).not.toBeInTheDocument();
+    expect(guide(container)).toHaveAttribute("visibility", "visible");
+    expect(guide(container)).toHaveAttribute("x1", col.dataset.x);
+    fireEvent.pointerLeave(chart(), { pointerType: "mouse" });
+    expect(guide(container)).toHaveAttribute("visibility", "hidden");
   });
 
   it("keeps the guide line on a quarter while its value has the pointer or the focus", async () => {
     const { container } = await renderPanel();
     const link = screen.getByRole("link", { name: /^Q3 FY26 Revenue/ });
     fireEvent.pointerEnter(link, { pointerType: "mouse", clientX: 5, clientY: 5 });
-    expect(container.querySelector("line.col-guide")).toBeInTheDocument();
+    expect(guide(container)).toHaveAttribute("visibility", "visible");
+    expect(guide(container)).toHaveAttribute("x1", column(container, 7).dataset.x);
     fireEvent.pointerLeave(link, { pointerType: "mouse" });
-    expect(container.querySelector("line.col-guide")).not.toBeInTheDocument();
+    expect(guide(container)).toHaveAttribute("visibility", "hidden");
     act(() => {
       link.focus();
     });
-    expect(container.querySelector("line.col-guide")).toBeInTheDocument();
+    expect(guide(container)).toHaveAttribute("visibility", "visible");
+  });
+
+  it("moves between quarters with the arrow keys", async () => {
+    const { container } = await renderPanel();
+    act(() => {
+      chart().focus();
+    });
+    expect(screen.getByRole("tooltip")).toHaveTextContent("Q3 FY26 Revenue");
+    await userEvent.keyboard("{ArrowLeft}");
+    expect(screen.getByRole("tooltip")).toHaveTextContent("Q2 FY26 Revenue");
+    expect(guide(container)).toHaveAttribute("x1", column(container, 6).dataset.x);
   });
 
   it("shows the operating margin of a quarter in the operating income tooltip", async () => {
     const { container } = await renderPanel();
     await pick("Op. income");
-    const col = container.querySelectorAll("rect.cmpcol")[7] as Element;
+    const col = column(container, 7);
     fireEvent.pointerEnter(col, { pointerType: "mouse", clientX: 5, clientY: 5 });
     expect(screen.getByRole("tooltip")).toHaveTextContent("Margin30.8%");
   });

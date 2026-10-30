@@ -5,6 +5,7 @@ import { withApiServer } from "@/api/testing/server";
 import { pct, signedPct, times, usd } from "@/components/format";
 import { evaluationProbe, leversWith, WhenReady } from "../earnings-trajectory/testing";
 import { exampleEvaluation } from "@/api/testing/fixtures";
+import { columns } from "@/testing/charts";
 import { renderReady } from "@/testing/render";
 import { HowDemandingPanel } from "./HowDemandingPanel";
 
@@ -23,10 +24,6 @@ async function show(levers = leversWith()) {
   );
   const ev = probe.current();
   return { ev, d: ev.howDemanding, chart: screen.getByRole("img", { name: /growth/ }) };
-}
-
-function columns(chart: Element): SVGRectElement[] {
-  return [...chart.querySelectorAll<SVGRectElement>("rect.vcol")];
 }
 
 describe("HowDemandingPanel", () => {

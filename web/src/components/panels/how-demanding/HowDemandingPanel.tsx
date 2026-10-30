@@ -6,16 +6,10 @@ import { InfoTip } from "@/components/tip/InfoTip";
 import { Walkthrough, type WalkthroughStep } from "@/components/walkthrough/Walkthrough";
 import type { Demanding, Evaluation } from "@/engine";
 import { useEvaluation } from "@/state/StockProvider";
+import { endLabels, linePath, TipRow, useColumns, YAxis } from "@/components/charts/smallChart";
+import { FromLevers } from "@/components/Sourced";
+import { colorVar } from "@/components/Swatch";
 import { Panel } from "../Panel";
-import {
-  endLabels,
-  FromLevers,
-  linePath,
-  swatch,
-  TipRow,
-  useColumns,
-  YAxis,
-} from "../earnings-trajectory/smallChart";
 
 const W = 520;
 const H = 270;
@@ -57,7 +51,7 @@ export function HowDemandingPanel() {
     {
       title: (
         <>
-          <span className="lg" style={swatch(accent)} /> The required growth line
+          <span className="lg" style={colorVar(accent)} /> The required growth line
         </>
       ),
       body: (
@@ -81,7 +75,7 @@ export function HowDemandingPanel() {
     {
       title: (
         <>
-          <span className="lg" style={swatch(ink)} /> The delivered growth line
+          <span className="lg" style={colorVar(ink)} /> The delivered growth line
         </>
       ),
       body: (
@@ -201,8 +195,8 @@ export function HowDemandingPanel() {
       }
     >
       <div className="keys">
-        <span style={swatch(accent)}>Required EPS growth</span>
-        <span style={swatch(ink)}>Delivered TTM EPS growth, YoY</span>
+        <span style={colorVar(accent)}>Required EPS growth</span>
+        <span style={colorVar(ink)}>Delivered TTM EPS growth, YoY</span>
       </div>
       {hasRequired(d) ? (
         <>

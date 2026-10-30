@@ -1,4 +1,5 @@
-import type { CSSProperties, ReactNode } from "react";
+import type { ReactNode } from "react";
+import { colorVar } from "@/components/Swatch";
 import type { Metric, Missing, Tone } from "@/engine";
 import styles from "./Financials.module.css";
 
@@ -10,11 +11,6 @@ export function Sample({ color }: { color: string }) {
 /** cls joins class names, leaving out the missing ones. */
 export function cls(...names: (string | undefined | false)[]): string {
   return names.filter((n) => typeof n === "string" && n !== "").join(" ");
-}
-
-/** colorVar sets the --c color that the prototype's swatches and samples read. */
-export function colorVar(color: string): CSSProperties {
-  return { "--c": color } as CSSProperties;
 }
 
 /** MetricInfo names a metric and explains it, as the prototype does. */

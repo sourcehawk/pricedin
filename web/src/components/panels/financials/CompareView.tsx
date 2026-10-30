@@ -1,9 +1,11 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useMemo, type ReactNode } from "react";
 import type { SourcedNumber } from "@/api/types";
-import { signedPct } from "@/components/format";
+import { linePath, shortLabel, useColumns, YAxis } from "@/components/charts/smallChart";
+import { pct, signedPct } from "@/components/format";
 import { newestFiling } from "@/components/Sourced";
+import { colorVar } from "@/components/Swatch";
 import { InfoTip } from "@/components/tip/InfoTip";
 import { useTipHandlers } from "@/components/tip/TipProvider";
 import {
@@ -16,9 +18,8 @@ import {
 } from "@/engine";
 import { useView } from "@/state/StockProvider";
 import styles from "./Financials.module.css";
-import { HoverColumns, shortLabel } from "./HoverColumns";
 import { metricValue } from "./metricFormat";
-import { cls, colorVar, metricInfo } from "./metrics";
+import { cls, metricInfo } from "./metrics";
 import type { MetricSources } from "./sources";
 
 /** CompareMode is what the compare chart plots: the change since the first quarter, or from each quarter to the next. */
@@ -57,11 +58,8 @@ export function CompareView({
 }) {
   const [picked, setPicked] = useView<readonly string[]>("financials.compare", defaultSelection);
   const [mode, setMode] = useView<CompareMode>("financials.compareMode", "sinceStart");
-  const [hover, setHover] = useState<number | null>(null);
   const selected = allMetrics().filter((m) => picked.includes(m));
-  const quarters = view.quarters;
-  const n = quarters.length;
-  const first = quarters[0]?.label ?? "";
+  const first = view.quarters[0]?.label ?? "";
   const since = mode === "sinceStart";
 
   const toggle = (m: Metric) => {
@@ -116,28 +114,49 @@ export function CompareView({
     );
   }
 
+  return (
+    <>
+      {bar}
+      <p className={cls("small muted", styles.lede)}>
+        {since
+          ? `How much each metric changed since ${first}, in total. Read the end of each line: higher means more growth over the period.`
+          : "How much each metric changed from the quarter just before. Use it to see which quarters were strong or weak, and whether the metrics rose and fell together."}
+      </p>
+      <CompareChart
+        ticker={ticker}
+        view={view}
+        sources={sources}
+        selected={selected}
+        since={since}
+      />
+      {selected.length > 1 && <CorrelationTable view={view} selected={selected} />}
+    </>
+  );
+}
+
+/** CompareChart draws the change of each selected metric by quarter, since the first quarter or from the quarter before. */
+function CompareChart({
+  ticker,
+  view,
+  sources,
+  selected,
+  since,
+}: {
+  ticker: string;
+  view: FinancialsView;
+  sources: MetricSources;
+  selected: readonly Metric[];
+  since: boolean;
+}) {
+  const quarters = view.quarters;
+  const n = quarters.length;
+  const first = quarters[0]?.label ?? "";
   const values = (m: Metric) =>
     (since ? view.compare.sinceStart : view.compare.quarterOverQuarter)[m].map((v) => v.value);
   const axis = compareScale(selected.flatMap(values));
   const colW = (x1 - x0) / Math.max(n, 1);
   const X = (i: number) => x0 + (i + 0.5) * colW;
   const Y = (v: number) => y1 - ((v - axis.min) / (axis.max - axis.min)) * (y1 - y0);
-  const ticks: number[] = [];
-  for (
-    let v = Math.ceil(axis.min / axis.step - 1e-9) * axis.step;
-    v <= axis.max + 1e-9;
-    v += axis.step
-  ) {
-    ticks.push(v);
-  }
-
-  const quarterLabel = (i: number): string =>
-    `${quarters[i]?.label ?? ""}: ${selected
-      .map(
-        (m) =>
-          `${metricInfo[m].lower} ${signedPct(values(m)[i], 0)} (${metricValue(m, view.metrics[m].values[i] ?? null, 2)})`,
-      )
-      .join(", ")}`;
 
   const tip = (i: number): ReactNode => (
     <>
@@ -167,81 +186,46 @@ export function CompareView({
       </div>
     </>
   );
+  const picked = selected.join(",");
+  const data = useMemo(() => ({ view, picked, since }), [view, picked, since]);
+  const { chartProps, layer, live } = useColumns(
+    { count: n, x: X, width: colW, y0, y1 },
+    tip,
+    data,
+  );
 
   return (
     <>
-      {bar}
-      <p className={cls("small muted", styles.lede)}>
-        {since
-          ? `How much each metric changed since ${first}, in total. Read the end of each line: higher means more growth over the period.`
-          : "How much each metric changed from the quarter just before. Use it to see which quarters were strong or weak, and whether the metrics rose and fell together."}
-      </p>
       <svg
         viewBox={`0 0 ${String(W)} ${String(H)}`}
         role="group"
         aria-label={`Financial metrics compared by quarter for ${ticker}: ${selected
           .map((m) => `${metricInfo[m].lower} ${signedPct(values(m).at(-1), 0)}`)
           .join(", ")} ${since ? `since ${first}` : "in the latest quarter"}`}
+        {...chartProps}
       >
-        {ticks.map((v) => (
-          <g key={v}>
-            <line x1={x0} y1={Y(v)} x2={x1} y2={Y(v)} stroke="var(--line)" />
-            <text x={x0 - 6} y={Y(v) + 3.5} textAnchor="end">
-              {Math.round(v * 100)}%
-            </text>
-          </g>
-        ))}
+        <YAxis axis={axis} y={Y} x0={x0} x1={x1} format={(v) => pct(v, 0)} />
         <line x1={x0} y1={Y(0)} x2={x1} y2={Y(0)} stroke="var(--muted)" strokeWidth={1.2} />
         {quarters.map((q, i) => (
           <text key={q.periodEnd} x={X(i)} y={y1 + 17} textAnchor="middle">
             {shortLabel(q.label)}
           </text>
         ))}
-        <HoverColumns
-          count={n}
-          left={(i) => X(i) - colW / 2}
-          width={colW}
-          top={y0}
-          height={y1 - y0}
-          tip={tip}
-          label={quarterLabel}
-          onHover={setHover}
-        />
-        {hover !== null && (
-          <line
-            className="col-guide"
-            x1={X(hover)}
-            x2={X(hover)}
-            y1={y0}
-            y2={y1}
-            stroke="var(--muted)"
-            strokeDasharray="3 3"
-            pointerEvents="none"
-          />
-        )}
         {selected.map((m) => {
-          const pts = values(m)
-            .map((v, i) => (v === null ? null : ([X(i), Y(v)] as const)))
-            .filter((p) => p !== null);
+          const pts = values(m).map((v, i) => (v === null ? null : ([X(i), Y(v)] as const)));
           const c = metricInfo[m].color;
           return (
             <g key={m} pointerEvents="none">
-              <path
-                d={pts
-                  .map((p, i) => `${i === 0 ? "M" : "L"}${p[0].toFixed(1)},${p[1].toFixed(1)}`)
-                  .join("")}
-                fill="none"
-                stroke={c}
-                strokeWidth={2}
-              />
-              {pts.map((p, i) => (
-                <circle key={i} cx={p[0]} cy={p[1]} r={3} fill={c} />
-              ))}
+              <path d={linePath(pts)} fill="none" stroke={c} strokeWidth={2} />
+              {pts.map(
+                (p, i) => p !== null && <circle key={i} cx={p[0]} cy={p[1]} r={3} fill={c} />,
+              )}
             </g>
           );
         })}
+        {layer}
       </svg>
-      {selected.length > 1 && <CorrelationTable view={view} selected={selected} />}
+      {live}
     </>
   );
 }
@@ -283,7 +267,7 @@ function CorrelationTable({
         <thead>
           <tr>
             <th scope="col">
-              <span className={styles.srOnly}>Metric</span>
+              <span className="sr-only">Metric</span>
             </th>
             {selected.map((m) => (
               <th key={m} scope="col">

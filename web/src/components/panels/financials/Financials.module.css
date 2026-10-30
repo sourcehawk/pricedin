@@ -63,17 +63,3 @@
 .lede {
   margin: 0 0 6px;
 }
-
-.srOnly {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
-}
-
-.focusCol:focus-visible {
-  outline: none;
-  fill: color-mix(in srgb, var(--accent) 14%, transparent);
-}

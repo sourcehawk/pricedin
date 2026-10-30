@@ -8,7 +8,9 @@ import { Walkthrough, type WalkthroughStep } from "@/components/walkthrough/Walk
 import type { Evaluation, Paths } from "@/engine";
 import { useEvaluation } from "@/state/StockProvider";
 import { Panel } from "../Panel";
-import { endLabels, FromLevers, linePath, swatch, TipRow, useColumns, YAxis } from "./smallChart";
+import { endLabels, linePath, TipRow, useColumns, YAxis } from "@/components/charts/smallChart";
+import { FromLevers } from "@/components/Sourced";
+import { colorVar } from "@/components/Swatch";
 
 const W = 520;
 const H = 270;
@@ -50,7 +52,7 @@ export function EarningsTrajectoryPanel() {
     {
       title: (
         <>
-          <span className="lg" style={swatch(ink)} /> The reported EPS line
+          <span className="lg" style={colorVar(ink)} /> The reported EPS line
         </>
       ),
       body: (
@@ -74,7 +76,7 @@ export function EarningsTrajectoryPanel() {
     {
       title: (
         <>
-          <span className="lg d" style={swatch(muted)} /> The baseline line
+          <span className="lg d" style={colorVar(muted)} /> The baseline line
         </>
       ),
       body: (
@@ -95,7 +97,7 @@ export function EarningsTrajectoryPanel() {
     {
       title: (
         <>
-          <span className="lg d" style={swatch(accent)} /> The required line
+          <span className="lg d" style={colorVar(accent)} /> The required line
         </>
       ),
       body: (
@@ -144,11 +146,11 @@ export function EarningsTrajectoryPanel() {
         <p>
           The shaded area is the gap between the two dashed lines.
           <span className="vl">
-            <i className="sq" style={swatch("var(--bad)")} />
+            <i className="sq" style={colorVar("var(--bad)")} />
             The company grows too slowly for your target, so you would earn less than you want.
           </span>
           <span className="vl">
-            <i className="sq" style={swatch("var(--good)")} />
+            <i className="sq" style={colorVar("var(--good)")} />
             The company grows fast enough, so you would earn more than you want.
           </span>
           The wider the gap at the right edge, the bigger the difference.
@@ -228,20 +230,20 @@ export function EarningsTrajectoryPanel() {
           TTM EPS by quarter, then two paths: your baseline continuing, and the path the price
           requires.
           <InfoTip label="About shading">
-            <span className="sw" style={swatch("var(--bad)")} /> Shading: the required path ends
+            <span className="sw" style={colorVar("var(--bad)")} /> Shading: the required path ends
             above the baseline, so the price needs more growth than the trend gives.{" "}
-            <span className="sw" style={swatch("var(--good)")} /> Shading: the baseline beats it.
+            <span className="sw" style={colorVar("var(--good)")} /> Shading: the baseline beats it.
             Hover the chart for values.
           </InfoTip>
         </>
       }
     >
       <div className="keys">
-        <span style={swatch(ink)}>Reported TTM EPS</span>
-        <span className="dash" style={swatch(muted)}>
+        <span style={colorVar(ink)}>Reported TTM EPS</span>
+        <span className="dash" style={colorVar(muted)}>
           Baseline continues
         </span>
-        <span className="dash" style={swatch(accent)}>
+        <span className="dash" style={colorVar(accent)}>
           Required path
         </span>
       </div>

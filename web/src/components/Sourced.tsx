@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import type { SecSource, Source, SourcedNumber } from "@/api/types";
+import type { Provenance } from "@/state/StockProvider";
 import { useTipHandlers } from "./tip/TipProvider";
 
 // Names of the derivation methods that the API reports for a derived value.
@@ -137,5 +138,23 @@ export function Sourced({
     <span className="sourced" tabIndex={0} {...handlers}>
       {children}
     </span>
+  );
+}
+
+/** FromLevers shows a starting-point value with its provenance: the source of the stock's value, or a mark that the user typed it. */
+export function FromLevers({
+  provenance,
+  children,
+}: {
+  provenance: Provenance;
+  children: ReactNode;
+}) {
+  return (
+    <Sourced
+      value={provenance?.kind === "stock" ? provenance.sourced : null}
+      user={provenance?.kind === "user"}
+    >
+      {children}
+    </Sourced>
   );
 }
