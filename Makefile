@@ -301,7 +301,8 @@ ci: ## Run everything CI runs, in CI order
 # turns on every job and reads nothing.
 .PHONY: ci-changes
 ci-changes: ## Decide which CI test jobs a change needs (changed paths on stdin, or CI_ALL=true)
-	scripts/ci-changes.sh $(if $(filter true,$(CI_ALL)),all)
+	$(if $(filter-out true,$(CI_ALL)),$(error CI_ALL must be true or empty, not '$(CI_ALL)'))
+	scripts/ci-changes.sh $(if $(CI_ALL),all)
 
 # The workflow's ci-ok job. It needs nothing but make and a shell.
 .PHONY: ci-ok
