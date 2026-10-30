@@ -1,7 +1,6 @@
 import { useMemo } from "react";
 import type { Levers } from "@/engine";
 import { useEvaluation } from "@/state/StockProvider";
-import type { WalkthroughStep } from "./Walkthrough";
 
 /**
  * StepContext holds what a panel's walkthrough lines quote besides the
@@ -13,9 +12,6 @@ export interface StepContext {
   ticker: string;
   levers: Levers;
 }
-
-/** PanelSteps is the shape of each panel's steps function, exported from the panel's steps.tsx. */
-export type PanelSteps = (ctx: StepContext) => WalkthroughStep[];
 
 /**
  * useStepContext returns the step context of the page's evaluation. It
