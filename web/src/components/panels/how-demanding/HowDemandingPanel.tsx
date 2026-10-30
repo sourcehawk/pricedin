@@ -302,8 +302,9 @@ function DemandingChart({ d }: { d: Demanding }) {
   const dp = points.map((p, i) =>
     p.delivered.value === null ? null : ([X(i), Y(p.delivered.value)] as const),
   );
-  const lastReq = rp.findLastIndex((p) => p !== null);
-  const lastDel = dp.findLastIndex((p) => p !== null);
+  // Today's labels belong to the last quarter only; an earlier value must not stand in for it.
+  const lastReq = lastIndex;
+  const lastDel = lastIndex;
   const reqEnd = rp[lastReq] ?? null;
   const delEnd = dp[lastDel] ?? null;
   const [ya, yb] = endLabels(reqEnd?.[1] ?? 0, delEnd?.[1] ?? 0);

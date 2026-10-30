@@ -111,6 +111,19 @@ describe("HowDemandingPanel", () => {
     expect(screen.queryByText("Needs positive EPS.")).not.toBeInTheDocument();
   });
 
+  it("labels no earlier quarter as today when today has no required growth", async () => {
+    const { chart, d } = await show(
+      leversWith(
+        { type: "setExitPe", value: 20 },
+        { type: "setStartingPoint", field: "ttmEps", value: -1 },
+      ),
+    );
+    expect(d.points.at(-1)?.required.value).toBeNull();
+    expect(d.points.at(-2)?.required.value).not.toBeNull();
+    expect(chart.querySelector('[data-walk~="last"]')).toBeNull();
+    expect(within(chart).queryByText(pct(d.points.at(-2)?.required.value))).toBeNull();
+  });
+
   it("asks for positive EPS when no quarter has a required growth", async () => {
     await renderReady(
       <WhenReady>
