@@ -26,6 +26,30 @@ function RaiseEps() {
   );
 }
 
+function LeverButtons() {
+  const dispatch = useLeverDispatch();
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => {
+          dispatch({ type: "setHoldingYears", value: 1 });
+        }}
+      >
+        One year
+      </button>
+      <button
+        type="button"
+        onClick={() => {
+          dispatch({ type: "setStartingPoint", field: "ttmEps", value: -1 });
+        }}
+      >
+        Negative EPS
+      </button>
+    </>
+  );
+}
+
 async function show(levers = leversWith()) {
   const probe = evaluationProbe();
   await renderReady(
@@ -34,6 +58,7 @@ async function show(levers = leversWith()) {
       <div data-lever="exitPe" data-testid="lever-exitPe" />
       <div data-lever="baseline" data-testid="lever-baseline" />
       <RaiseEps />
+      <LeverButtons />
       <WhenReady>
         <EarningsTrajectoryPanel />
       </WhenReady>
@@ -194,6 +219,35 @@ describe("EarningsTrajectoryPanel", () => {
     expect(screen.getByRole("tooltip")).toHaveTextContent(
       `Baseline EPS${usd(end?.baseline.value)}`,
     );
+  });
+
+  it("closes the tooltip of a column that a shorter holding period removes", async () => {
+    const { chart } = await show();
+    const last = columns(chart).at(-1);
+    if (last === undefined) {
+      throw new Error("no column");
+    }
+    await userEvent.hover(last);
+    fireEvent.click(screen.getByRole("button", { name: "One year" }));
+    await waitFor(() => {
+      expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+    });
+    const now = screen.getByRole("img", { name: /TTM EPS/ });
+    expect(guide(now)).toHaveAttribute("visibility", "hidden");
+  });
+
+  it("closes the tooltip when the chart goes away", async () => {
+    const { chart } = await show();
+    const col = columns(chart)[2];
+    if (col === undefined) {
+      throw new Error("no column");
+    }
+    await userEvent.hover(col);
+    fireEvent.click(screen.getByRole("button", { name: "Negative EPS" }));
+    await waitFor(() => {
+      expect(screen.getByText("Needs positive EPS to project.")).toBeInTheDocument();
+    });
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
   });
 
   it("keeps a tapped tooltip when the finger lifts", async () => {

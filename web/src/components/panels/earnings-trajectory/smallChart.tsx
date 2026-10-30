@@ -105,26 +105,44 @@ export function useColumns(layout: ColumnsLayout, tipFor: (i: number) => ReactNo
   const rects = useRef<(SVGRectElement | null)[]>([]);
   const pointerAt = useRef<{ x: number; y: number } | undefined>(undefined);
   const latestTip = useRef(tipFor);
+  const owned = useRef<SVGRectElement | null>(null);
   const { count, x, width, y0, y1 } = layout;
   const start = layout.start ?? count - 1;
+
+  // Fewer columns, such as after a shorter holding period, can remove the active one.
+  if (active !== null && active >= count) {
+    setActive(null);
+  }
 
   useLayoutEffect(() => {
     latestTip.current = tipFor;
   });
   // The tooltip holds the content it was shown with, so new levers would
-  // leave stale values in it.
+  // leave stale values in it, or keep it open for a column that is gone.
   useEffect(() => {
-    const el = active === null ? undefined : rects.current[active];
-    if (active !== null && el && tip.owner === el) {
+    const el = active === null ? null : (rects.current[active] ?? null);
+    if (active !== null && el !== null && tip.owner === el) {
       tip.show(el, latestTip.current(active), pointerAt.current);
+    } else if (owned.current !== null && tip.owner === owned.current && el !== owned.current) {
+      tip.hide(owned.current);
     }
   }, [data, active, tip]);
+  const hideTip = tip.hide;
+  useEffect(
+    () => () => {
+      if (owned.current !== null) {
+        hideTip(owned.current);
+      }
+    },
+    [hideTip],
+  );
 
   const show = (i: number, at?: { x: number; y: number }) => {
-    const el = rects.current[i];
+    const el = rects.current[i] ?? null;
     pointerAt.current = at;
+    owned.current = el;
     setActive(i);
-    if (el) {
+    if (el !== null) {
       tip.show(el, tipFor(i), at);
     }
   };
