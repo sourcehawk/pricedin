@@ -38,7 +38,7 @@ function latestSecRun(runs: readonly IngestRun[]): IngestRun | undefined {
 }
 
 /**
- * unsettledFilingRuns are the filing jobs whose newest run did not succeed.
+ * unsettledFilingRuns returns the runs of filing jobs that did not succeed.
  * The status lists only the newest run of each job, so an earlier success
  * of such a job, which can be newer than latestSecRun, is not visible.
  */

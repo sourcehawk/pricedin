@@ -41,11 +41,7 @@ const TipContext = createContext<Tip | null>(null);
 /** leaveDelay gives the pointer time to move from an element onto its tooltip. */
 const leaveDelay = 150;
 
-/**
- * TipProvider renders the tooltip layer. Escape hides the tooltip; a scroll
- * hides one that a tap or focus opened; the tooltip stays open while the
- * pointer is on it.
- */
+/** TipProvider renders the tooltip layer. */
 export function TipProvider({ children }: { children: ReactNode }) {
   const [tip, setTip] = useState<TipState | null>(null);
   const el = useRef<HTMLDivElement>(null);
