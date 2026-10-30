@@ -124,8 +124,12 @@ export function yearRates(c: CustomGrowth, years: number): number[] {
   return out;
 }
 
-/** yearlyAverage returns the compound average of yearly rates, each above -100%: the flat rate that ends at the same EPS. */
+/** yearlyAverage returns the compound average of yearly rates, each above -100%: the flat rate that ends at the same EPS. No rates give 0. */
 export function yearlyAverage(rates: readonly number[]): number {
+  // Go's math.Pow(1, +Inf) is 1, and JavaScript's is NaN.
+  if (rates.length === 0) {
+    return 0;
+  }
   let prod = 1;
   for (const r of rates) {
     prod *= 1 + r;

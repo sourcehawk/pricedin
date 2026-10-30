@@ -6165,6 +6165,14 @@
    "tolerance": 1e-9
   },
   {
+   "name": "yearly average of no rates",
+   "fn": "yearlyAverage",
+   "input": {"rates":[]},
+   "expected": 0,
+   "tolerance": 1e-9,
+   "note": "v1: the compound average of no rates is 0; the prototype never averages an empty list."
+  },
+  {
    "name": "flat baseline path after 0 quarters",
    "fn": "baselinePath",
    "input": {"eps":10.8,"growth":0.12,"quarters":0,"yearlyRates":null},

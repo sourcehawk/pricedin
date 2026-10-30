@@ -317,6 +317,14 @@ add("year rates are cut to the holding period", "yearRates", {
 add("yearly average of three rates", "yearlyAverage", { rates: [0.1, 0.2, 0.05] });
 add("yearly average of one rate", "yearlyAverage", { rates: [0.07] });
 add("yearly average of a loss and a gain", "yearlyAverage", { rates: [-0.5, 0.5] });
+hand(
+  "yearly average of no rates",
+  "yearlyAverage",
+  { rates: [] },
+  0,
+  TOL,
+  "v1: the compound average of no rates is 0; the prototype never averages an empty list.",
+);
 for (const k of [0, 6, 12])
   add(`flat baseline path after ${k} quarters`, "baselinePath", {
     eps: 10.8,
