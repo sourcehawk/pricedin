@@ -106,13 +106,14 @@ export function Tiles({
   return (
     <div className={cls("tiles", styles.tiles)}>
       {tile("revenue", `Revenue ${t.label}`)}
-      {tile("operatingCosts", "Operating costs", (_, e) => {
+      {tile("operatingCosts", "Operating costs", (c, e) => {
         let s = ` · revenue ${signedPct(revChange, 0)}`;
         if (e.tone.value === "warn") {
-          s +=
-            revChange !== null && revChange < 0
-              ? " (costs fell less than sales)"
-              : " (costs rose faster than sales)";
+          if (revChange === null || revChange >= 0) {
+            s += " (costs rose faster than sales)";
+          } else {
+            s += c < 0 ? " (costs fell less than sales)" : " (costs rose while sales fell)";
+          }
         }
         return s;
       })}

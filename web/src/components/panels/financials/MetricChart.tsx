@@ -111,7 +111,7 @@ export function MetricChart({
     );
     if (shares) {
       const c = series.qoq[i]?.value ?? null;
-      const tone = series.qoqTone[i]?.value ?? null;
+      const tone = signedPct(c) === signedPct(0) ? null : (series.qoqTone[i]?.value ?? null);
       if (c !== null) {
         marks.push(
           <text

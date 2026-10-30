@@ -111,6 +111,15 @@ describe("FinancialsPanel metric chart", () => {
     expect(within(chart).getByText("-2.1% QoQ")).toHaveClass("up");
   });
 
+  it("shows a share count change that rounds to zero in a neutral tone", async () => {
+    await renderPanel();
+    await pick("Shares");
+    const chart = screen.getByRole("group", { name: /Quarterly diluted shares/ });
+    for (const label of within(chart).getAllByText("0.0% QoQ")) {
+      expect(label).toHaveClass("muted");
+    }
+  });
+
   it("snaps the tooltip to the hovered quarter and draws a guide line there", async () => {
     const { container } = await renderPanel();
     const columns = container.querySelectorAll("rect.cmpcol");
@@ -175,6 +184,30 @@ describe("FinancialsPanel tiles", () => {
     expect(
       within(tile("Operating costs")).getByText(
         "+36% YoY · revenue +12% (costs rose faster than sales)",
+      ),
+    ).toHaveClass("warnc");
+  });
+
+  it("says that costs rose while sales fell", async () => {
+    serveHistory(
+      financialsHistory(lastQuarter({ revenue: 1_598_400_000, operatingCosts: 1_384_950_000 })),
+    );
+    await renderPanel();
+    expect(
+      within(tile("Operating costs")).getByText(
+        "+5% YoY · revenue -10% (costs rose while sales fell)",
+      ),
+    ).toHaveClass("warnc");
+  });
+
+  it("says that costs fell less than sales", async () => {
+    serveHistory(
+      financialsHistory(lastQuarter({ revenue: 1_598_400_000, operatingCosts: 1_253_050_000 })),
+    );
+    await renderPanel();
+    expect(
+      within(tile("Operating costs")).getByText(
+        "-5% YoY · revenue -10% (costs fell less than sales)",
       ),
     ).toHaveClass("warnc");
   });
