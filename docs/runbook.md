@@ -359,7 +359,7 @@ Neon keeps the history of each branch for a time that depends on the plan. To go
    flyctl scale count app=0 scheduler=0 --app pricedin-api
    ```
 
-2. In the Neon console, restore the branch to a time before the fault. Or make a new branch from that time, if you want to keep the current state. A new branch has a new host: set the three database URLs again, with `--stage`. A restore in place keeps the host.
+2. In the Neon console, restore the branch to a time before the fault. Or make a new branch from that time, if you want to keep the current state. A new branch has a new host: set the three database URLs again, with `--stage`, and set `OWNER_URL` to the owner URL of the new branch, so that the next steps change the new branch. A restore in place keeps the host.
 3. Apply the migrations that came after the restored point, with the image of the version that runs now:
 
    ```sh
@@ -409,7 +409,7 @@ A 403 for a daily index of a weekend or a holiday is normal. The client treats i
 Massive gives this answer for four causes:
 
 - The key is wrong or the plan ended. Make sure that the subscription is active, and set the key again.
-- The request is for data older than five years. The plan gives no older data. `PRICEDIN_PRICES_BACKFILL_DAYS` (default 1260) keeps the backfill inside the window.
+- The whole range of the request is older than five years. The plan gives no older data. (A range that only starts before the window returns the bars inside it.) `PRICEDIN_PRICES_BACKFILL_DAYS` (default 1260) keeps the backfill inside the window.
 - The request is for a day that is not over. PricedIn asks for a day only after 20:00 New York time, so this answer points to a wrong clock or a manual request.
 - The plan does not include an endpoint that PricedIn uses. `docs/data-sources.md` lists the endpoints. `/pricedin prices verify` calls the splits, dividends, bars and tickers endpoints, and shows which check fails.
 

@@ -117,7 +117,7 @@ PricedIn asks for raw bars (`adjusted=false`) and stores them as they are. Massi
 Other facts measured on 2026-10-30:
 
 - The provider's adjusted closes are adjusted for splits, not for dividends. PricedIn needs exactly that, and it computes the adjustment itself from the raw closes and the split events.
-- A request for data older than five years gets `NOT_AUTHORIZED`.
+- A request whose whole range is older than five years gets `NOT_AUTHORIZED`. A range that starts before the window and ends inside it returns only the bars inside the window.
 - A grouped request for a weekend or a market holiday answers OK with no bars.
 
 ## Licensing
