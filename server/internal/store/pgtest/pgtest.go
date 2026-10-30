@@ -8,7 +8,10 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"io"
+	"maps"
 	"os"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -20,6 +23,7 @@ import (
 	// Registers the "pgx" driver for database/sql, which goose needs.
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/testcontainers/testcontainers-go"
+	tcexec "github.com/testcontainers/testcontainers-go/exec"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 
 	"github.com/sourcehawk/pricedin/server/internal/store"
@@ -168,6 +172,46 @@ func newDatabase(tb testing.TB, template string) string {
 		}
 	})
 	return urlFor(name)
+}
+
+// Psql runs the psql script in the file at path on the database of dbURL,
+// which NewURL or NewEmptyURL returned, as the user that owns the test
+// databases. Each entry of vars is a psql variable (-v name=value). It
+// returns what psql printed, and an error when psql exits with a status
+// other than 0, as it does at the first failed statement.
+func Psql(tb testing.TB, dbURL, path string, vars map[string]string) (string, error) {
+	tb.Helper()
+	if server.container == nil {
+		tb.Fatal("pgtest: no container; call pgtest.Main from TestMain")
+	}
+	cfg, err := pgx.ParseConfig(dbURL)
+	if err != nil {
+		tb.Fatalf("pgtest: parse database URL: %v", err)
+	}
+	script, err := os.ReadFile(path)
+	if err != nil {
+		tb.Fatalf("pgtest: read %s: %v", path, err)
+	}
+	target := fmt.Sprintf("/tmp/pgtest-%d.sql", server.seq.Add(1))
+	if err := server.container.CopyToContainer(tb.Context(), script, target, 0o644); err != nil {
+		tb.Fatalf("pgtest: copy %s into the container: %v", path, err)
+	}
+	cmd := []string{"psql", "-X", "-v", "ON_ERROR_STOP=1", "-U", cfg.User, "-d", cfg.Database, "-f", target}
+	for _, name := range slices.Sorted(maps.Keys(vars)) {
+		cmd = append(cmd, "-v", name+"="+vars[name])
+	}
+	code, out, err := server.container.Exec(tb.Context(), cmd, tcexec.Multiplexed())
+	if err != nil {
+		tb.Fatalf("pgtest: run psql: %v", err)
+	}
+	printed, err := io.ReadAll(out)
+	if err != nil {
+		tb.Fatalf("pgtest: read the output of psql: %v", err)
+	}
+	if code != 0 {
+		return string(printed), fmt.Errorf("pgtest: psql exited with status %d", code)
+	}
+	return string(printed), nil
 }
 
 func adminExec(ctx context.Context, stmt string) error {
