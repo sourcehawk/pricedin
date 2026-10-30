@@ -11,3 +11,8 @@
 .views button {
   white-space: nowrap;
 }
+
+/* A walkthrough fades the panel's leaves to a low opacity, which would show a hidden outline. */
+.mark:not(:global(.on)) {
+  visibility: hidden;
+}

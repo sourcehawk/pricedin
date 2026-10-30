@@ -588,7 +588,7 @@ function GridTable({
       {boxes.map((b) => (
         <div
           key={b.key}
-          className={outlined === b.tag ? "rowmark on" : "rowmark"}
+          className={`rowmark ${styles.mark ?? ""}${outlined === b.tag ? " on" : ""}`}
           data-row-tag={b.tag}
           aria-hidden="true"
           style={{
