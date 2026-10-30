@@ -211,6 +211,20 @@ describe("Walkthrough", () => {
     expect(screen.getByRole("region", { name: "panel two" })).toContainElement(cards[0] ?? null);
   });
 
+  it("leaves the focus in the new card when a walkthrough earlier on the page starts", async () => {
+    await renderReady(
+      <>
+        <Panel id="one" />
+        <Panel id="two" />
+      </>,
+    );
+    const [first, second] = screen.getAllByRole("button", { name: "Walk me through the demo" });
+    await userEvent.click(second as HTMLElement);
+    await userEvent.click(first as HTMLElement);
+    const panel = screen.getByRole("region", { name: "panel one" });
+    expect(within(panel).getByRole("button", { name: "Next" })).toHaveFocus();
+  });
+
   it("writes the card into its slot when it has one", async () => {
     await renderReady(
       <>

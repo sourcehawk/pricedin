@@ -112,15 +112,17 @@ export function Walkthrough(props: WalkthroughProps) {
   });
 
   // Focus moves to Next on each step, and back to the launcher at the end,
-  // without scrolling.
+  // without scrolling. When another walkthrough took over, its card keeps
+  // the focus.
+  const anyRunning = control.active !== null;
   useEffect(() => {
     if (running) {
       next.current?.focus({ preventScroll: true });
-    } else if (wasRunning.current) {
+    } else if (wasRunning.current && !anyRunning) {
       open.current?.focus({ preventScroll: true });
     }
     wasRunning.current = running;
-  }, [running, index]);
+  }, [running, index, anyRunning]);
 
   const { go, end } = control;
   useEffect(() => {
