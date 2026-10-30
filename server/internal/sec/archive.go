@@ -52,16 +52,20 @@ func ReadSubmissionsArchive(r io.ReaderAt, size int64, fn func(Submissions) erro
 	if err != nil {
 		return fmt.Errorf("read submissions archive: %w", err)
 	}
-	byName := make(map[string]*zip.File, len(zr.File))
+	// The real archive has about a million entries and some thousands of
+	// extra files, so only the extra files go into the map.
+	extras := map[string]*zip.File{}
 	for _, f := range zr.File {
-		byName[f.Name] = f
+		if isExtraFile(f.Name) {
+			extras[f.Name] = f
+		}
 	}
 	for _, f := range zr.File {
 		cik, ok := mainFileCIK(f.Name)
 		if !ok {
 			continue
 		}
-		sub, err := readArchivedSubmissions(f, cik, byName)
+		sub, err := readArchivedSubmissions(f, cik, extras)
 		if err != nil {
 			return fmt.Errorf("read submissions archive: %s: %w", f.Name, err)
 		}
@@ -72,7 +76,7 @@ func ReadSubmissionsArchive(r io.ReaderAt, size int64, fn func(Submissions) erro
 	return nil
 }
 
-func readArchivedSubmissions(f *zip.File, cik domain.CIK, byName map[string]*zip.File) (Submissions, error) {
+func readArchivedSubmissions(f *zip.File, cik domain.CIK, extras map[string]*zip.File) (Submissions, error) {
 	body, err := readZipFile(f)
 	if err != nil {
 		return Submissions{}, err
@@ -85,7 +89,7 @@ func readArchivedSubmissions(f *zip.File, cik domain.CIK, byName map[string]*zip
 		return Submissions{}, fmt.Errorf("cik %d, want %d", int64(sub.Company.CIK), int64(cik))
 	}
 	for _, name := range sub.Files {
-		extra, ok := byName[name]
+		extra, ok := extras[name]
 		if !ok {
 			return Submissions{}, fmt.Errorf("extra file %s not in the archive", name)
 		}
@@ -113,6 +117,19 @@ func readZipFile(f *zip.File) ([]byte, error) {
 		return nil, fmt.Errorf("%s: %w", f.Name, err)
 	}
 	return body, nil
+}
+
+// isExtraFile reports whether name has the form
+// CIK##########-submissions-###.json.
+func isExtraFile(name string) bool {
+	rest, ok := strings.CutPrefix(name, "CIK")
+	if !ok || len(rest) < 10 {
+		return false
+	}
+	if _, err := domain.ParseCIK(rest[:10]); err != nil {
+		return false
+	}
+	return strings.HasPrefix(rest[10:], "-submissions-") && strings.HasSuffix(rest, ".json")
 }
 
 // mainFileCIK returns the CIK of a name of the form CIK##########.json.
