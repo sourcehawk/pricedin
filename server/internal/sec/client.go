@@ -8,8 +8,10 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"math"
 	"math/rand/v2"
 	"mime"
+	"net"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -25,10 +27,15 @@ const MaxRequestsPerSecond = 10
 
 // The defaults of Options.
 const (
-	DefaultBaseURL       = "https://www.sec.gov"
-	DefaultDataBaseURL   = "https://data.sec.gov"
-	DefaultMaxAttempts   = 5
-	DefaultMaxRetryAfter = 5 * time.Minute
+	DefaultBaseURL     = "https://www.sec.gov"
+	DefaultDataBaseURL = "https://data.sec.gov"
+	// DefaultRequestsPerSecond stays below MaxRequestsPerSecond, because
+	// network jitter can move requests that leave a second apart into one
+	// second at SEC.
+	DefaultRequestsPerSecond     = 9
+	DefaultMaxAttempts           = 5
+	DefaultMaxRetryAfter         = 5 * time.Minute
+	DefaultResponseHeaderTimeout = 30 * time.Second
 )
 
 const (
@@ -70,8 +77,9 @@ type Options struct {
 	// https://data.sec.gov, for tests and the fixture server.
 	BaseURL     string
 	DataBaseURL string
-	// RequestsPerSecond is the rate limit: from more than 0 up to
-	// MaxRequestsPerSecond, which is the default.
+	// RequestsPerSecond is the rate limit: more than 0 and at most
+	// MaxRequestsPerSecond. Default DefaultRequestsPerSecond. Redirects
+	// count as requests.
 	RequestsPerSecond float64
 	// MaxAttempts is the number of tries of one request, including the
 	// first. Default DefaultMaxAttempts.
@@ -80,8 +88,12 @@ type Options struct {
 	// A longer one fails the call. Default DefaultMaxRetryAfter.
 	MaxRetryAfter time.Duration
 	// HTTPClient sends the requests. It must not have a total timeout that
-	// is shorter than a bulk archive download.
+	// is shorter than a bulk archive download. The Client uses a copy, so
+	// the rate limit does not apply to other users of HTTPClient.
 	HTTPClient *http.Client
+	// ResponseHeaderTimeout limits the wait for the headers of a response
+	// when HTTPClient is nil. Default DefaultResponseHeaderTimeout.
+	ResponseHeaderTimeout time.Duration
 	// Recorder receives every response body except the bulk archives. Nil
 	// records nothing.
 	Recorder Recorder
@@ -102,7 +114,6 @@ type Client struct {
 	http          *http.Client
 	recorder      Recorder
 	clock         Clock
-	limiter       *limiter
 	logger        *slog.Logger
 }
 
@@ -114,13 +125,13 @@ func New(opts Options) (*Client, error) {
 	}
 	rate := opts.RequestsPerSecond
 	if rate == 0 {
-		rate = MaxRequestsPerSecond
+		rate = DefaultRequestsPerSecond
 	}
 	if rate < 0 || rate > MaxRequestsPerSecond {
 		return nil, fmt.Errorf("sec: requests per second %v, want more than 0 and at most %d", opts.RequestsPerSecond, MaxRequestsPerSecond)
 	}
-	if opts.MaxAttempts < 0 || opts.MaxRetryAfter < 0 {
-		return nil, errors.New("sec: max attempts and max Retry-After must not be negative")
+	if opts.MaxAttempts < 0 || opts.MaxRetryAfter < 0 || opts.ResponseHeaderTimeout < 0 {
+		return nil, errors.New("sec: max attempts, max Retry-After and response header timeout must not be negative")
 	}
 	baseURL, err := baseURLOrDefault(opts.BaseURL, DefaultBaseURL)
 	if err != nil {
@@ -136,7 +147,6 @@ func New(opts Options) (*Client, error) {
 		dataBaseURL:   dataBaseURL,
 		maxAttempts:   opts.MaxAttempts,
 		maxRetryAfter: opts.MaxRetryAfter,
-		http:          opts.HTTPClient,
 		recorder:      opts.Recorder,
 		clock:         opts.Clock,
 		logger:        opts.Logger,
@@ -147,17 +157,67 @@ func New(opts Options) (*Client, error) {
 	if c.maxRetryAfter == 0 {
 		c.maxRetryAfter = DefaultMaxRetryAfter
 	}
-	if c.http == nil {
-		c.http = &http.Client{}
-	}
 	if c.clock == nil {
 		c.clock = systemClock{}
 	}
 	if c.logger == nil {
 		c.logger = slog.New(slog.DiscardHandler)
 	}
-	c.limiter = &limiter{clock: c.clock, interval: time.Duration(float64(time.Second) / rate)}
+	// Rounding up keeps the rate at or below the limit.
+	interval := time.Duration(math.Ceil(float64(time.Second) / rate))
+	c.http = limitedHTTPClient(opts, &limiter{clock: c.clock, interval: interval})
 	return c, nil
+}
+
+// limitedHTTPClient returns a copy of opts.HTTPClient, or a new client, whose
+// every request waits for lim. This includes the requests that follow a
+// redirect, which http.Client sends without returning to the caller.
+func limitedHTTPClient(opts Options, lim *limiter) *http.Client {
+	var hc http.Client
+	if opts.HTTPClient != nil {
+		hc = *opts.HTTPClient
+	} else {
+		hc.Transport = defaultTransport(opts.ResponseHeaderTimeout)
+	}
+	next := hc.Transport
+	if next == nil {
+		next = http.DefaultTransport
+	}
+	hc.Transport = limitedTransport{next: next, limiter: lim}
+	return &hc
+}
+
+// defaultTransport has no limit on the whole response, because a bulk
+// archive takes minutes to download. It limits each step before the body.
+func defaultTransport(headerTimeout time.Duration) *http.Transport {
+	if headerTimeout == 0 {
+		headerTimeout = DefaultResponseHeaderTimeout
+	}
+	var t *http.Transport
+	if dt, ok := http.DefaultTransport.(*http.Transport); ok {
+		t = dt.Clone()
+	} else {
+		t = &http.Transport{Proxy: http.ProxyFromEnvironment, ForceAttemptHTTP2: true}
+	}
+	t.DialContext = (&net.Dialer{Timeout: 30 * time.Second, KeepAlive: 30 * time.Second}).DialContext
+	t.TLSHandshakeTimeout = 30 * time.Second
+	t.ResponseHeaderTimeout = headerTimeout
+	return t
+}
+
+type limitedTransport struct {
+	next    http.RoundTripper
+	limiter *limiter
+}
+
+func (t limitedTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	if err := t.limiter.wait(req.Context()); err != nil {
+		if req.Body != nil {
+			_ = req.Body.Close()
+		}
+		return nil, err
+	}
+	return t.next.RoundTrip(req)
 }
 
 func baseURLOrDefault(raw, fallback string) (string, error) {
@@ -243,8 +303,8 @@ func (c *Client) DailyIndex(ctx context.Context, day domain.Date) ([]domain.Fili
 
 // DownloadCompanyFactsArchive streams the bulk company facts archive
 // (companyfacts.zip, more than 1 GB) to w and returns the number of bytes
-// written. The Client retries only before the first byte, so on an error w
-// can hold part of the archive, which the caller must discard.
+// written. The Client does not try again after a byte has reached w. On an
+// error, w can hold part of the archive, which the caller must discard.
 func (c *Client) DownloadCompanyFactsArchive(ctx context.Context, w io.Writer) (int64, error) {
 	return c.download(ctx, c.baseURL+"/Archives/edgar/daily-index/xbrl/companyfacts.zip", w)
 }
@@ -258,10 +318,12 @@ func (c *Client) DownloadSubmissionsArchive(ctx context.Context, w io.Writer) (i
 // get returns the decoded body of u after the recorder stored it under key.
 func (c *Client) get(ctx context.Context, u, key string) ([]byte, error) {
 	var body []byte
-	err := c.fetch(ctx, u, true, func(r io.Reader) error {
+	err := c.fetch(ctx, u, func(r io.Reader) error {
 		var err error
-		body, err = io.ReadAll(r)
-		return err
+		if body, err = io.ReadAll(r); err != nil {
+			return &bodyError{err: err}
+		}
+		return nil
 	})
 	if err != nil {
 		return nil, err
@@ -276,23 +338,48 @@ func (c *Client) get(ctx context.Context, u, key string) ([]byte, error) {
 
 func (c *Client) download(ctx context.Context, u string, w io.Writer) (int64, error) {
 	var n int64
-	err := c.fetch(ctx, u, false, func(r io.Reader) error {
-		var err error
-		n, err = io.Copy(w, r)
+	err := c.fetch(ctx, u, func(r io.Reader) error {
+		cw := &countingWriter{w: w}
+		_, err := io.Copy(cw, r)
+		n += cw.n
+		if err != nil && cw.n == 0 && cw.err == nil {
+			return &bodyError{err: err}
+		}
 		return err
 	})
 	return n, err
 }
 
+// countingWriter counts the bytes that reach w and keeps the first error of
+// w.
+type countingWriter struct {
+	w   io.Writer
+	n   int64
+	err error
+}
+
+func (cw *countingWriter) Write(p []byte) (int, error) {
+	n, err := cw.w.Write(p)
+	cw.n += int64(n)
+	if err != nil && cw.err == nil {
+		cw.err = err
+	}
+	return n, err
+}
+
+// bodyError is a failure to read a response body that left nothing in the
+// output, so the request can be tried again.
+type bodyError struct{ err error }
+
+func (e *bodyError) Error() string { return e.err.Error() }
+func (e *bodyError) Unwrap() error { return e.err }
+
 // fetch sends GET u until it gets a 200 response, and passes the decoded
-// body to consume. When retryBody is true, an error from consume counts as a
-// transport error and the request is tried again.
-func (c *Client) fetch(ctx context.Context, u string, retryBody bool, consume func(io.Reader) error) error {
+// body to consume. A *bodyError from consume counts as a transport error, and
+// the request is tried again.
+func (c *Client) fetch(ctx context.Context, u string, consume func(io.Reader) error) error {
 	for attempt := 1; ; attempt++ {
-		if err := c.limiter.wait(ctx); err != nil {
-			return fmt.Errorf("sec: get %s: %w", u, err)
-		}
-		retry, wait, err := c.try(ctx, u, retryBody, consume)
+		retry, wait, err := c.try(ctx, u, consume)
 		if err == nil {
 			return nil
 		}
@@ -314,7 +401,7 @@ func (c *Client) fetch(ctx context.Context, u string, retryBody bool, consume fu
 
 // try sends one request. It reports whether a failure is worth another try
 // and how long the server asked to wait first (0 when it did not ask).
-func (c *Client) try(ctx context.Context, u string, retryBody bool, consume func(io.Reader) error) (retry bool, wait time.Duration, err error) {
+func (c *Client) try(ctx context.Context, u string, consume func(io.Reader) error) (retry bool, wait time.Duration, err error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, http.NoBody)
 	if err != nil {
 		return false, 0, err
@@ -331,12 +418,13 @@ func (c *Client) try(ctx context.Context, u string, retryBody bool, consume func
 	switch code := resp.StatusCode; {
 	case code == http.StatusOK:
 		body, closeBody, err := decodedBody(resp)
-		if err == nil {
-			defer closeBody()
-			err = consume(body)
-		}
 		if err != nil {
-			return retryBody && ctx.Err() == nil, 0, err
+			return ctx.Err() == nil, 0, err
+		}
+		defer closeBody()
+		if err := consume(body); err != nil {
+			var bodyErr *bodyError
+			return errors.As(err, &bodyErr) && ctx.Err() == nil, 0, err
 		}
 		return false, 0, nil
 	case code == http.StatusTooManyRequests || code >= 500:

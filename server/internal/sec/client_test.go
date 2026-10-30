@@ -5,9 +5,11 @@ import (
 	"compress/gzip"
 	"context"
 	"errors"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -153,6 +155,7 @@ func TestNewRejectsInvalidOptions(t *testing.T) {
 		"relative base URL":   {UserAgent: testUserAgent, BaseURL: "www.sec.gov"},
 		"data URL not http":   {UserAgent: testUserAgent, DataBaseURL: "ftp://data.sec.gov"},
 		"negative retryAfter": {UserAgent: testUserAgent, MaxRetryAfter: -time.Second},
+		"negative timeout":    {UserAgent: testUserAgent, ResponseHeaderTimeout: -time.Second},
 	}
 	for name, opts := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -210,6 +213,20 @@ func TestClientDatesTheTickerMapWithTheRetrievalDay(t *testing.T) {
 	}
 }
 
+// requireTenPerSecond fails the test when any 10 consecutive times of sent
+// span 1 s or less. A closed window of one second then holds at most 9
+// requests, which leaves room for jitter on the way to SEC.
+func requireTenPerSecond(t *testing.T, sent []time.Time) {
+	t.Helper()
+	sorted := slices.Clone(sent)
+	slices.SortFunc(sorted, func(a, b time.Time) int { return a.Compare(b) })
+	for i := 9; i < len(sorted); i++ {
+		if span := sorted[i].Sub(sorted[i-9]); span <= time.Second {
+			t.Fatalf("requests %d to %d span %v, want more than 1s for any 10", i-9, i, span)
+		}
+	}
+}
+
 func TestClientNeverSendsMoreThanTenRequestsInOneSecond(t *testing.T) {
 	clock := newFakeClock()
 	var mu sync.Mutex
@@ -226,14 +243,75 @@ func TestClientNeverSendsMoreThanTenRequestsInOneSecond(t *testing.T) {
 			t.Fatalf("DailyIndex() error = %v", err)
 		}
 	}
-	for i := 10; i < len(sent); i++ {
-		if window := sent[i].Sub(sent[i-10]); window < time.Second {
-			t.Fatalf("requests %d to %d sent within %v, want at most 10 in any second", i-10, i, window)
+	requireTenPerSecond(t, sent)
+	// The limit must not slow the client further than it needs to: 34 gaps
+	// of 1/9 s are 3.78 s.
+	if total := sent[len(sent)-1].Sub(sent[0]); total > 3780*time.Millisecond {
+		t.Errorf("35 requests took %v, want at most 3.78s", total)
+	}
+}
+
+func TestClientLimitsRedirectedRequests(t *testing.T) {
+	clock := newFakeClock()
+	var mu sync.Mutex
+	var sent []time.Time
+	c := newClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		sent = append(sent, clock.Now())
+		mu.Unlock()
+		// Each daily index request goes through 5 redirects.
+		hop, err := strconv.Atoi(strings.TrimPrefix(r.URL.Path, "/hop/"))
+		switch {
+		case err != nil:
+			http.Redirect(w, r, "/hop/5", http.StatusFound)
+		case hop > 1:
+			http.Redirect(w, r, "/hop/"+strconv.Itoa(hop-1), http.StatusFound)
+		default:
+			_, _ = w.Write([]byte("-----\n"))
+		}
+	}), sec.Options{Clock: clock})
+
+	for range 3 {
+		if _, err := c.DailyIndex(t.Context(), date(t, "2026-08-26")); err != nil {
+			t.Fatalf("DailyIndex() error = %v", err)
 		}
 	}
-	// The limit must not slow the client further than it needs to.
-	if total := sent[len(sent)-1].Sub(sent[0]); total != 3400*time.Millisecond {
-		t.Errorf("35 requests took %v, want 3.4s", total)
+	if len(sent) != 18 {
+		t.Fatalf("requests = %d, want 18", len(sent))
+	}
+	requireTenPerSecond(t, sent)
+}
+
+func TestClientKeepsTheRedirectPolicyOfItsHTTPClient(t *testing.T) {
+	var log requestLog
+	c := newClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		log.add()
+		http.Redirect(w, r, "/elsewhere", http.StatusFound)
+	}), sec.Options{HTTPClient: &http.Client{
+		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+	}})
+	_, err := c.DailyIndex(t.Context(), date(t, "2026-08-26"))
+	var statusErr *sec.StatusError
+	if !errors.As(err, &statusErr) || statusErr.StatusCode != http.StatusFound {
+		t.Errorf("error = %v, want a StatusError with status 302", err)
+	}
+	if log.n() != 1 {
+		t.Errorf("requests = %d, want 1", log.n())
+	}
+}
+
+func TestClientTimesOutWaitingForResponseHeaders(t *testing.T) {
+	c := newClient(t, http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		<-r.Context().Done()
+	}), sec.Options{ResponseHeaderTimeout: 50 * time.Millisecond, MaxAttempts: 1})
+	start := time.Now()
+	_, err := c.DailyIndex(t.Context(), date(t, "2026-08-26"))
+	var netErr net.Error
+	if !errors.As(err, &netErr) || !netErr.Timeout() {
+		t.Errorf("error = %v, want a timeout", err)
+	}
+	if waited := time.Since(start); waited > 10*time.Second {
+		t.Errorf("waited %v for a server that sends no headers", waited)
 	}
 }
 
@@ -356,12 +434,7 @@ func TestClientKeepsTheLimitAcrossGoroutines(t *testing.T) {
 			if len(sent) != callers {
 				t.Fatalf("requests = %d, want %d", len(sent), callers)
 			}
-			slices.SortFunc(sent, func(a, b time.Time) int { return a.Compare(b) })
-			for i := 10; i < len(sent); i++ {
-				if window := sent[i].Sub(sent[i-10]); window < time.Second {
-					t.Fatalf("requests %d to %d sent within %v, want at most 10 in any second", i-10, i, window)
-				}
-			}
+			requireTenPerSecond(t, sent)
 		})
 	}
 }
@@ -757,6 +830,59 @@ func TestClientRetriesADownloadBeforeTheFirstByte(t *testing.T) {
 	}
 	if !bytes.Equal(buf.Bytes(), archive) || log.n() != 2 {
 		t.Errorf("requests = %d, body equal = %v, want 2 requests and the archive", log.n(), bytes.Equal(buf.Bytes(), archive))
+	}
+}
+
+func TestClientRetriesADownloadThatBrokeBeforeTheFirstByte(t *testing.T) {
+	archive := readFixture(t, companyFactsZip)
+	tests := map[string]func(w http.ResponseWriter){
+		"no body": func(w http.ResponseWriter) {
+			w.Header().Set("Content-Length", "1000")
+			w.WriteHeader(http.StatusOK)
+		},
+		"broken gzip header": func(w http.ResponseWriter) {
+			w.Header().Set("Content-Encoding", "gzip")
+			_, _ = w.Write([]byte{0x1f})
+		},
+	}
+	for name, firstResponse := range tests {
+		t.Run(name, func(t *testing.T) {
+			var log requestLog
+			c := newClient(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				if log.add() == 1 {
+					firstResponse(w)
+					return
+				}
+				_, _ = w.Write(archive)
+			}), sec.Options{})
+			var buf bytes.Buffer
+			if _, err := c.DownloadCompanyFactsArchive(t.Context(), &buf); err != nil {
+				t.Fatalf("DownloadCompanyFactsArchive() error = %v", err)
+			}
+			if !bytes.Equal(buf.Bytes(), archive) || log.n() != 2 {
+				t.Errorf("requests = %d, body equal = %v, want 2 requests and the archive", log.n(), bytes.Equal(buf.Bytes(), archive))
+			}
+		})
+	}
+}
+
+type failingWriter struct{ err error }
+
+func (w failingWriter) Write([]byte) (int, error) { return 0, w.err }
+
+func TestClientDoesNotRetryADownloadWhenTheWriterFails(t *testing.T) {
+	var log requestLog
+	c := newClient(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		log.add()
+		_, _ = w.Write([]byte("PK archive"))
+	}), sec.Options{})
+	writeErr := errors.New("disk full")
+	_, err := c.DownloadSubmissionsArchive(t.Context(), failingWriter{err: writeErr})
+	if !errors.Is(err, writeErr) {
+		t.Errorf("error = %v, want the writer error", err)
+	}
+	if log.n() != 1 {
+		t.Errorf("requests = %d, want 1", log.n())
 	}
 }
 
