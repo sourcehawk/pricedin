@@ -10,6 +10,10 @@ e2e/test-results/
 docs/
 prototype/
 
+# Verbatim copies of the prototype's code
+tools/engine-oracle/prototype.mjs
+tools/engine-oracle/fixtures.mjs
+
 # Go code has its own formatter
 server/
 testdata/

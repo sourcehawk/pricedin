@@ -15,6 +15,7 @@ PNPM          := $(or $(PNPM),$(call asdf_which,pnpm))
 GOLANGCI_LINT := $(or $(GOLANGCI_LINT),$(call asdf_which,golangci-lint))
 ACTIONLINT    := $(or $(ACTIONLINT),$(call asdf_which,actionlint))
 SHELLCHECK    := $(or $(SHELLCHECK),$(call asdf_which,shellcheck))
+NODE          := $(or $(NODE),$(call asdf_which,node))
 DOCKER        ?= docker
 COMPOSE       ?= $(DOCKER) compose
 
@@ -80,11 +81,19 @@ browsers: ## Install the Playwright browser (chromium)
 	$(PNPM) --filter @pricedin/e2e exec playwright install $(PLAYWRIGHT_INSTALL_FLAGS) chromium
 
 .PHONY: generate
-generate: generate-price-fixtures ## Regenerate every generated file
+generate: generate-price-fixtures generate-engine-cases ## Regenerate every generated file
 
 .PHONY: generate-price-fixtures
 generate-price-fixtures: ## Regenerate the synthetic Massive fixtures in testdata/prices/massive
 	cd $(PRICE_FIXTURES_DIR) && $(GO) run .
+
+# The oracle runs the prototype's own math and writes the expected values
+# that both engines test against.
+ENGINE_CASES_DIR := testdata/engine
+
+.PHONY: generate-engine-cases
+generate-engine-cases: ## Regenerate the shared engine cases from the prototype oracle
+	$(NODE) tools/engine-oracle/generate.mjs $(ENGINE_CASES_DIR)
 
 # --- Format and lint ----------------------------------------------------------
 .PHONY: fmt
@@ -94,7 +103,7 @@ fmt: ## Format Go and web code in place
 	$(PNPM) exec prettier --write .
 
 .PHONY: lint
-lint: lint-go lint-web lint-actions lint-shell ## Run every linter and type check
+lint: lint-go lint-web lint-actions lint-shell lint-engine-cases ## Run every linter and type check
 
 .PHONY: lint-go
 lint-go:
@@ -112,6 +121,16 @@ lint-web:
 .PHONY: lint-actions
 lint-actions:
 	$(ACTIONLINT)
+
+# Fails when the committed engine cases differ from a fresh oracle run.
+.PHONY: lint-engine-cases
+lint-engine-cases:
+	@tmp=$$(mktemp -d) && trap 'rm -rf "$$tmp"' EXIT && \
+	echo "$(NODE) tools/engine-oracle/generate.mjs $$tmp" && \
+	$(NODE) tools/engine-oracle/generate.mjs "$$tmp" && \
+	diff -q "$$tmp/cases.json" $(ENGINE_CASES_DIR)/cases.json && \
+	diff -q "$$tmp/evaluation-example.json" $(ENGINE_CASES_DIR)/evaluation-example.json || \
+	{ echo 'lint-engine-cases: the engine cases are stale; run make generate-engine-cases' >&2; exit 1; }
 
 .PHONY: lint-shell
 lint-shell:
