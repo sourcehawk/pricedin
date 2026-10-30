@@ -87,6 +87,12 @@ func (r *Runner) syncProviderTickers(ctx context.Context) (PriceReferenceResult,
 	if err != nil {
 		return PriceReferenceResult{}, fmt.Errorf("provider tickers: %w", err)
 	}
+	return r.storeProviderTickers(ctx, r.prices.Name(), r.today(), list)
+}
+
+// storeProviderTickers syncs the tickers of list whose CIK is a stored
+// company as the symbols of source as of day.
+func (r *Runner) storeProviderTickers(ctx context.Context, source string, day domain.Date, list []prices.ProviderTicker) (PriceReferenceResult, error) {
 	ciks, err := r.store.ListCompanyCIKs(ctx)
 	if err != nil {
 		return PriceReferenceResult{}, err
@@ -103,7 +109,7 @@ func (r *Runner) syncProviderTickers(ctx context.Context) (PriceReferenceResult,
 		current = append(current, domain.Ticker{Symbol: SECSymbol(t.Symbol), CIK: t.CIK, Exchange: t.Exchange})
 	}
 	res.Matched = int64(len(current))
-	changes, err := r.store.SyncTickers(ctx, r.prices.Name(), r.today(), current)
+	changes, err := r.store.SyncTickers(ctx, source, day, current)
 	res.Opened, res.Closed, res.Updated = changes.Opened, changes.Closed, changes.Updated
 	return res, err
 }
@@ -124,6 +130,14 @@ func (r *Runner) symbolReference(ctx context.Context, symbol string) (PriceRefer
 	if err != nil {
 		return PriceReferenceResult{}, fmt.Errorf("dividends: %w", err)
 	}
+	return r.storeReference(ctx, symbol, splits, dividends)
+}
+
+// storeReference stores the provider's splits and dividends of the SEC
+// symbol, and marks the symbol as checked. When its splits changed, or it
+// was checked for the first time, it marks the quarters of its company
+// pending.
+func (r *Runner) storeReference(ctx context.Context, symbol string, splits []domain.Split, dividends []domain.Dividend) (PriceReferenceResult, error) {
 	for i := range splits {
 		splits[i].Symbol = symbol
 	}
@@ -131,7 +145,7 @@ func (r *Runner) symbolReference(ctx context.Context, symbol string) (PriceRefer
 		dividends[i].Symbol = symbol
 	}
 	var res PriceReferenceResult
-	err = r.store.WithTx(ctx, func(tx *store.Store) error {
+	err := r.store.WithTx(ctx, func(tx *store.Store) error {
 		var err error
 		if res.Splits, err = tx.UpsertPriceSplits(ctx, splits); err != nil {
 			return err
@@ -319,6 +333,14 @@ func (r *Runner) loadGroupedDay(ctx context.Context, d domain.Date, keep map[str
 	if err != nil {
 		return 0, 0, fmt.Errorf("grouped daily %s: %w", d, err)
 	}
+	stored, err := r.storeGroupedDay(ctx, d, all, keep, true)
+	return len(all), stored, err
+}
+
+// storeGroupedDay stores the bars of all, the grouped bars of day d, whose
+// symbols are in keep. With mark, it also marks the day loaded when all
+// holds any bar. It returns the number of bars stored.
+func (r *Runner) storeGroupedDay(ctx context.Context, d domain.Date, all []domain.PriceBar, keep map[string]bool, mark bool) (int64, error) {
 	bars := make([]domain.PriceBar, 0, len(keep))
 	for _, b := range all {
 		b.Symbol = SECSymbol(b.Symbol)
@@ -327,17 +349,17 @@ func (r *Runner) loadGroupedDay(ctx context.Context, d domain.Date, keep map[str
 		}
 	}
 	if len(all) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
 	var stored int64
-	err = r.store.WithTx(ctx, func(tx *store.Store) error {
+	err := r.store.WithTx(ctx, func(tx *store.Store) error {
 		var err error
-		if stored, err = storeBars(ctx, tx, bars); err != nil {
+		if stored, err = storeBars(ctx, tx, bars); err != nil || !mark {
 			return err
 		}
 		return tx.MarkGroupedPricesLoaded(ctx, d, len(all))
 	})
-	return len(all), stored, err
+	return stored, err
 }
 
 // storeBars stores bars, and in the same transaction marks pending the
@@ -388,11 +410,16 @@ func (r *Runner) symbolBarsFrom(ctx context.Context, symbol string, from domain.
 	if err != nil {
 		return 0, fmt.Errorf("daily bars of %s: %w", symbol, err)
 	}
+	return r.storeSymbolBars(ctx, symbol, bars)
+}
+
+// storeSymbolBars stores the provider's bars of one SEC symbol.
+func (r *Runner) storeSymbolBars(ctx context.Context, symbol string, bars []domain.PriceBar) (int64, error) {
 	for i := range bars {
 		bars[i].Symbol = symbol
 	}
 	var stored int64
-	err = r.store.WithTx(ctx, func(tx *store.Store) error {
+	err := r.store.WithTx(ctx, func(tx *store.Store) error {
 		var err error
 		stored, err = storeBars(ctx, tx, bars)
 		return err
