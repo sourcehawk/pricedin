@@ -10,6 +10,7 @@ import {
 import { createContext, useContext, useState, type ReactNode } from "react";
 import { ApiError, createApi, type Api } from "./client";
 import { loginPath } from "./session";
+import type { Profile } from "./types";
 
 const ApiContext = createContext<Api | null>(null);
 
@@ -81,16 +82,22 @@ export function useProfile(ticker: string | null) {
 }
 
 /**
- * useHistory reads the history the engine runs on, once per stock: it stays
- * cached for the session. It is idle until enabled, such as before the
- * profile says that the stock is loaded.
+ * useHistory reads the history the engine runs on. freshness is the
+ * profile's: the history is read again when it changes, so the profile and
+ * the history describe the same data. It is idle while freshness is null,
+ * such as before the profile says that the stock is loaded.
  */
-export function useHistory(ticker: string | null, enabled: boolean) {
+export function useHistory(ticker: string | null, freshness: Profile["freshness"] | null) {
   const api = useApi();
   return useQuery({
-    queryKey: [...stockKey(ticker ?? ""), "history"],
+    queryKey: [
+      ...stockKey(ticker ?? ""),
+      "history",
+      freshness?.latestFiled ?? null,
+      freshness?.latestClose ?? null,
+    ],
     queryFn: () => api.history(ticker ?? "", "3Y"),
-    enabled: ticker !== null && enabled,
+    enabled: ticker !== null && freshness !== null,
     staleTime: Number.POSITIVE_INFINITY,
     gcTime: 60 * 60_000,
   });

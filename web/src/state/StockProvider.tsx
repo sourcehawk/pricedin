@@ -111,7 +111,7 @@ export function StockProvider({
 
   const profile = useProfile(state.ticker);
   const loaded = profile.data?.loaded === true;
-  const history = useHistory(state.ticker, loaded);
+  const history = useHistory(state.ticker, loaded ? (profile.data?.freshness ?? null) : null);
 
   const quarters = history.data?.history.quarters;
   const trajectoryRates = useMemo(() => {
