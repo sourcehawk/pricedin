@@ -205,7 +205,7 @@ export function DataPage() {
                     </td>
                     <td className="mono">{when(r.startedAt)}</td>
                     <td className="mono">{when(r.finishedAt)}</td>
-                    <td className="mono">{stats(r.stats)}</td>
+                    <td className="counts">{stats(r.stats)}</td>
                   </tr>
                 ))}
               </tbody>

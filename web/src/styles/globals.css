@@ -1781,6 +1781,11 @@ table.runs {
 .runs td.mono {
   white-space: nowrap;
 }
+.runs td.counts {
+  font-family: var(--f-mono);
+  font-size: 12px;
+  min-width: 220px;
+}
 .runs .err {
   color: var(--bad);
   font-family: var(--f-mono);
