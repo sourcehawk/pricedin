@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net"
 	"net/url"
+	"strconv"
 	"strings"
 )
 
@@ -88,34 +89,104 @@ func checkHostPort(addr string) error {
 	return nil
 }
 
-// Database configures the Postgres connection.
+// Database configures the Postgres connection. It comes from
+// PRICEDIN_DATABASE_URL, or from the PRICEDIN_DATABASE_HOST, _PORT, _USER,
+// _PASSWORD, _NAME and _SSLMODE parts, which need no URL encoding. Setting
+// both forms is an error.
 type Database struct {
-	// URL is a postgres:// or postgresql:// connection URL. Empty when unset.
+	// URL is a postgres:// or postgresql:// connection URL, also when it was
+	// built from the parts. Empty when neither form is set.
 	URL string
 }
 
-const envDatabaseURL = "PRICEDIN_DATABASE_URL"
+const (
+	envDatabaseURL      = "PRICEDIN_DATABASE_URL"
+	envDatabaseHost     = "PRICEDIN_DATABASE_HOST"
+	envDatabasePort     = "PRICEDIN_DATABASE_PORT"
+	envDatabaseUser     = "PRICEDIN_DATABASE_USER"
+	envDatabasePassword = "PRICEDIN_DATABASE_PASSWORD" //nolint:gosec // G101: a variable name, not a credential.
+	envDatabaseName     = "PRICEDIN_DATABASE_NAME"
+	envDatabaseSSLMode  = "PRICEDIN_DATABASE_SSLMODE"
+)
 
 func loadDatabase(getenv func(string) string) (Database, []error) {
-	cfg := Database{URL: getenv(envDatabaseURL)}
-	if cfg.URL == "" {
-		return cfg, nil
+	rawURL := getenv(envDatabaseURL)
+	parts := map[string]string{}
+	for _, name := range []string{envDatabaseHost, envDatabasePort, envDatabaseUser, envDatabasePassword, envDatabaseName, envDatabaseSSLMode} {
+		if v := getenv(name); v != "" {
+			parts[name] = v
+		}
 	}
-	u, err := url.Parse(cfg.URL)
-	if err != nil {
-		// The parse error repeats the URL, and with it the password.
-		return cfg, []error{&VarError{Var: envDatabaseURL, Err: errors.New("not a valid URL")}}
+
+	switch {
+	case rawURL != "" && len(parts) > 0:
+		return Database{}, []error{&VarError{Var: envDatabaseHost, Err: fmt.Errorf("set either %s or the PRICEDIN_DATABASE_ parts, not both", envDatabaseURL)}}
+	case rawURL != "":
+		return checkDatabaseURL(rawURL)
+	case len(parts) > 0:
+		return databaseFromParts(parts)
+	default:
+		return Database{}, nil
 	}
-	if u.Scheme != "postgres" && u.Scheme != "postgresql" {
-		return cfg, []error{&VarError{Var: envDatabaseURL, Err: errors.New("want a postgres:// or postgresql:// URL")}}
-	}
-	return cfg, nil
 }
 
-// Require returns a *VarError that wraps ErrMissing when the URL is not set.
+func checkDatabaseURL(rawURL string) (Database, []error) {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		// The parse error repeats the URL, and with it the password.
+		return Database{}, []error{&VarError{Var: envDatabaseURL, Err: errors.New("not a valid URL")}}
+	}
+	if u.Scheme != "postgres" && u.Scheme != "postgresql" {
+		return Database{}, []error{&VarError{Var: envDatabaseURL, Err: errors.New("want a postgres:// or postgresql:// URL")}}
+	}
+	return Database{URL: rawURL}, nil
+}
+
+func databaseFromParts(parts map[string]string) (Database, []error) {
+	var errs []error
+	host := parts[envDatabaseHost]
+	if host == "" {
+		errs = append(errs, &VarError{Var: envDatabaseHost, Err: errors.New("required when another PRICEDIN_DATABASE_ part is set")})
+	}
+	port := withDefault(parts[envDatabasePort], "5432")
+	if n, err := strconv.Atoi(port); err != nil || n < 1 || n > 65535 {
+		errs = append(errs, &VarError{Var: envDatabasePort, Err: fmt.Errorf("want a port from 1 to 65535, got %q", port)})
+	}
+	if parts[envDatabasePassword] != "" && parts[envDatabaseUser] == "" {
+		errs = append(errs, &VarError{Var: envDatabaseUser, Err: fmt.Errorf("required when %s is set", envDatabasePassword)})
+	}
+	sslMode := parts[envDatabaseSSLMode]
+	switch sslMode {
+	case "", "disable", "allow", "prefer", "require", "verify-ca", "verify-full":
+	default:
+		errs = append(errs, &VarError{Var: envDatabaseSSLMode, Err: fmt.Errorf("unknown sslmode %q", sslMode)})
+	}
+	if len(errs) > 0 {
+		return Database{}, errs
+	}
+
+	u := url.URL{Scheme: "postgres", Host: net.JoinHostPort(host, port)}
+	if user := parts[envDatabaseUser]; user != "" {
+		if password, ok := parts[envDatabasePassword]; ok {
+			u.User = url.UserPassword(user, password)
+		} else {
+			u.User = url.User(user)
+		}
+	}
+	if name := parts[envDatabaseName]; name != "" {
+		u.Path = "/" + name
+	}
+	if sslMode != "" {
+		u.RawQuery = url.Values{"sslmode": {sslMode}}.Encode()
+	}
+	return Database{URL: u.String()}, nil
+}
+
+// Require returns a *VarError that wraps ErrMissing when neither the URL nor
+// the parts are set.
 func (d Database) Require() error {
 	if d.URL == "" {
-		return &VarError{Var: envDatabaseURL, Err: ErrMissing}
+		return &VarError{Var: envDatabaseURL, Err: fmt.Errorf("%w: set it, or set %s and the other parts", ErrMissing, envDatabaseHost)}
 	}
 	return nil
 }

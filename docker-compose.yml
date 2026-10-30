@@ -31,7 +31,15 @@ services:
       context: server
     image: pricedin-server:dev
     environment:
-      PRICEDIN_DATABASE_URL: postgres://${POSTGRES_USER:-pricedin}:${POSTGRES_PASSWORD:-pricedin}@db:5432/${POSTGRES_DB:-pricedin}?sslmode=disable
+      # The parts need no URL encoding, so the credentials can hold any
+      # character. The empty URL overrides one that .env sets for the host.
+      PRICEDIN_DATABASE_URL: ""
+      PRICEDIN_DATABASE_HOST: db
+      PRICEDIN_DATABASE_PORT: "5432"
+      PRICEDIN_DATABASE_USER: ${POSTGRES_USER:-pricedin}
+      PRICEDIN_DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-pricedin}
+      PRICEDIN_DATABASE_NAME: ${POSTGRES_DB:-pricedin}
+      PRICEDIN_DATABASE_SSLMODE: disable
       PRICEDIN_HTTP_ADDR: ":8080"
       PRICEDIN_METRICS_ADDR: ":9090"
     env_file:
