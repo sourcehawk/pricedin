@@ -26,7 +26,7 @@ type config struct {
 	// Seed makes the output repeatable. Each ticker draws from its own
 	// stream, so adding a ticker does not change the others.
 	Seed int64 `json:"seed"`
-	// From and To are the first and last day with bars, as YYYY-MM-DD.
+	// From and To are the first and last day of the range, as YYYY-MM-DD.
 	From string `json:"from"`
 	To   string `json:"to"`
 	// TickersPageSize is the number of tickers on each page of the ticker
@@ -141,7 +141,7 @@ type bar struct {
 
 // generate returns the content of every fixture file by its path relative
 // to the output folder. dir is the folder of the config file. groupedDays
-// is the number of trading days at the end of the range that get a grouped
+// is the most trading days, at the end of the range, that get a grouped
 // file; 0 or less gives every trading day one.
 func generate(cfg config, dir string, groupedDays int) (map[string][]byte, error) {
 	from, err := parseDay(cfg.From)
@@ -172,7 +172,7 @@ func generate(cfg config, dir string, groupedDays int) (map[string][]byte, error
 		if tc.Symbol == "" || (i > 0 && tickers[i-1].Symbol == tc.Symbol) {
 			return nil, fmt.Errorf("ticker %d: empty or duplicate symbol %q", i, tc.Symbol)
 		}
-		s, err := simulate(cfg.Seed, *tc, days, dir, newYork)
+		s, err := simulate(cfg.Seed, *tc, days, to, dir, newYork)
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", tc.Symbol, err)
 		}
@@ -198,7 +198,7 @@ func generate(cfg config, dir string, groupedDays int) (map[string][]byte, error
 	return g.files, nil
 }
 
-func simulate(seed int64, tc tickerConfig, days []time.Time, dir string, newYork *time.Location) (series, error) {
+func simulate(seed int64, tc tickerConfig, days []time.Time, to time.Time, dir string, newYork *time.Location) (series, error) {
 	splits := make([]split, 0, len(tc.Splits))
 	for _, sc := range tc.Splits {
 		d, err := parseDay(sc.Date)
@@ -232,7 +232,7 @@ func simulate(seed int64, tc tickerConfig, days []time.Time, dir string, newYork
 		dev[i] = dev[i-1] - meanReversion*dev[i-1]*dt + tc.Volatility*math.Sqrt(dt)*rng.NormFloat64()
 	}
 
-	logPrice, err := logPricePath(tc, days, dev, dir, factor(days[0]))
+	logPrice, err := logPricePath(tc, days, to, dev, dir, factor(days[0]))
 	if err != nil {
 		return series{}, err
 	}
@@ -266,7 +266,7 @@ func simulate(seed int64, tc tickerConfig, days []time.Time, dir string, newYork
 // plus the deviation dev. Without anchors the trend starts at the start
 // price and grows at the drift. With anchors it runs through the anchor
 // prices, and dev is bent to zero on each anchor day.
-func logPricePath(tc tickerConfig, days []time.Time, dev []float64, dir string, startFactor float64) ([]float64, error) {
+func logPricePath(tc tickerConfig, days []time.Time, to time.Time, dev []float64, dir string, startFactor float64) ([]float64, error) {
 	n := len(days)
 	out := make([]float64, n)
 	dt := 1.0 / tradingYear
@@ -281,7 +281,7 @@ func logPricePath(tc tickerConfig, days []time.Time, dev []float64, dir string, 
 		return out, nil
 	}
 
-	idx, logA, err := readAnchors(filepath.Join(dir, tc.Anchors), days)
+	idx, logA, err := readAnchors(filepath.Join(dir, tc.Anchors), days, to)
 	if err != nil {
 		return nil, err
 	}
@@ -310,8 +310,9 @@ func sortSearch(idx []int, i int) int {
 }
 
 // readAnchors returns the day index and the log price of each anchor, in
-// date order.
-func readAnchors(path string, days []time.Time) ([]int, []float64, error) {
+// date order. to is the last day of the range, which can be a day without
+// trading.
+func readAnchors(path string, days []time.Time, to time.Time) ([]int, []float64, error) {
 	data, err := os.ReadFile(path) //nolint:gosec // the config file names the anchors file
 	if err != nil {
 		return nil, nil, fmt.Errorf("anchors: %w", err)
@@ -339,7 +340,7 @@ func readAnchors(path string, days []time.Time) ([]int, []float64, error) {
 		if !found {
 			i--
 		}
-		if i < 0 || d.After(days[len(days)-1]) {
+		if i < 0 || d.After(to) {
 			return nil, nil, fmt.Errorf("anchors %s: %s is outside the range", path, a.Date)
 		}
 		if len(idx) > 0 && idx[len(idx)-1] == i {
@@ -481,7 +482,6 @@ func schedule(s *series, dc *dividendConfig, from, to time.Time) ([]dividendResu
 		return nil, errors.New("want ex_dates and a positive first_amount")
 	}
 	results := []dividendResult{}
-	var adjAmounts []float64
 	for year := from.Year(); year <= to.Year()+1; year++ {
 		amount := round(dc.FirstAmount*math.Pow(1+dc.AnnualRaise, float64(year-from.Year())), 2)
 		for _, md := range dc.ExDates {
@@ -509,7 +509,6 @@ func schedule(s *series, dc *dividendConfig, from, to time.Time) ([]dividendResu
 				RecordDate: date, PayDate: pay.Format(time.DateOnly), DeclarationDate: declared.Format(time.DateOnly),
 				ExDividendDate: date, Frequency: len(dc.ExDates), CashAmount: amount, Currency: "USD", DistributionType: "recurring",
 			}
-			adj := 0.0
 			if !ex.After(to) {
 				f := 1.0
 				for _, sp := range s.splits {
@@ -517,11 +516,10 @@ func schedule(s *series, dc *dividendConfig, from, to time.Time) ([]dividendResu
 						f *= sp.to / sp.from
 					}
 				}
-				adj = round(amount/f, 6)
+				adj := round(amount/f, 6)
 				r.SplitAdjusted = &adj
 			}
 			results = append(results, r)
-			adjAmounts = append(adjAmounts, adj)
 		}
 	}
 	slices.SortStableFunc(results, func(a, b dividendResult) int { return cmp.Compare(a.ExDividendDate, b.ExDividendDate) })
@@ -537,7 +535,7 @@ func schedule(s *series, dc *dividendConfig, from, to time.Time) ([]dividendResu
 		}
 		ex, _ := parseDay(r.ExDividendDate) //nolint:errcheck // the date was formatted above
 		if prev, ok := s.closeBefore(ex); ok {
-			hist *= 1 - adjAmounts[i]/prev
+			hist *= 1 - *r.SplitAdjusted/prev
 		}
 		h := round(hist, 6)
 		r.Historical = &h

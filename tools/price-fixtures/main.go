@@ -8,7 +8,7 @@
 //
 // It replaces these folders of the output, one file per request:
 //
-//	grouped/<YYYY-MM-DD>.json  /v2/aggs/grouped/locale/us/market/stocks/<date>, only for the last -grouped-days trading days
+//	grouped/<YYYY-MM-DD>.json  /v2/aggs/grouped/locale/us/market/stocks/<date>, only for trading days, the last -grouped-days of them when it is more than 0
 //	aggs/<SYMBOL>.json         /v2/aggs/ticker/<SYMBOL>/range/1/day/<from>/<to> for the whole range
 //	splits/<SYMBOL>.json       /stocks/v1/splits?ticker=<SYMBOL>
 //	dividends/<SYMBOL>.json    /stocks/v1/dividends?ticker=<SYMBOL>
@@ -19,11 +19,11 @@
 // ticker, the same bar as its aggs file on that date. A server that serves
 // these files must follow these rules:
 //
-//   - For a grouped request on a trading day without a grouped file, build
-//     the response from the bar of that date in every aggs file, with the
-//     ticker in the "T" field.
-//   - For a grouped request on a day that is not a trading day, or outside
-//     the range, answer with an empty result and status OK.
+//   - For a grouped request on a trading day of the range without a grouped
+//     file, answer with the bar of that date from every aggs file, not with
+//     an empty result.
+//   - For a grouped request on a market holiday, answer with an empty result
+//     and status OK.
 //   - For an aggs request, cut the aggs file to the requested range.
 package main
 

@@ -293,6 +293,36 @@ func TestAnchorsFixTheAdjustedClose(t *testing.T) {
 	}
 }
 
+func TestAnAnchorOnTheLastDayMovesToTheTradingDayBefore(t *testing.T) {
+	dir := t.TempDir()
+	// 2024-06-30 is a Sunday and the last day of the range.
+	if err := os.WriteFile(filepath.Join(dir, "aaa.json"), []byte(`[{"date":"2024-06-30","ttm_eps":5,"pe":30}]`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg := baseConfig()
+	cfg.To = "2024-06-30"
+	cfg.Tickers[0].Anchors = "aaa.json"
+	closes := closesByDate(t, mustGenerate(t, cfg, dir), "AAA")
+	if got, want := closes["2024-06-28"], 5.0*30; math.Abs(got-want) > 0.01 {
+		t.Errorf("raw close on 2024-06-28 = %v, want %v", got, want)
+	}
+}
+
+func TestTheOrderOfExDatesDoesNotChangeTheDividends(t *testing.T) {
+	// AAA splits on 2024-06-10, so its dividends before and after the
+	// split have different split-adjusted amounts.
+	withDividends := func(exDates ...string) config {
+		cfg := baseConfig()
+		cfg.Tickers[0].Dividends = &dividendConfig{FirstAmount: 2, ExDates: exDates, PayDaysAfter: 7}
+		return cfg
+	}
+	sorted := mustGenerate(t, withDividends("03-14", "09-13"), t.TempDir())
+	unsorted := mustGenerate(t, withDividends("09-13", "03-14"), t.TempDir())
+	if !bytes.Equal(sorted["dividends/AAA.json"], unsorted["dividends/AAA.json"]) {
+		t.Errorf("dividends/AAA.json depends on the order of ex_dates:\nsorted:   %s\nunsorted: %s", sorted["dividends/AAA.json"], unsorted["dividends/AAA.json"])
+	}
+}
+
 func TestDividendsFollowTheSchedule(t *testing.T) {
 	files := mustGenerate(t, baseConfig(), t.TempDir())
 	divs := decodeFile[struct{ Results []testDividend }](t, files, "dividends/BBB.json").Results
