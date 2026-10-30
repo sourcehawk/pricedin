@@ -157,8 +157,10 @@ export const maxMonths = 120;
 /** maxPrice is the largest price or close, far above any listed share. */
 export const maxPrice = 1e8;
 const maxScenario = 1e30;
-const maxPerShare = 1e6;
-const minPerShare = 1e-4;
+/** maxPerShare is the largest EPS or dividend per share. */
+export const maxPerShare = 1e6;
+/** minPerShare is the smallest price, or EPS other than zero, per share. */
+export const minPerShare = 1e-4;
 const maxAmount = 1e15;
 const minAmount = 1e-6;
 

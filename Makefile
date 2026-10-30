@@ -89,7 +89,7 @@ browsers: ## Install the Playwright browser (chromium)
 	$(PNPM) --filter @pricedin/e2e exec playwright install $(PLAYWRIGHT_INSTALL_FLAGS) chromium
 
 .PHONY: generate
-generate: generate-price-fixtures generate-engine-cases ## Regenerate every generated file
+generate: generate-price-fixtures generate-engine-cases generate-api-types ## Regenerate every generated file
 
 .PHONY: generate-price-fixtures
 generate-price-fixtures: generate-price-anchors ## Regenerate the synthetic Massive fixtures in testdata/prices/massive
@@ -109,6 +109,14 @@ ENGINE_CASES_DIR := testdata/engine
 generate-engine-cases: ## Regenerate the shared engine cases from the prototype oracle
 	$(NODE) tools/engine-oracle/generate.mjs $(ENGINE_CASES_DIR)
 
+# The web app's API types come from the OpenAPI document of the server.
+OPENAPI_DOC := server/api/openapi.yaml
+API_TYPES   := web/src/api/schema.d.ts
+
+.PHONY: generate-api-types
+generate-api-types: ## Regenerate the web app's API types from the OpenAPI document
+	$(PNPM) --filter @pricedin/web exec openapi-typescript ../$(OPENAPI_DOC) --output ../$(API_TYPES)
+
 # --- Format and lint ----------------------------------------------------------
 .PHONY: fmt
 fmt: ## Format Go and web code in place
@@ -117,7 +125,7 @@ fmt: ## Format Go and web code in place
 	$(PNPM) exec prettier --write .
 
 .PHONY: lint
-lint: lint-go lint-web lint-actions lint-shell lint-engine-cases ## Run every linter and type check
+lint: lint-go lint-web lint-actions lint-shell lint-engine-cases lint-api-types ## Run every linter and type check
 
 .PHONY: lint-go
 lint-go:
@@ -145,6 +153,15 @@ lint-engine-cases:
 	diff -q "$$tmp/cases.json" $(ENGINE_CASES_DIR)/cases.json && \
 	diff -q "$$tmp/evaluation-example.json" $(ENGINE_CASES_DIR)/evaluation-example.json || \
 	{ echo 'lint-engine-cases: the engine cases are stale; run make generate-engine-cases' >&2; exit 1; }
+
+# Fails when the committed API types differ from a fresh generation.
+.PHONY: lint-api-types
+lint-api-types:
+	@tmp=$$(mktemp -d) && trap 'rm -rf "$$tmp"' EXIT && \
+	echo "$(PNPM) --filter @pricedin/web exec openapi-typescript ../$(OPENAPI_DOC) --output $$tmp/schema.d.ts" && \
+	$(PNPM) --filter @pricedin/web exec openapi-typescript ../$(OPENAPI_DOC) --output "$$tmp/schema.d.ts" >/dev/null && \
+	diff -q "$$tmp/schema.d.ts" $(API_TYPES) || \
+	{ echo 'lint-api-types: the API types are stale; run make generate-api-types' >&2; exit 1; }
 
 .PHONY: lint-shell
 lint-shell:
