@@ -116,8 +116,8 @@ func value(t *testing.T, s fundamentals.Series, label string, m fundamentals.Met
 
 func accessions(v fundamentals.Value) []string {
 	out := make([]string, 0, len(v.Inputs))
-	for _, in := range v.Inputs {
-		out = append(out, in.Accession)
+	for i := range v.Inputs {
+		out = append(out, v.Inputs[i].Accession)
 	}
 	return out
 }

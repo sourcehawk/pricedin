@@ -51,7 +51,7 @@ func Derive(cik domain.CIK, facts []domain.Fact, opts Options) (Series, error) {
 		}
 		cal.add(f)
 		k := periodKey{f.Concept, *f.PeriodStart, f.PeriodEnd}
-		d.periods[k] = append(d.periods[k], observation{fact: *f, value: f.Value, ratio: 1})
+		d.periods[k] = append(d.periods[k], observation{fact: *f, value: f.Value, ratio: 1, scale: 1})
 	}
 
 	years := cal.build()
@@ -59,7 +59,9 @@ func Derive(cik domain.CIK, facts []domain.Fact, opts Options) (Series, error) {
 	d.splits, d.conflicts = confirmSplits(cik, ratios, opts, d.periods)
 	d.settle()
 
-	series := Series{Splits: d.splits, Conflicts: d.conflicts}
+	d.rescaleShares()
+
+	series := Series{Splits: d.splits}
 	for _, y := range years {
 		start := y.start
 		var earlier []span
@@ -80,6 +82,7 @@ func Derive(cik domain.CIK, facts []domain.Fact, opts Options) (Series, error) {
 			start = end.AddDays(1)
 		}
 	}
+	series.Conflicts = d.conflicts
 	return series, nil
 }
 
@@ -89,11 +92,12 @@ type periodKey struct {
 }
 
 // observation is one filing's value for a period. value is the reported
-// value after split adjustment by ratio.
+// value after split adjustment by ratio and a scale correction by scale.
 type observation struct {
 	fact  domain.Fact
 	value float64
 	ratio float64
+	scale float64
 }
 
 func (o observation) ref() SourceRef {
@@ -107,6 +111,7 @@ func (o observation) ref() SourceRef {
 		PeriodEnd:   f.PeriodEnd,
 		Value:       f.Value,
 		SplitRatio:  o.ratio,
+		Scale:       cmp.Or(o.scale, 1),
 	}
 }
 
@@ -274,6 +279,112 @@ func (d *deriver) flow(concepts []sec.Concept, q quarterSpan) (Value, bool) {
 	return out, found
 }
 
+// sameScale reports whether the share count v lies within half and twice
+// ref. Diluted counts of one company move far less than that within a
+// year, while a tagging error moves them 1,000-fold.
+func sameScale(v, ref float64) bool {
+	return v >= ref/2 && v <= ref*2
+}
+
+// rejectEstimate records why the Q4 count of q is left out: v, an input
+// or the result, is not on the scale of the full year.
+func (d *deriver) rejectEstimate(q quarterSpan, year winner, v float64) {
+	start := q.start
+	d.conflicts = append(d.conflicts, Conflict{
+		Kind:        ConflictShareScale,
+		Concept:     year.obs.fact.Concept,
+		PeriodStart: &start,
+		PeriodEnd:   q.end,
+		Restated:    year.obs.ref(),
+		Observed:    tidy(v / year.obs.value),
+		Expected:    1,
+	})
+}
+
+// shareNeighborDays is how far apart in days the period ends of two share
+// counts can be for one to check the scale of the other.
+const shareNeighborDays = 200
+
+// rescaleShares corrects each used share count that is 1,000 or 1,000,000
+// times off. The reference is net income over diluted EPS of the same
+// period, which does not depend on how the filing tags its share counts.
+// Without it, the reference is the median of the counts within
+// shareNeighborDays.
+func (d *deriver) rescaleShares() {
+	concept := string(sec.WeightedAverageNumberOfDilutedSharesOutstanding)
+	var keys []periodKey
+	for k := range d.winners {
+		if k.concept == concept {
+			keys = append(keys, k)
+		}
+	}
+	slices.SortFunc(keys, func(a, b periodKey) int {
+		return cmp.Or(compareDates(a.end, b.end), compareDates(a.start, b.start))
+	})
+	var unchecked []periodKey
+	for _, k := range keys {
+		if ref, ok := d.impliedShares(k); ok {
+			d.rescale(k, ref)
+		} else {
+			unchecked = append(unchecked, k)
+		}
+	}
+	for _, k := range unchecked {
+		var near []float64
+		for _, o := range keys {
+			if o != k && abs(daysIn(o.end, k.end)-1) <= shareNeighborDays {
+				near = append(near, d.winners[o].obs.value)
+			}
+		}
+		if len(near) > 0 {
+			slices.Sort(near)
+			d.rescale(k, near[len(near)/2])
+		}
+	}
+}
+
+// impliedShares returns |net income| / |diluted EPS| for the period of k,
+// when EPS is large enough for its rounding to cents not to matter.
+func (d *deriver) impliedShares(k periodKey) (float64, bool) {
+	ni, ok := d.winners[periodKey{string(sec.NetIncomeLoss), k.start, k.end}]
+	if !ok || ni.obs.value == 0 {
+		return 0, false
+	}
+	eps, ok := d.winners[periodKey{string(sec.EarningsPerShareDiluted), k.start, k.end}]
+	if !ok || math.Abs(eps.obs.value) < 0.10 {
+		return 0, false
+	}
+	return math.Abs(ni.obs.value / eps.obs.value), true
+}
+
+// rescale multiplies the count of k by 1,000 or 1,000,000 when only the
+// rescaled count is on the scale of ref, and records the conflict.
+func (d *deriver) rescale(k periodKey, ref float64) {
+	w := d.winners[k]
+	if sameScale(w.obs.value, ref) {
+		return
+	}
+	for _, s := range []float64{1e3, 1e6} {
+		if !sameScale(w.obs.value*s, ref) {
+			continue
+		}
+		w.obs.value *= s
+		w.obs.scale = s
+		d.winners[k] = w
+		start := k.start
+		d.conflicts = append(d.conflicts, Conflict{
+			Kind:        ConflictShareScale,
+			Concept:     k.concept,
+			PeriodStart: &start,
+			PeriodEnd:   k.end,
+			Restated:    w.obs.ref(),
+			Observed:    s,
+			Expected:    1,
+		})
+		return
+	}
+}
+
 // sameBasis returns the inputs a and b of a difference on one split basis.
 // A restatement after a split is rounded on the new basis, so subtracting
 // an unrestated value of the old basis, divided by the ratio, loses
@@ -339,11 +450,16 @@ func (d *deriver) weightedQ4(c sec.Concept, q quarterSpan) (Value, bool) {
 		if !ok {
 			return Value{}, false
 		}
+		if !sameScale(w.obs.value, year.obs.value) {
+			d.rejectEstimate(q, year, w.obs.value)
+			return Value{}, false
+		}
 		inputs = append(inputs, w)
 		weighted -= w.obs.value * float64(daysIn(e.start, e.end))
 	}
 	v := math.Round(weighted / float64(daysIn(q.start, q.end)))
-	if v <= 0 {
+	if !sameScale(v, year.obs.value) {
+		d.rejectEstimate(q, year, v)
 		return Value{}, false
 	}
 	return newValue(v, MethodWeightedAverageQ4, true, inputs...), true

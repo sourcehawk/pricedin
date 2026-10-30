@@ -200,7 +200,8 @@ func checkFiled(t *testing.T, q fundamentals.Quarter, m fundamentals.Metric, wan
 		t.Errorf("%s %s method = %s, want %s", q.Label, m, v.Method, method)
 	}
 	got := make([]string, 0, len(v.Inputs))
-	for _, in := range v.Inputs {
+	for i := range v.Inputs {
+		in := &v.Inputs[i]
 		got = append(got, in.Form+" "+in.Accession)
 		if in.Concept != string(concept) {
 			t.Errorf("%s %s input concept = %s, want %s", q.Label, m, in.Concept, concept)
@@ -568,4 +569,71 @@ func TestDeriveTakesNVIDIAQ4FY23OnThePreSplitBasis(t *testing.T) {
 	s := deriveFixture(t, cikNVDA, fundamentals.Options{Splits: nvdaSplits(t)})
 	checkFiled(t, quarter(t, s, "Q4 FY23"), fundamentals.EPSDiluted, 0.057,
 		"10-K 0001045810-24-000029 − 10-Q 0001045810-23-000227", sec.EarningsPerShareDiluted)
+}
+
+func TestDeriveKeepsConsecutiveShareCountsOnOneScale(t *testing.T) {
+	// Diluted counts move little from quarter to quarter, and the counts
+	// are adjusted for the confirmed splits, so no split leaves a jump. A
+	// jump of more than 50% is a count on another scale.
+	for _, c := range fixtureCompanies(t) {
+		t.Run(c.name, func(t *testing.T) {
+			s := deriveFixture(t, c.cik, fundamentals.Options{Splits: c.splits})
+			var prev *fundamentals.Quarter
+			for i := range s.Quarters {
+				q := &s.Quarters[i]
+				v, ok := q.Values[fundamentals.DilutedShares]
+				if !ok {
+					continue
+				}
+				if prev != nil {
+					ratio := v.V / prev.Values[fundamentals.DilutedShares].V
+					if ratio < 1/1.5 || ratio > 1.5 {
+						t.Errorf("%s shares %v after %s %v: ratio %.3f", q.Label, v.V, prev.Label, prev.Values[fundamentals.DilutedShares].V, ratio)
+					}
+				}
+				prev = q
+			}
+		})
+	}
+}
+
+func TestDeriveRescalesTheFixtureShareCountsTaggedInThousandsOrMillions(t *testing.T) {
+	tests := []struct {
+		name  string
+		cik   domain.CIK
+		label string
+		want  float64 // as filed × scale × split ratio
+		filed float64
+		scale float64
+	}{
+		{"KO", cikKO, "Q1 FY18", 4_306_000_000, 4_306, 1e6},
+		{"GRMN", cikGRMN, "Q1 FY13", 196_457_000, 196_457, 1e3},
+		// 590,997 thousand before NVIDIA's 4-for-1 and 10-for-1 splits.
+		{"NVDA", cikNVDA, "Q1 FY11", 23_639_880_000, 590_997, 1e3},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var splits []domain.Split
+			for _, c := range fixtureCompanies(t) {
+				if c.cik == tt.cik {
+					splits = c.splits
+				}
+			}
+			s := deriveFixture(t, tt.cik, fundamentals.Options{Splits: splits})
+			q := quarter(t, s, tt.label)
+			v := value(t, s, tt.label, fundamentals.DilutedShares)
+			if in := v.Inputs[0]; v.V != tt.want || in.Value != tt.filed || in.Scale != tt.scale {
+				t.Errorf("%s shares = %v from %v scaled by %v, want %v from %v scaled by %v", tt.label, v.V, in.Value, in.Scale, tt.want, tt.filed, tt.scale)
+			}
+			found := false
+			for _, x := range s.Conflicts {
+				if x.Kind == fundamentals.ConflictShareScale && x.PeriodEnd.Equal(q.PeriodEnd) && x.Observed == tt.scale && x.Restated.Value == tt.filed {
+					found = true
+				}
+			}
+			if !found {
+				t.Errorf("no share_scale conflict for %s with factor %v", tt.label, tt.scale)
+			}
+		})
+	}
 }

@@ -90,6 +90,9 @@ type SourceRef struct {
 	// were applied to Value: per-share values were divided by it, share
 	// counts multiplied. It is 1 when no split applied.
 	SplitRatio float64
+	// Scale is the factor that corrected a share count tagged in
+	// thousands or millions (see ConflictShareScale), 1 when none.
+	Scale float64
 }
 
 // Quarter is one fiscal quarter.
@@ -129,9 +132,13 @@ const (
 	// ConflictSplitMismatch is a restatement across a confirmed split that
 	// the split ratio does not explain.
 	ConflictSplitMismatch ConflictKind = "split_mismatch"
-	// ConflictShareScale is a share count that two filings report 1,000 or
-	// 1,000,000 times apart, a known tagging error. The larger value is
-	// used.
+	// ConflictShareScale is a share count that is 1,000 or 1,000,000 times
+	// off, a known tagging error. When two filings of one period disagree
+	// by that factor, the larger value is used. When net income over EPS
+	// of the period, or the neighboring counts, show that the used count
+	// is off, it is rescaled: Original is zero and Observed is the factor.
+	// When the inputs of a Q4 estimate differ in scale, Q4 has no count:
+	// Restated is the full year and Observed the input or result over it.
 	ConflictShareScale ConflictKind = "share_scale"
 	// ConflictSplitEvidence is a split that SEC data gives and that no
 	// provider event matches, although the provider was checked. When a

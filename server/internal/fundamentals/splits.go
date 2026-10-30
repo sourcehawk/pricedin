@@ -58,7 +58,7 @@ func confirmSplits(cik domain.CIK, ratios []domain.Fact, opts Options, periods m
 					Concept:     open.Concept,
 					PeriodStart: &start,
 					PeriodEnd:   window(group).end,
-					Restated:    observation{fact: *open, value: open.Value, ratio: 1}.ref(),
+					Restated:    observation{fact: *open, value: open.Value, ratio: 1, scale: 1}.ref(),
 					Split:       &split,
 				})
 			}
@@ -69,7 +69,7 @@ func confirmSplits(cik domain.CIK, ratios []domain.Fact, opts Options, periods m
 				Concept:     evidence.Concept,
 				PeriodStart: evidence.PeriodStart,
 				PeriodEnd:   evidence.PeriodEnd,
-				Restated:    observation{fact: evidence, value: evidence.Value, ratio: 1}.ref(),
+				Restated:    observation{fact: evidence, value: evidence.Value, ratio: 1, scale: 1}.ref(),
 				Split:       &split,
 			})
 		}

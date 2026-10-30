@@ -429,3 +429,90 @@ func TestDeriveFlagsAnSECSplitDateThatAFilingLeavesOpen(t *testing.T) {
 		t.Errorf("%d split_date conflicts, want 1: %+v", n, s.Conflicts)
 	}
 }
+
+// scaleYear gives a calendar year with net income, EPS and diluted share
+// counts per quarter. q1Shares is the Q1 count as filed.
+func scaleYear(t *testing.T, facts *[]domain.Fact, q1Shares float64, withEPS bool) {
+	t.Helper()
+	y := newCalYear(t, facts, 2025)
+	add := func(f *filing, start, end string, shares, ni, eps float64) {
+		f.add(sec.WeightedAverageNumberOfDilutedSharesOutstanding, start, end, shares)
+		if withEPS {
+			f.add(sec.NetIncomeLoss, start, end, ni)
+			f.add(sec.EarningsPerShareDiluted, start, end, eps)
+		}
+	}
+	add(y.q1, "2025-01-01", "2025-03-31", q1Shares, 1_000_000_000, 0.23)
+	add(y.q2, "2025-04-01", "2025-06-30", 4_300_000_000, 1_100_000_000, 0.26)
+	add(y.q3, "2025-07-01", "2025-09-30", 4_290_000_000, 1_200_000_000, 0.28)
+	y.k.add(sec.WeightedAverageNumberOfDilutedSharesOutstanding, "2025-01-01", "2025-12-31", 4_300_000_000)
+}
+
+func TestDeriveRescalesAShareCountTaggedInThousands(t *testing.T) {
+	tests := []struct {
+		name    string
+		withEPS bool
+	}{
+		{"against net income over EPS", true},
+		{"against the neighboring quarters", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var facts []domain.Fact
+			scaleYear(t, &facts, 4_306_000, tt.withEPS)
+
+			s := derive(t, facts, fundamentals.Options{})
+			v := value(t, s, "Q1 FY25", fundamentals.DilutedShares)
+			if v.V != 4_306_000_000 || v.Inputs[0].Value != 4_306_000 || v.Inputs[0].Scale != 1000 {
+				t.Errorf("Q1 FY25 shares = %v from %+v, want 4306000000 scaled by 1000", v.V, v.Inputs[0])
+			}
+			want := []fundamentals.Conflict{{
+				Kind:        fundamentals.ConflictShareScale,
+				Concept:     string(sec.WeightedAverageNumberOfDilutedSharesOutstanding),
+				PeriodStart: dayPtr(t, "2025-01-01"),
+				PeriodEnd:   day(t, "2025-03-31"),
+				Observed:    1000,
+				Expected:    1,
+			}}
+			if diff := cmp.Diff(want, s.Conflicts, conflictSummary); diff != "" {
+				t.Errorf("Conflicts (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestDeriveKeepsASmallShareCountThatTheOtherValuesConfirm(t *testing.T) {
+	// A company with about 1 million shares: net income over EPS agrees.
+	var facts []domain.Fact
+	y := newCalYear(t, &facts, 2025)
+	y.q1.add(sec.WeightedAverageNumberOfDilutedSharesOutstanding, "2025-01-01", "2025-03-31", 1_010_000)
+	y.q1.add(sec.NetIncomeLoss, "2025-01-01", "2025-03-31", 50_500_000)
+	y.q1.add(sec.EarningsPerShareDiluted, "2025-01-01", "2025-03-31", 50.00)
+
+	s := derive(t, facts, fundamentals.Options{})
+	if v := value(t, s, "Q1 FY25", fundamentals.DilutedShares); v.V != 1_010_000 || len(s.Conflicts) != 0 {
+		t.Errorf("Q1 FY25 shares = %v, conflicts %+v; want 1010000 and none", v.V, s.Conflicts)
+	}
+}
+
+func TestDeriveRejectsAQ4ShareEstimateFromInputsOfAnotherScale(t *testing.T) {
+	// The 10-K tags the full year in thousands, and no other value of the
+	// year shows the scale of that one figure: the estimate would be
+	// negative or absurd, so Q4 has no count, and a conflict says why.
+	var facts []domain.Fact
+	y := newCalYear(t, &facts, 2025)
+	y.q1.add(sec.WeightedAverageNumberOfDilutedSharesOutstanding, "2025-01-01", "2025-03-31", 4_306_000_000)
+	y.q2.add(sec.WeightedAverageNumberOfDilutedSharesOutstanding, "2025-04-01", "2025-06-30", 4_300_000_000)
+	y.q3.add(sec.WeightedAverageNumberOfDilutedSharesOutstanding, "2025-07-01", "2025-09-30", 4_290_000_000)
+	y.k.add(sec.WeightedAverageNumberOfDilutedSharesOutstanding, "2025-01-01", "2025-12-31", 4_301_000)
+
+	s := derive(t, facts, fundamentals.Options{})
+	if v, ok := quarter(t, s, "Q4 FY25").Values[fundamentals.DilutedShares]; ok && v.Method == fundamentals.MethodWeightedAverageQ4 {
+		if v.V < 2e9 || v.V > 8e9 {
+			t.Errorf("Q4 FY25 shares = %v, want none or about 4.3 billion", v.V)
+		}
+	}
+	if countConflicts(s, fundamentals.ConflictShareScale) == 0 {
+		t.Errorf("Conflicts = %+v, want a share_scale conflict", s.Conflicts)
+	}
+}
