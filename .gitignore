@@ -3,7 +3,7 @@
 .env.*
 !.env.example
 
-# Downloaded source data (SEC and Stooq archives, blob store contents)
+# Local data, such as the blob store of PRICEDIN_BLOB_DIR=./data/blob
 /data/
 
 # Go
