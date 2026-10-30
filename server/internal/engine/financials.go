@@ -19,8 +19,10 @@ const (
 	MetricDilutedShares   Metric = "dilutedShares"
 )
 
-// Metrics lists every financial metric in panel order.
-var Metrics = []Metric{MetricRevenue, MetricOperatingCosts, MetricOperatingIncome, MetricEPS, MetricFreeCashFlow, MetricDilutedShares}
+// AllMetrics returns every financial metric in panel order.
+func AllMetrics() []Metric {
+	return []Metric{MetricRevenue, MetricOperatingCosts, MetricOperatingIncome, MetricEPS, MetricFreeCashFlow, MetricDilutedShares}
+}
 
 // riseIsBad reports whether a rise of the metric is bad news. Rising costs
 // and rising share counts are never good.
@@ -111,7 +113,7 @@ type MarginTile struct {
 type Compare struct {
 	SinceStart         map[Metric][]Number `json:"sinceStart"`
 	QuarterOverQuarter map[Metric][]Number `json:"quarterOverQuarter"`
-	// Correlations hold every pair of metrics, in Metrics order, a before b.
+	// Correlations hold every pair of metrics, in AllMetrics order, a before b.
 	Correlations []PairCorrelation `json:"correlations"`
 	Changes      int               `json:"changes"` // quarter-to-quarter changes per metric
 }
@@ -200,7 +202,8 @@ func Financials(quarters []Quarter) FinancialsView {
 	}
 	rev := values(MetricRevenue)
 	revYoY := yoyOf(rev)
-	for _, m := range Metrics {
+	metrics := AllMetrics()
+	for _, m := range metrics {
 		d := values(m)
 		s := MetricSeries{Values: d, YoY: yoyOf(d), YoYTone: make([]Maybe[Tone], len(d)), QoQ: make([]Number, len(d)), QoQTone: make([]Maybe[Tone], len(d))}
 		for i := range d {
@@ -244,9 +247,10 @@ func Financials(quarters []Quarter) FinancialsView {
 		out.Compare.SinceStart[m] = since
 		out.Compare.QuarterOverQuarter[m] = s.QoQ
 	}
-	for a := 0; a < len(Metrics); a++ {
-		for b := a + 1; b < len(Metrics); b++ {
-			out.Compare.Correlations = append(out.Compare.Correlations, pairCorrelation(Metrics[a], Metrics[b], out.Metrics[Metrics[a]].QoQ, out.Metrics[Metrics[b]].QoQ))
+	for a := 0; a < len(metrics); a++ {
+		for b := a + 1; b < len(metrics); b++ {
+			ma, mb := metrics[a], metrics[b]
+			out.Compare.Correlations = append(out.Compare.Correlations, pairCorrelation(ma, mb, out.Metrics[ma].QoQ, out.Metrics[mb].QoQ))
 		}
 	}
 	out.Tiles = tiles(w, rev, values, out.OperatingMargin)

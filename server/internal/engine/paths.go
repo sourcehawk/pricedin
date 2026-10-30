@@ -132,15 +132,13 @@ func EarningsPaths(in PathsInput) Maybe[Paths] {
 	return Some(out)
 }
 
-var fiscalLabel = regexp.MustCompile(`^Q([1-4]) FY(\d{2})$`)
-
 // labelAfter returns the label k quarters after a "Q<n> FY<yy>" label, or
 // nil for any other label. k = 0 returns the label itself.
 func labelAfter(label string, k int) *string {
 	if k == 0 {
 		return &label
 	}
-	m := fiscalLabel.FindStringSubmatch(label)
+	m := regexp.MustCompile(`^Q([1-4]) FY(\d{2})$`).FindStringSubmatch(label)
 	if m == nil {
 		return nil
 	}

@@ -85,8 +85,6 @@ type Sensitivity struct {
 	ReturnChange float64 `json:"returnChange"`
 }
 
-var columnFactors = []float64{0.55, 0.7, 0.8, 0.9, 1, 1.12, 1.25, 1.4, 1.6}
-
 // ReturnGrid returns the return grid. The rows adapt to the growth rates of
 // the baselines and the requirement; the columns spread around the exit
 // P/E in use. A row at the exact baseline growth carries the baseline's tag
@@ -195,8 +193,9 @@ func ReturnGrid(in GridInput) Maybe[Grid] {
 // gridColumns spreads exit P/Es around pe: whole numbers below 40, steps
 // of 5 above, and pe itself.
 func gridColumns(pe float64) []float64 {
-	cols := make([]float64, 0, len(columnFactors))
-	for _, f := range columnFactors {
+	factors := []float64{0.55, 0.7, 0.8, 0.9, 1, 1.12, 1.25, 1.4, 1.6}
+	cols := make([]float64, 0, len(factors))
+	for _, f := range factors {
 		v := pe
 		if f != 1 {
 			v = pe * f

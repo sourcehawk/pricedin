@@ -9,18 +9,18 @@ import (
 )
 
 // Quarter is one fiscal quarter of a stock's history. Per-share values and
-// the close are split-adjusted. A nil value was not reported.
+// the close are split-adjusted. Revenue, OperatingIncome, OperatingCosts and
+// FreeCashFlow are in US dollars. A nil value was not reported.
 type Quarter struct {
-	Label         string      `json:"label"` // "Q3 FY26"
-	PeriodEnd     domain.Date `json:"periodEnd"`
-	EPS           *float64    `json:"eps"`           // diluted EPS of the quarter
-	Close         *float64    `json:"close"`         // close on or before PeriodEnd
-	DilutedShares *float64    `json:"dilutedShares"` // weighted average, whole shares
-	Revenue       *float64    `json:"revenue"`
-	// OperatingIncome, OperatingCosts and FreeCashFlow are in US dollars.
-	OperatingIncome *float64 `json:"operatingIncome"`
-	OperatingCosts  *float64 `json:"operatingCosts"`
-	FreeCashFlow    *float64 `json:"freeCashFlow"`
+	Label           string      `json:"label"` // "Q3 FY26"
+	PeriodEnd       domain.Date `json:"periodEnd"`
+	EPS             *float64    `json:"eps"`           // diluted EPS of the quarter
+	Close           *float64    `json:"close"`         // close on or before PeriodEnd
+	DilutedShares   *float64    `json:"dilutedShares"` // weighted average, whole shares
+	Revenue         *float64    `json:"revenue"`
+	OperatingIncome *float64    `json:"operatingIncome"`
+	OperatingCosts  *float64    `json:"operatingCosts"`
+	FreeCashFlow    *float64    `json:"freeCashFlow"`
 }
 
 // PricePoint is one daily close with the TTM EPS that was known on that day.
