@@ -104,12 +104,26 @@ docker compose -f docker-compose.yml -f docker-compose.fixtures.yml --profile fi
 | `make lint` | golangci-lint, ESLint, the TypeScript type check, Prettier, actionlint, shellcheck, and a check that the engine cases are current |
 | `make test` | The Go unit tests (`make test-server`), the web unit tests (`make test-web`), and the tests of the shell scripts in `scripts/` (`make test-scripts`) |
 | `make test-integration` | The Go tests with the `integration` build tag. They start Postgres in a container (Testcontainers), so Docker must run |
-| `make test-e2e` | Builds the images, starts a separate Compose stack against the fixture server (project `pricedin-e2e`, web on port 3100, API on port 8180), runs Playwright, and removes that stack. The stack of `make up` is not touched |
+| `make test-e2e` | Builds the images, starts a separate Compose stack against the fixture server (project `pricedin-e2e`, web on port 3100, API on port 8180), seeds it, runs Playwright, and removes that stack. The stack of `make up` is not touched |
 | `make ci` | Everything that CI runs, in the CI order |
 
 CI calls the same targets, so a green `make ci` predicts a green CI run.
 
 Integration tests are in files named `*_integration_test.go`. A package that uses the database calls `pgtest.Main` from its `TestMain`, and each test gets a fresh database from `pgtest.NewURL` or `pgtest.NewPool`.
+
+### End-to-end tests
+
+The Playwright tests in `e2e/tests/` drive the web app of a Compose stack against the fixture server. `scripts/e2e.sh` starts that stack with `docker-compose.e2e.yml` on top of the fixture files. It creates the owner account from `PRICEDIN_E2E_OWNER_EMAIL` and `PRICEDIN_E2E_OWNER_PASSWORD`, and loads the fixture companies with the jobs of `make seed`. It leaves ADM out, so that a test can load it on demand. Each test runs on a desktop and a phone viewport, in light and dark color schemes. A request to a host outside the stack fails the test.
+
+To work on the tests, keep the stack between runs:
+
+```sh
+make e2e-up                                   # build the images, start and seed the stack
+make e2e-run ARGS="levers --project=desktop-light"
+make e2e-down                                 # remove the stack and its volumes
+```
+
+The test that loads ADM fails on a second run against the same stack, because ADM is then loaded. Start a new stack for it.
 
 ## Add a migration
 

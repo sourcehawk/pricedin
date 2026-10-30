@@ -52,6 +52,9 @@ PRICEDIN_E2E_METRICS_PORT ?= 9190
 PRICEDIN_E2E_DB_PORT      ?= 5532
 PRICEDIN_E2E_BASE_URL     ?= http://localhost:$(PRICEDIN_E2E_WEB_PORT)
 PRICEDIN_E2E_API_URL      ?= http://localhost:$(PRICEDIN_E2E_API_PORT)
+# The owner account of the end-to-end stack; the tests log in with it.
+PRICEDIN_E2E_OWNER_EMAIL    ?= e2e-owner@example.com
+PRICEDIN_E2E_OWNER_PASSWORD ?= e2e-owner-password
 
 SHELL_SCRIPTS := $(shell git ls-files --cached --others --exclude-standard '*.sh' 2>/dev/null)
 
@@ -192,16 +195,31 @@ test-integration: ## Run the Go integration tests (build tag integration)
 test-web: ## Run the web unit tests
 	$(PNPM) --filter @pricedin/web test
 
-.PHONY: test-e2e
-test-e2e: images ## Start a separate Compose stack against the fixture server, run Playwright, remove that stack
-	COMPOSE='$(COMPOSE_FIXTURES)' PNPM='$(PNPM)' \
+E2E_ENV = COMPOSE='$(COMPOSE_FIXTURES)' DOCKER='$(DOCKER)' PNPM='$(PNPM)' \
 	PRICEDIN_E2E_PROJECT='$(PRICEDIN_E2E_PROJECT)' \
 	PRICEDIN_SERVER_IMAGE='$(SERVER_IMAGE)' PRICEDIN_WEB_IMAGE='$(WEB_IMAGE)' \
 	PRICEDIN_FIXTURES_IMAGE='$(FIXTURES_IMAGE)' \
 	PRICEDIN_WEB_PORT='$(PRICEDIN_E2E_WEB_PORT)' PRICEDIN_API_PORT='$(PRICEDIN_E2E_API_PORT)' \
 	PRICEDIN_METRICS_PORT='$(PRICEDIN_E2E_METRICS_PORT)' PRICEDIN_DB_PORT='$(PRICEDIN_E2E_DB_PORT)' \
 	PRICEDIN_E2E_BASE_URL='$(PRICEDIN_E2E_BASE_URL)' PRICEDIN_E2E_API_URL='$(PRICEDIN_E2E_API_URL)' \
-	scripts/e2e.sh
+	PRICEDIN_E2E_OWNER_EMAIL='$(PRICEDIN_E2E_OWNER_EMAIL)' PRICEDIN_E2E_OWNER_PASSWORD='$(PRICEDIN_E2E_OWNER_PASSWORD)'
+
+.PHONY: test-e2e
+test-e2e: images ## Start a separate Compose stack against the fixture server, run Playwright, remove that stack
+	$(E2E_ENV) scripts/e2e.sh
+
+# For work on the tests: start the stack once, run the tests often, remove it.
+.PHONY: e2e-up
+e2e-up: images ## Start and seed the end-to-end stack, and keep it
+	$(E2E_ENV) scripts/e2e.sh up
+
+.PHONY: e2e-run
+e2e-run: ## Run Playwright against the stack of make e2e-up (ARGS=playwright arguments)
+	$(E2E_ENV) $(PNPM) --filter @pricedin/e2e exec playwright test $(ARGS)
+
+.PHONY: e2e-down
+e2e-down: ## Remove the stack of make e2e-up with its volumes
+	$(E2E_ENV) scripts/e2e.sh down
 
 # --- Build --------------------------------------------------------------------
 .PHONY: build

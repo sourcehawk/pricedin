@@ -25,6 +25,7 @@ node_modules/
 /e2e/blob-report/
 /e2e/compose.log
 /e2e/.cache/
+/e2e/.auth/
 
 # Editors and OS
 .idea/
