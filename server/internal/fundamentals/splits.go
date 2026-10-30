@@ -46,13 +46,13 @@ func confirmSplits(cik domain.CIK, ratios []domain.Fact, opts Options) ([]domain
 		}
 		// A provider event near the same date is the same split, and its
 		// date and ratio win. Applying both would compound the ratios.
-		i := slices.IndexFunc(splits[:provider], func(p domain.Split) bool {
-			return abs(daysIn(p.Date, date)-1) <= sameSplitDays
-		})
-		if i >= 0 && math.Abs(splits[i].Ratio()-r) <= 1e-6*r {
+		near := func(p domain.Split) bool { return abs(daysIn(p.Date, date)-1) <= sameSplitDays }
+		if slices.ContainsFunc(splits[:provider], func(p domain.Split) bool {
+			return near(p) && math.Abs(p.Ratio()-r) <= 1e-6*r
+		}) {
 			continue
 		}
-		if i < 0 {
+		if !slices.ContainsFunc(splits[:provider], near) {
 			splits = append(splits, split)
 		}
 		if len(opts.Splits) > 0 {

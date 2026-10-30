@@ -292,3 +292,20 @@ func TestDeriveFlagsAValueThatAFilingAfterTheSplitRepeatsUnchanged(t *testing.T)
 		t.Errorf("Conflicts (-want +got):\n%s", diff)
 	}
 }
+
+func TestDeriveMatchesSECEvidenceToTheProviderEventWithItsRatio(t *testing.T) {
+	// Two provider splits lie within the same-split window. The SEC
+	// evidence is the second one, so it must not conflict with the first.
+	var facts []domain.Fact
+	y25 := splitYears(t, &facts, 0)
+	y25.q2.add(sec.StockholdersEquityNoteStockSplitConversionRatio1, "", "2025-06-10", 2)
+	splits := []domain.Split{providerSplit(t, "2025-03-03", 3), providerSplit(t, "2025-06-10", 2)}
+
+	s := derive(t, facts, fundamentals.Options{Splits: splits})
+	if diff := cmp.Diff(splits, s.Splits); diff != "" {
+		t.Errorf("Splits (-want +got):\n%s", diff)
+	}
+	if len(s.Conflicts) != 0 {
+		t.Errorf("Conflicts = %+v, want none", s.Conflicts)
+	}
+}
