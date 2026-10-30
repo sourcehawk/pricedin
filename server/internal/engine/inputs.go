@@ -145,23 +145,27 @@ const (
 	maxTargetReturn = 0.5  // a 50% target return
 	minCustomGrowth = -0.5 // a custom rate of -50%
 	maxCustomGrowth = 2.0  // a custom rate of 200%
+	minCustomExitPE = 0.5  // the lowest custom exit P/E, the smallest P/E after rounding to 0.5
 	maxCustomExitPE = 1000 // the highest custom exit P/E
-	maxScenarioPE   = 1e4  // the highest exit P/E of a bear, base or bull case
-	maxMonths       = 120  // the longest look-back that a lever can ask for
-	maxPerShare     = 1e6  // the largest price, EPS or dividend per share
-	minPerShare     = 1e-4 // the smallest EPS or price per share other than zero
-	maxAmount       = 1e15 // the largest share count or dollar amount
-	minAmount       = 1e-6 // the smallest share count or dollar amount other than zero
+	// maxScenario is the largest growth or exit P/E of a case. A TTM EPS of
+	// four bounded quarters cancels to no less than about 1e-20, so a P/E,
+	// and a default case built on it, stays below about 1e26.
+	maxScenario = 1e30
+	maxMonths   = 120  // the longest look-back that a lever can ask for
+	maxPerShare = 1e6  // the largest price, EPS or dividend per share
+	minPerShare = 1e-4 // the smallest EPS or price per share other than zero
+	maxAmount   = 1e15 // the largest share count or dollar amount
+	minAmount   = 1e-6 // the smallest share count or dollar amount other than zero
 )
 
 // Validate reports the first lever that Evaluate cannot use. The price is
 // 0.0001 to 1,000,000; EPS is zero or 0.0001 to 1,000,000 in size; the
 // dividend is 0 to 1,000,000. The target return is 0 to 50%, the holding
-// period 1 to 10 years, a custom exit P/E above 0 and up to 1000, custom
-// rates -50% to 200%, and look-backs 0 (the default) to 120 months. A case
-// has growth above -100% and up to 1000%, and an exit P/E of at most 10,000
-// in size. EPS and a case exit P/E may be zero or negative: those give
-// values with reason needs_positive_eps instead of an error.
+// period 1 to 10 years, a custom exit P/E 0.5 to 1000, custom rates -50% to
+// 200%, and look-backs 0 (the default) to 120 months. A case has growth and
+// an exit P/E of at most 10^30 in size; Scenarios gives no result for one
+// that it cannot project. EPS may be zero or negative: that gives values with
+// reason needs_positive_eps instead of an error.
 func (l Levers) Validate() error {
 	if err := validPerShare("price", l.Price, false); err != nil {
 		return err
@@ -180,8 +184,8 @@ func (l Levers) Validate() error {
 	switch l.ExitPE.Mode {
 	case ExitPEEstimated, ExitPEToday, ExitPETrailing:
 	case ExitPECustom:
-		if c := l.ExitPE.Custom; !isFinite(c) || c <= 0 || c > maxCustomExitPE {
-			return invalid("exitPe.custom must be above 0 and at most %d, got %v", maxCustomExitPE, c)
+		if c := l.ExitPE.Custom; !isFinite(c) || c < minCustomExitPE || c > maxCustomExitPE {
+			return invalid("exitPe.custom must be %g to %d, got %v", minCustomExitPE, maxCustomExitPE, c)
 		}
 	default:
 		return invalid("unknown exitPe.mode %q", l.ExitPE.Mode)
@@ -205,11 +209,11 @@ func (l Levers) Validate() error {
 		}
 	}
 	for i, c := range l.Scenarios {
-		if !isFinite(c.Growth) || !growthInRange(c.Growth) {
-			return invalid("scenarios[%d].growth must be above -1 and at most %g, got %v", i, float64(maxGrowth), c.Growth)
+		if !isFinite(c.Growth) || math.Abs(c.Growth) > maxScenario {
+			return invalid("scenarios[%d].growth must be at most %g in size, got %v", i, maxScenario, c.Growth)
 		}
-		if !isFinite(c.ExitPE) || math.Abs(c.ExitPE) > maxScenarioPE {
-			return invalid("scenarios[%d].exitPe must be at most %g in size, got %v", i, maxScenarioPE, c.ExitPE)
+		if !isFinite(c.ExitPE) || math.Abs(c.ExitPE) > maxScenario {
+			return invalid("scenarios[%d].exitPe must be at most %g in size, got %v", i, maxScenario, c.ExitPE)
 		}
 	}
 	switch l.ChartRange {

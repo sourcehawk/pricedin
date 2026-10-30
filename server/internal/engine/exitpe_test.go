@@ -72,3 +72,10 @@ func TestEstimatedExitPE(t *testing.T) {
 	}
 	wantNone(t, "g0 without a trend", EstimatedExitPE(100, 4, 3, nil, nil).G0, ReasonInsufficientHistory)
 }
+
+// Just above the 6% floor, the premium still fades by the half-life, not
+// to nothing by cancellation.
+func TestEstimatedExitPEJustAboveTheFloor(t *testing.T) {
+	got := EstimatedExitPE(300, 10, 3, ptr(0.060000000000000005), ptr(25.0))
+	near(t, "exit P/E", wantSome(t, "exit P/E", got.PE), 22.5, 0)
+}

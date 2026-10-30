@@ -166,7 +166,7 @@ func PEBands(points []PricePoint) Maybe[Bands] {
 	for (pHi-pLo)/math.Pow(10, float64(kLo)) < 3 && kLo > -400 {
 		kLo--
 	}
-	stp, best := 1.0, 1e9
+	stp, best, digits := 1.0, 1e9, 2
 	for k := kLo; k <= kHi; k++ {
 		for _, f := range []float64{1, 2, 2.5, 5} {
 			c := f * math.Pow(10, float64(k))
@@ -176,6 +176,11 @@ func PEBands(points []PricePoint) Maybe[Bands] {
 			}
 			if sc := math.Abs(n - 5); sc < best {
 				best, stp = sc, c
+				// Enough decimals for the step: 0.025 needs three.
+				digits = max(2, -k)
+				if f == 2.5 {
+					digits = max(2, 1-k)
+				}
 			}
 		}
 	}
@@ -183,7 +188,7 @@ func PEBands(points []PricePoint) Maybe[Bands] {
 	// At a huge P/E a step can be too small to change m.
 	for m := math.Ceil(pLo/stp) * stp; m <= pHi+1e-9 && len(ms) < maxBands && m+stp > m; m += stp {
 		if m > 0 {
-			ms = append(ms, toFixed(m, 2))
+			ms = append(ms, toFixed(m, digits))
 		}
 	}
 

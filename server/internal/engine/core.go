@@ -123,6 +123,13 @@ func growthInRange(g float64) bool {
 	return g > -1 && g <= maxGrowth
 }
 
+// meetsTarget reports whether a yearly return reaches the target return.
+// A return within 1e-9 below it counts: a projection that lands exactly on
+// the target can come out a rounding error short.
+func meetsTarget(yearly, target float64) bool {
+	return yearly >= target-1e-9
+}
+
 // toneBand is the distance from a target that still counts as close to it.
 const toneBand = 0.015
 

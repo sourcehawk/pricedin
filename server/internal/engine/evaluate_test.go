@@ -77,12 +77,13 @@ func TestEvaluateRejectsInvalidInput(t *testing.T) {
 		{"EPS too close to zero", func(l *Levers, _ *History) { l.TTMEPS = 1e-9 }},
 		{"dividend above a million", func(l *Levers, _ *History) { l.Dividend = 2e6 }},
 		{"zero custom exit P/E", func(l *Levers, _ *History) { l.ExitPE = ExitPELever{Mode: ExitPECustom} }},
+		{"custom exit P/E below 0.5", func(l *Levers, _ *History) { l.ExitPE = ExitPELever{Mode: ExitPECustom, Custom: 1e-310} }},
 		{"negative custom exit P/E", func(l *Levers, _ *History) { l.ExitPE = ExitPELever{Mode: ExitPECustom, Custom: -5} }},
 		{"custom exit P/E above 1000", func(l *Levers, _ *History) { l.ExitPE = ExitPELever{Mode: ExitPECustom, Custom: 1001} }},
 		{"custom rate above 200%", func(l *Levers, _ *History) { l.Baseline.Custom.Rate = 2.01 }},
 		{"look-back above 120 months", func(l *Levers, _ *History) { l.Baseline.TrailingMonths = 121 }},
-		{"case growth above 1000%", func(l *Levers, _ *History) { l.Scenarios = []ScenarioCase{{Name: "Bull", Growth: 10.5, ExitPE: 10}} }},
-		{"case exit P/E above 10,000", func(l *Levers, _ *History) { l.Scenarios = []ScenarioCase{{Name: "Bull", Growth: 0.1, ExitPE: 2e4}} }},
+		{"case growth above 10^30", func(l *Levers, _ *History) { l.Scenarios = []ScenarioCase{{Name: "Bull", Growth: 2e30, ExitPE: 10}} }},
+		{"case exit P/E above 10^30", func(l *Levers, _ *History) { l.Scenarios = []ScenarioCase{{Name: "Bull", Growth: 0.1, ExitPE: 2e30}} }},
 		{"NaN quarter EPS", func(_ *Levers, h *History) { h.Quarters[3].EPS = ptr(math.NaN()) }},
 		{"infinite revenue", func(_ *Levers, h *History) { h.Quarters[18].Revenue = ptr(math.Inf(1)) }},
 		{"revenue above 10^15", func(_ *Levers, h *History) { h.Quarters[18].Revenue = ptr(2e15) }},
@@ -93,7 +94,6 @@ func TestEvaluateRejectsInvalidInput(t *testing.T) {
 		{"infinite custom exit P/E", func(l *Levers, _ *History) { l.ExitPE = ExitPELever{Mode: ExitPECustom, Custom: math.Inf(1)} }},
 		{"unknown baseline mode", func(l *Levers, _ *History) { l.Baseline.Mode = "analyst" }},
 		{"yearly rate below -50%", func(l *Levers, _ *History) { l.Baseline.Custom.Rates = []float64{0.1, -0.51} }},
-		{"case growth of -150%", func(l *Levers, _ *History) { l.Scenarios = []ScenarioCase{{Name: "Bear", Growth: -1.5, ExitPE: 10}} }},
 		{"negative look-back", func(l *Levers, _ *History) { l.ExitPE.TrailingMonths = -3 }},
 		{"unknown chart range", func(l *Levers, _ *History) { l.ChartRange = "5Y" }},
 		{"days out of order", func(_ *Levers, h *History) { h.Daily[3].Date = h.Daily[2].Date }},
@@ -150,7 +150,11 @@ func TestEvaluateAlwaysMarshals(t *testing.T) {
 		},
 		"tiny price":    func(l Levers) Levers { l.Price = 0.01; return l },
 		"huge exit P/E": func(l Levers) Levers { l.ExitPE = ExitPELever{Mode: ExitPECustom, Custom: 1000}; return l },
-		"tiny exit P/E": func(l Levers) Levers { l.ExitPE = ExitPELever{Mode: ExitPECustom, Custom: 1e-9}; return l },
+		"tiny exit P/E": func(l Levers) Levers { l.ExitPE = ExitPELever{Mode: ExitPECustom, Custom: 0.5}; return l },
+		"big EPS, tiny exit P/E": func(l Levers) Levers {
+			l.Price, l.TTMEPS, l.ExitPE = 1, 1e6, ExitPELever{Mode: ExitPECustom, Custom: 0.5}
+			return l
+		},
 	}
 	for hn, h := range histories {
 		for ln, change := range levers {
@@ -257,7 +261,7 @@ func TestEvaluateMarshalsExtremeValidInputs(t *testing.T) {
 			HoldingYears: 1 + rnd.IntN(10),
 			ExitPE: ExitPELever{
 				Mode:   []ExitPEMode{ExitPEEstimated, ExitPEToday, ExitPETrailing, ExitPECustom}[rnd.IntN(4)],
-				Custom: pick(1e-9, 1000), TrailingMonths: rnd.IntN(121),
+				Custom: pick(0.5, 1000), TrailingMonths: rnd.IntN(121),
 			},
 			Baseline: BaselineLever{
 				Mode:           []BaselineMode{BaselineWeighted, BaselineToday, BaselineTrailing, BaselineCustom}[rnd.IntN(4)],
@@ -276,5 +280,34 @@ func TestEvaluateMarshalsExtremeValidInputs(t *testing.T) {
 		if _, err := json.Marshal(ev); err != nil {
 			t.Fatalf("run %d: marshal: %v\nlevers: %+v", run, err, l)
 		}
+		// The UI pins the default cases and evaluates again with them.
+		pinned := l
+		pinned.Scenarios = nil
+		for _, c := range ev.Scenarios.Cases {
+			pinned.Scenarios = append(pinned.Scenarios, c.ScenarioCase)
+		}
+		if _, err := Evaluate(History{Quarters: qs, Daily: daily}, pinned); err != nil {
+			t.Fatalf("run %d: evaluate with the pinned cases: %v", run, err)
+		}
+	}
+}
+
+// A TTM EPS that cancels to near zero gives a trailing P/E near 1e14; the
+// default cases built on it must still pass when the UI pins them.
+func TestEvaluateAcceptsPinnedDefaultsAtAHugeTrailingPE(t *testing.T) {
+	q := withCloses(quarters(0, 1.0001e-4, -1e-4, 0, 0, 1), 0, 0, 0, 1e6, 1e6, 0)
+	l := Levers{Price: 1, TTMEPS: 1, TargetReturn: 0.15, HoldingYears: 3, ExitPE: ExitPELever{Mode: ExitPETrailing}, Baseline: BaselineLever{Mode: BaselineWeighted}}
+	ev, err := Evaluate(History{Quarters: q}, l)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pe := wantSome(t, "exit P/E", ev.ExitPE.InUse).PE; pe < 1e12 {
+		t.Fatalf("exit P/E %g, want a P/E above 10^12 for this test", pe)
+	}
+	for _, c := range ev.Scenarios.Cases {
+		l.Scenarios = append(l.Scenarios, c.ScenarioCase)
+	}
+	if _, err := Evaluate(History{Quarters: q}, l); err != nil {
+		t.Errorf("evaluate with the pinned cases: %v", err)
 	}
 }

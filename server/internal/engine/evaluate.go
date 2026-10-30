@@ -258,7 +258,7 @@ func atBaseline(inv Investment, g, pe, req, reqEPS Number) Maybe[AtBaseline] {
 	diff := p.YearlyReturn - inv.TargetReturn
 	a := AtBaseline{
 		ExitPrice: p.ExitPrice, TotalReturn: p.TotalReturn, YearlyReturn: p.YearlyReturn,
-		VsTarget: diff, Tone: ToneOf(diff), MeetsTarget: p.YearlyReturn >= inv.TargetReturn,
+		VsTarget: diff, Tone: ToneOf(diff), MeetsTarget: meetsTarget(p.YearlyReturn, inv.TargetReturn),
 		EPS: eps, EPSGap: None[float64](reqEPS.Reason), ExitPENeeded: need,
 		Fragile: (req.Ok() && math.Abs(g.Get()-req.Get()) < 0.02) || (need.Ok() && math.Abs(need.Get()-pe.Get()) < 1.5),
 	}

@@ -411,6 +411,12 @@ add("estimated exit P/E never goes below 6", "estimatedExitPe", {
 });
 add("estimated exit P/E needs positive EPS", "estimatedExitPe", { ...ep, eps: 0 });
 add(
+  "estimated exit P/E just above the growth floor",
+  "estimatedExitPe",
+  { price: 300, eps: 10, years: 3, weightedTrend: 0.060000000000000005, typicalPe: 25 },
+  N.fadeFactor,
+);
+add(
   "estimated exit P/E without a weighted trend",
   "estimatedExitPe",
   { ...ep, weightedTrend: null },
@@ -519,6 +525,12 @@ add(
   N.exactRow,
 );
 add("return grid needs positive EPS", "returnGrid", { ...gridBase, eps: 0 });
+add(
+  "return grid with a baseline above 1000%",
+  "returnGrid",
+  { ...gridBase, baseline: { mode: "weighted", growth: { value: 11 } }, weighted: { value: 11 } },
+  [N.exactRow, N.growthRange],
+);
 
 // ---------------------------------------------------------------- the paths
 
@@ -621,6 +633,19 @@ add("cases where only the bear case meets the target", "scenarios", {
 add("cases with a dividend", "scenarios", { ...scenBase, dividend: 3.6, years: 5 });
 add("cases need positive EPS", "scenarios", { ...scenBase, eps: 0 });
 add(
+  "a case that lands exactly on the target",
+  "scenarios",
+  {
+    price: 100,
+    eps: 5,
+    targetReturn: 0.15,
+    years: 1,
+    dividend: 0,
+    cases: [{ name: "Base", growth: 0.15, exitPe: 20 }],
+  },
+  N.targetTolerance,
+);
+add(
   "cases around a collapse of more than -100%",
   "scenarios",
   { ...scenBase, cases: O.defaultScenarios({ weightedTrend: -2.2, exitPe: 10 }) },
@@ -708,6 +733,12 @@ const nearZero = (eps) =>
 add("P/E bands at a near-zero EPS", "peBands", { points: nearZero(1e-9) }, N.bandSteps);
 add("P/E bands at a tiny EPS", "peBands", { points: nearZero(1e-16) }, N.bandSteps);
 add("P/E bands at a P/E near 1", "peBands", { points: nearZero(80) }, N.bandSteps);
+add(
+  "P/E bands at a P/E near 0.001",
+  "peBands",
+  { points: nearZero(10).map((d, i) => ({ ...d, close: 0.01 + 0.001 * i })) },
+  [N.bandSteps, N.bandDigits],
+);
 add("P/E bands need a positive EPS", "peBands", {
   points: tail(GRMN.history.daily, 10).map((d) => ({ ...d, ttmEps: -1 })),
 });
@@ -910,6 +941,22 @@ add(
   "evaluate",
   { history: { quarters: withEps(short(gq, 5), 4, -4), daily: [] }, levers: defaultLevers(GRMN) },
   [...evalNotes, N.scenarioRange],
+);
+add(
+  "evaluate a baseline that lands exactly on the target",
+  "evaluate",
+  ev(noDaily(GRMN), {
+    price: 100,
+    ttmEps: 5,
+    holdingYears: 1,
+    exitPe: { mode: "custom", custom: 20, trailingMonths: 36 },
+    baseline: {
+      mode: "custom",
+      trailingMonths: 12,
+      custom: { yearly: false, rate: 0.15, rates: [] },
+    },
+  }),
+  [...evalNotes, N.targetTolerance],
 );
 add(
   "evaluate no history",

@@ -82,7 +82,7 @@ func Scenarios(inv Investment, cases []ScenarioCase) ScenarioSet {
 			YearlyReturn: p.YearlyReturn,
 			VsTarget:     diff,
 			Tone:         ToneOf(diff),
-			MeetsTarget:  p.YearlyReturn >= inv.TargetReturn,
+			MeetsTarget:  meetsTarget(p.YearlyReturn, inv.TargetReturn),
 		}
 		out.Cases[i].Result = Some(r)
 		if r.MeetsTarget {

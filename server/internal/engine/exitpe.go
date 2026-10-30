@@ -84,10 +84,9 @@ const (
 // to 0.5 and is at least 6.
 func EstimatedExitPE(price, eps float64, years int, weighted, typical *float64) Estimate {
 	out := Estimate{G0: None[float64](ReasonInsufficientHistory), GExit: None[float64](ReasonInsufficientHistory)}
-	gExit := 0.0
+	fade := math.Pow(0.5, float64(years)/fadeHalf)
 	if weighted != nil {
-		gExit = growthFloor + (*weighted-growthFloor)*math.Pow(0.5, float64(years)/fadeHalf)
-		out.G0, out.GExit = Some(*weighted), Some(gExit)
+		out.G0, out.GExit = Some(*weighted), Some(growthFloor+(*weighted-growthFloor)*fade)
 	}
 	now := price / eps
 	if !(eps > 0) || !(now > 0) {
@@ -105,7 +104,9 @@ func EstimatedExitPE(price, eps float64, years int, weighted, typical *float64) 
 	case now <= peBase:
 		pe, rule = now, RuleLowPEKeep
 	default:
-		pe, rule = peBase+(now-peBase)*(gExit-growthFloor)/(*weighted-growthFloor), RuleFade
+		// The fraction of the excess growth left at the exit is the fade
+		// factor itself; (gExit-floor)/(g0-floor) loses it near the floor.
+		pe, rule = peBase+(now-peBase)*fade, RuleFade
 	}
 	out.PE = Some(math.Max(6, roundHalf(pe)))
 	out.Rule = &rule

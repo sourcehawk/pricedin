@@ -48,6 +48,12 @@ export const NOTES = {
     "v1: a growth of -100% or lower, or above 1000%, gives null with reason growth_out_of_range for values that compound it.",
   trajectoryBounds:
     "v1: the trajectory rates stay within -50% to 200%, the bounds of a custom rate, so that they can fill the custom rates; the prototype lets the cap at the highest reading go below -50%.",
+  fadeFactor:
+    "v1: the estimated exit P/E uses the fade factor 0.5^(years/3) directly; the prototype's (gExit - 6%) / (g0 - 6%) gives 0 near the floor by cancellation.",
+  bandDigits:
+    "v1: band multiples keep enough decimals for their step; the prototype rounds to 2 decimals, which makes the bands of a P/E below 0.01 all zero.",
+  targetTolerance:
+    "v1: a return within 1e-9 below the target meets it, so a projection that lands exactly on the target is not a miss by rounding.",
   bandSteps:
     "v1: the band step search widens its powers of ten when the P/E span needs it, and the bands stop at 50; the prototype searches 0.1 to 5000 only, which never ends for a near-zero EPS.",
   peChangeNeedsEps:
@@ -366,7 +372,10 @@ export function estimatedExitPe({ price, eps, years, weightedTrend: wtd, typical
     pe = now;
     rule = slow ? "slowGrowerKeep" : "lowPeKeep";
   } else {
-    pe = PE_BASE + ((now - PE_BASE) * (gExitRaw - G_FLOOR)) / (g0 - G_FLOOR);
+    // v1: the fraction of the excess growth left at the exit is the fade
+    // factor itself; the prototype's (gExit - floor) / (g0 - floor) loses it
+    // to cancellation near the floor.
+    pe = PE_BASE + (now - PE_BASE) * Math.pow(0.5, n / HALF);
     rule = "fade";
   }
   return { pe: val(Math.max(6, Math.round(pe * 2) / 2)), rule, g0: g0v, gExit };
@@ -402,7 +411,7 @@ export function returnGrid({
   // v1: insert the exact baseline row.
   const regular = h.rows;
   let rows = regular.map((growth) => ({ growth, exact: false }));
-  const gOk = fin(g) && g > -1;
+  const gOk = fin(g) && inRange(g);
   if (gOk) {
     const same = rows.find((x) => Math.abs(x.growth - g) < 1e-9);
     if (same) same.exact = true;
@@ -669,7 +678,7 @@ export function scenarios({ price: Pp, eps: E, targetReturn: r, years: n, divide
         yearlyReturn: p.cagr,
         vsTarget: p.cagr - r,
         tone: t,
-        meetsTarget: p.cagr >= r,
+        meetsTarget: p.cagr >= r - 1e-9,
       }),
     };
   });
@@ -770,7 +779,8 @@ function bandsV1(D) {
   while ((pHi - pLo) / (5 * Math.pow(10, kHi)) > 5 && kHi < 400) kHi++;
   while ((pHi - pLo) / Math.pow(10, kLo) < 3 && kLo > -400) kLo--;
   let stp = 1,
-    best = 1e9;
+    best = 1e9,
+    digits = 2;
   for (let k = kLo; k <= kHi; k++)
     for (const f of [1, 2, 2.5, 5]) {
       const c = f * Math.pow(10, k),
@@ -780,6 +790,8 @@ function bandsV1(D) {
       if (sc < best) {
         best = sc;
         stp = c;
+        // v1: enough decimals for the step (the prototype keeps 2).
+        digits = Math.max(2, f === 2.5 ? 1 - k : -k);
       }
     }
   const ms = [];
@@ -788,7 +800,7 @@ function bandsV1(D) {
     m <= pHi + 1e-9 && ms.length < 50 && m + stp > m;
     m += stp
   )
-    if (m > 0) ms.push(+m.toFixed(2));
+    if (m > 0) ms.push(+m.toFixed(digits));
   const LST = D[D.length - 1],
     nowPe = LST.p / LST.e,
     mu = ms.find((m) => m >= nowPe),
@@ -1294,7 +1306,7 @@ export function evaluate({ history, levers }) {
       yearlyReturn: p.yearlyReturn,
       vsTarget: p.yearlyReturn - r,
       tone: tone({ diff: p.yearlyReturn - r }),
-      meetsTarget: p.yearlyReturn >= r,
+      meetsTarget: p.yearlyReturn >= r - 1e-9,
       eps: fb,
       epsGap: has(required.eps) ? val(fb - required.eps.value) : none(required.eps.reason),
       exitPeNeeded: f,

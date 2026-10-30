@@ -189,3 +189,17 @@ func TestCorrelationOfConstantSeries(t *testing.T) {
 	wantNone(t, "two constant series", Correlation(xs, ys), ReasonZeroVariance)
 	wantNone(t, "one constant series", Correlation(series20(func(i int) float64 { return float64(i) }), xs), ReasonZeroVariance)
 }
+
+// A P/E near 0.001 still gets distinct bands.
+func TestPEBandsAtATinyPE(t *testing.T) {
+	pts := days(domain.NewDate(2026, 1, 1), 10, func(i int) (float64, *float64) { return 0.01 + 0.001*float64(i), ptr(10.0) })
+	b := wantSome(t, "bands", PEBands(pts))
+	seen := map[float64]bool{}
+	for _, m := range b.Multiples {
+		if m.Multiple <= 0 || seen[m.Multiple] {
+			t.Errorf("multiples %+v hold a zero or a repeat", b.Multiples)
+			break
+		}
+		seen[m.Multiple] = true
+	}
+}

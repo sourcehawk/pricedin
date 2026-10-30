@@ -77,3 +77,11 @@ func TestScenariosSkipCasesTheyCannotProject(t *testing.T) {
 	none := Scenarios(grmn, DefaultScenarios(ptr(-2.2), ptr(10.0)))
 	wantNone(t, "worst without any result", none.WorstYearlyReturn, ReasonGrowthOutOfRange)
 }
+
+// A case that lands exactly on the target meets it, whatever the rounding.
+func TestScenariosMeetTheTargetAtTheBoundary(t *testing.T) {
+	set := Scenarios(Investment{Price: 100, EPS: 5, TargetReturn: 0.15, Years: 1}, []ScenarioCase{{Name: "Base", Growth: 0.15, ExitPE: 20}})
+	if r := wantSome(t, "base", set.Cases[0].Result); !r.MeetsTarget {
+		t.Errorf("yearly return %v does not meet the 15%% target", r.YearlyReturn)
+	}
+}
