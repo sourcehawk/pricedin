@@ -863,8 +863,8 @@ components:
           description: |
             The recurring dividends per share with an ex-date in the last 12
             months, split-adjusted; 0 when none. `asOf` is the day the
-            dividend data was fetched. Missing with reason `no_dividend_data`
-            when it never was.
+            dividend data was last fetched, which can be earlier than today.
+            Missing with reason `no_dividend_data` when it never was.
           oneOf:
             - $ref: "#/components/schemas/SourcedNumber"
             - $ref: "#/components/schemas/Missing"

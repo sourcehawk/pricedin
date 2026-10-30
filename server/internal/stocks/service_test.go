@@ -890,3 +890,20 @@ func TestAValueOutsideTheBoundsIsLoggedOnce(t *testing.T) {
 		t.Errorf("warnings = %d, want 1 for one ticker and field", n)
 	}
 }
+
+// A price-reference run that fetched the dividends again without a change
+// still dates them.
+func TestDividendAsOfIsTheLastFetch(t *testing.T) {
+	m := stockstest.Fixture(t)
+	changed := time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)
+	m.DividendsLoadedAt["KO"] = changed
+	finished := time.Date(2026, 10, 29, 23, 0, 0, 0, time.UTC)
+	m.Runs = []store.IngestRun{{ID: 1, Job: "price-reference", Status: store.RunSucceeded, StartedAt: finished.Add(-time.Hour), FinishedAt: &finished}}
+	p, err := newService(t, m, nil).Profile(context.Background(), "KO")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d := p.TTMDividend.Number; d == nil || d.AsOf != date(t, "2026-10-29") {
+		t.Errorf("TTMDividend = %+v, want as of the run's day 2026-10-29", p.TTMDividend)
+	}
+}

@@ -47,8 +47,7 @@ func NewLimiter(attempts int, window time.Duration, now func() time.Time) *Limit
 
 // Allow takes one attempt for the address. When none is left, it returns
 // false and how long to wait for the next one; a refused attempt does not
-// count. The addresses of one IPv6 /64 network share one bucket, since
-// one client usually holds the whole network.
+// count.
 func (l *Limiter) Allow(addr string) (bool, time.Duration) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -130,13 +129,11 @@ func (o Origins) Allowed(origin string) bool {
 }
 
 // ClientIP returns the address of the client that sent r. With a trusted
-// header name, it reads that header, every line of it as one
-// comma-separated list, and takes the entry hops places from the right:
-// each of hops trusted proxies appends one entry, so 1 takes the entry
-// that the nearest proxy wrote. It falls back to the remote address of the
-// connection when the list is shorter than hops or the entry is not a
-// valid address. Only name a header that the proxies always set, and the
-// number of them, or a client can choose its own address.
+// header name, it takes the entry hops places from the right of the
+// comma-separated list in that header; hops is the number of trusted
+// proxies that append to it, and a hops below 1 ignores the header. Only
+// name a header that the proxies always set, and give hops no more than
+// the number of them, or a client can choose its own address.
 func ClientIP(r *http.Request, trustedHeader string, hops int) string {
 	if trustedHeader != "" && hops >= 1 {
 		var entries []string

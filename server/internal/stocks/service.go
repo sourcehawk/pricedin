@@ -148,8 +148,8 @@ type stock struct {
 	// came to this company.
 	rawBars   []domain.PriceBar
 	dividends []domain.Dividend
-	// dividendsFetched is the day the dividend data was fetched, nil when
-	// it never was.
+	// dividendsFetched is the day the dividend data was last fetched, nil
+	// when it never was.
 	dividendsFetched *domain.Date
 	// splits are the splits in effect: the provider's, and after
 	// withFundamentals the confirmed ones, which add the splits that only
@@ -247,23 +247,29 @@ func (s *Service) readPrices(ctx context.Context, st *stock) error {
 // splits and dividends of every symbol.
 const priceReferenceJob = "price-reference"
 
-// readDividendsFetched finds the day the dividends were fetched: the last
-// change of the symbol's dividends, else the last price-reference run,
-// which also covers a symbol that pays none.
+// readDividendsFetched sets the day the dividends were last fetched, or
+// leaves it nil when they never were.
 func (s *Service) readDividendsFetched(ctx context.Context, st *stock) error {
-	at, err := s.store.GetDividendsLoadedAt(ctx, st.ticker.Symbol)
-	if errors.Is(err, store.ErrNotFound) {
-		run, rerr := s.store.GetLatestSucceededIngestRun(ctx, priceReferenceJob)
-		switch {
-		case errors.Is(rerr, store.ErrNotFound) || (rerr == nil && run.FinishedAt == nil):
-			return nil
-		case rerr != nil:
-			return rerr
-		}
-		at, err = *run.FinishedAt, nil
-	}
-	if err != nil {
+	var at time.Time
+	// A dividend's load time moves only when the dividend changes, and a
+	// price-reference run fetches every symbol's dividends, also of a
+	// symbol that pays none; the later of the two is the last fetch.
+	changed, err := s.store.GetDividendsLoadedAt(ctx, st.ticker.Symbol)
+	switch {
+	case err == nil:
+		at = changed
+	case !errors.Is(err, store.ErrNotFound):
 		return err
+	}
+	run, err := s.store.GetLatestSucceededIngestRun(ctx, priceReferenceJob)
+	switch {
+	case err == nil && run.FinishedAt != nil && run.FinishedAt.After(at):
+		at = *run.FinishedAt
+	case err != nil && !errors.Is(err, store.ErrNotFound):
+		return err
+	}
+	if at.IsZero() {
+		return nil
 	}
 	day := domain.DateOf(at.In(s.newYork))
 	st.dividendsFetched = &day
@@ -386,9 +392,10 @@ func (st *stock) ttmEPS() *SourcedNumber {
 }
 
 // ttmDividend adds the recurring dividends in US dollars with an ex-date
-// in the twelve months up to today, split-adjusted. Its as-of date is the
-// day the dividends were fetched. It is missing with
-// ReasonNoDividendData when they never were.
+// in the twelve months up to today, split-adjusted. Its as-of date can be
+// earlier than today. It is missing with ReasonNoDividendData when no
+// dividend of the symbol is stored and no price-reference run has
+// succeeded.
 func (st *stock) ttmDividend() MaybeSourced {
 	if st.dividendsFetched == nil {
 		return MaybeSourced{Reason: ReasonNoDividendData}
