@@ -436,6 +436,169 @@ func extraSubmissions(accessions ...string) string {
 		`,"reportDate":` + join(report) + `,"primaryDocument":` + join(doc) + `}`
 }
 
+// koAccessions returns the accession numbers of the stored filings of KO,
+// in order.
+func koAccessions(t *testing.T, pool *pgxpool.Pool) []string {
+	t.Helper()
+	var out []string
+	err := pool.QueryRow(context.Background(),
+		`SELECT coalesce(array_agg(accession ORDER BY accession), '{}') FROM filings WHERE cik = 21344`).Scan(&out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return out
+}
+
+// A main submissions file loads the version of an extra file of its own
+// day, else of the next day, which a fetch that went on past midnight UTC
+// stored, else of the newest earlier day, else of the oldest later day.
+func TestReprocessPicksTheExtraSubmissionsFileOfTheNearestDay(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name  string
+		extra []string // the retrieval times of the versions of the extra file
+		want  string   // the retrieval day of the version that loads
+	}{
+		{
+			"the same day before the next day",
+			[]string{"2026-10-27T12:00:00Z", "2026-10-28T00:01:00Z", "2026-10-29T00:01:00Z"},
+			"28",
+		},
+		{"the next day before an earlier day", []string{"2026-10-27T12:00:00Z", "2026-10-29T00:01:00Z"}, "29"},
+		{
+			"the newest earlier day before a later day",
+			[]string{"2026-10-26T12:00:00Z", "2026-10-27T12:00:00Z", "2026-10-30T12:00:00Z"},
+			"27",
+		},
+		{"the oldest later day when no day is on or before", []string{"2026-10-30T12:00:00Z", "2026-10-31T12:00:00Z"}, "30"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			e := newEnv(t, envOptions{})
+			bs := newBlob(t)
+			record(t, bs, "2026-10-28T23:59:00Z", koMainKey, koMain("KO"))
+			for _, at := range tt.extra {
+				// The accession number ends with the day of the version.
+				record(t, bs, at, koExtraKey, extraSubmissions("0000021344-26-0000"+at[8:10]))
+			}
+			r, pool := offlineRunner(t, e, bs)
+			must(r.Reprocess(context.Background(), ingest.ReprocessOptions{}))(t)
+			if diff := cmp.Diff([]string{"0000021344-26-0000" + tt.want}, koAccessions(t, pool)); diff != "" {
+				t.Errorf("filings of KO (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+// A main file recorded just before midnight UTC loads the extra file that
+// the same fetch recorded just after it, not an older one, and a second
+// run changes nothing.
+func TestReprocessLoadsTheExtraFileRecordedJustAfterMidnight(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, envOptions{})
+	bs := newBlob(t)
+	record(t, bs, "2026-10-27T12:00:00Z", koExtraKey, extraSubmissions("0000021344-20-000001"))
+	record(t, bs, "2026-10-28T23:59:00Z", koMainKey, koMain("KO"))
+	record(t, bs, "2026-10-29T00:01:00Z", koExtraKey, extraSubmissions("0000021344-20-000001", "0000021344-20-000002"))
+	r, pool := offlineRunner(t, e, bs)
+	must(r.Reprocess(context.Background(), ingest.ReprocessOptions{}))(t)
+	want := []string{"0000021344-20-000001", "0000021344-20-000002"}
+	if diff := cmp.Diff(want, koAccessions(t, pool)); diff != "" {
+		t.Errorf("filings of KO (-want +got):\n%s", diff)
+	}
+	if _, err := reprocessAgainChangesNothing(t, r, pool); err != nil {
+		t.Errorf("second Reprocess() error = %v", err)
+	}
+}
+
+// Two versions of a main file that load the same version of their extra
+// file are one content: the later one is left out as unchanged.
+func TestReprocessLeavesOutAMainFileThatLoadsTheSameExtraFileAsTheDayBefore(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, envOptions{})
+	bs := newBlob(t)
+	record(t, bs, "2026-10-27T12:00:00Z", koExtraKey, extraSubmissions("0000021344-20-000001"))
+	record(t, bs, "2026-10-28T23:59:00Z", koMainKey, koMain("KO"))
+	record(t, bs, "2026-10-29T00:01:00Z", koExtraKey, extraSubmissions("0000021344-20-000002"))
+	record(t, bs, "2026-10-29T12:00:00Z", koMainKey, koMain("KO"))
+	r, pool := offlineRunner(t, e, bs)
+	res := must(r.Reprocess(context.Background(), ingest.ReprocessOptions{}))(t)
+	if res.Files != 1 || res.Unchanged != 1 {
+		t.Errorf("Reprocess() = %+v, want 1 file loaded and the repeat unchanged", res)
+	}
+	if diff := cmp.Diff([]string{"0000021344-20-000002"}, koAccessions(t, pool)); diff != "" {
+		t.Errorf("filings of KO (-want +got):\n%s", diff)
+	}
+}
+
+// When a day holds several copies of an extra file, a main file of that
+// day loads a copy that parses, and each copy that does not is a failure
+// of its own.
+func TestReprocessTriesEachCopyOfTheDayOfAnExtraFile(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, envOptions{})
+	bs := newBlob(t)
+	at := "2026-10-28T12:00:00Z"
+	record(t, bs, at, koMainKey, koMain("KO"))
+	record(t, bs, at, koExtraKey, `not json`)
+	record(t, bs, at, koExtraKey, `{"accessionNumber":[`)
+	record(t, bs, at, koExtraKey, extraSubmissions("0000021344-20-000001"))
+	r, pool := offlineRunner(t, e, bs)
+	res, err := r.Reprocess(context.Background(), ingest.ReprocessOptions{})
+	if err == nil || res.Failed != 2 || res.Files != 1 {
+		t.Errorf("Reprocess() = %+v, %v; want the 2 copies that do not parse as failed and the main file loaded", res, err)
+	}
+	if diff := cmp.Diff([]string{"0000021344-20-000001"}, koAccessions(t, pool)); diff != "" {
+		t.Errorf("filings of KO (-want +got):\n%s", diff)
+	}
+	res, err = reprocessAgainChangesNothing(t, r, pool)
+	if err == nil || res.Failed != 2 {
+		t.Errorf("second Reprocess() = %+v, %v; want the 2 copies that do not parse as failed again", res, err)
+	}
+}
+
+// A main file whose extra file has no copy that parses does not load.
+func TestReprocessFailsAMainFileWhenNoCopyOfItsExtraFileParses(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, envOptions{})
+	bs := newBlob(t)
+	at := "2026-10-28T12:00:00Z"
+	record(t, bs, at, koMainKey, koMain("KO"))
+	record(t, bs, at, koExtraKey, `not json`)
+	record(t, bs, at, koExtraKey, `{"accessionNumber":[`)
+	r, pool := offlineRunner(t, e, bs)
+	res, err := r.Reprocess(context.Background(), ingest.ReprocessOptions{})
+	if err == nil || res.Failed != 3 || res.Files != 0 {
+		t.Errorf("Reprocess() = %+v, %v; want the 2 copies and the main file as failed", res, err)
+	}
+	db := &env{pool: pool}
+	if n := db.count(t, `SELECT count(*) FROM companies WHERE cik = 21344`); n != 0 {
+		t.Error("Reprocess() stored KO without its extra file")
+	}
+}
+
+// A copy that does not parse counts once, also when several versions of
+// the main file try it.
+func TestReprocessCountsACopyThatDoesNotParseOnce(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, envOptions{})
+	bs := newBlob(t)
+	at := "2026-10-28T12:00:00Z"
+	record(t, bs, at, koMainKey, koMain("KO"))
+	record(t, bs, at, koExtraKey, `not json`)
+	record(t, bs, at, koExtraKey, extraSubmissions("0000021344-20-000001"))
+	record(t, bs, "2026-10-29T12:00:00Z", koMainKey, koMain("COCA COLA CO"))
+	r, pool := offlineRunner(t, e, bs)
+	res, err := r.Reprocess(context.Background(), ingest.ReprocessOptions{})
+	if err == nil || res.Failed != 1 || res.Files != 2 {
+		t.Errorf("Reprocess() = %+v, %v; want 1 failed copy and the 2 main files loaded", res, err)
+	}
+	if diff := cmp.Diff([]string{"0000021344-20-000001"}, koAccessions(t, pool)); diff != "" {
+		t.Errorf("filings of KO (-want +got):\n%s", diff)
+	}
+}
+
 // hookBlob runs hook once, before the first Get.
 type hookBlob struct {
 	blob.Store
