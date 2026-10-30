@@ -56,12 +56,13 @@ func Derive(cik domain.CIK, facts []domain.Fact, opts Options) (Series, error) {
 
 	years := cal.build()
 	d.snap(years)
-	d.splits, d.conflicts = confirmSplits(cik, ratios, opts, d.periods)
+	var deferred []domain.Split
+	d.splits, d.conflicts, deferred = confirmSplits(cik, ratios, opts, d.periods)
 	d.settle()
 
 	d.rescaleShares()
 
-	series := Series{Splits: d.splits}
+	series := Series{Splits: d.splits, Deferred: deferred}
 	for _, y := range years {
 		start := y.start
 		var earlier []span

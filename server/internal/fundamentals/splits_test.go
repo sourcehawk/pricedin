@@ -545,6 +545,10 @@ func TestDeriveLeavesOutSplitsAfterSplitsAsOfButKeepsLaterFacts(t *testing.T) {
 	if len(s.Splits) != 0 || len(s.Conflicts) != 0 {
 		t.Errorf("Splits = %+v, Conflicts = %+v; want none", s.Splits, s.Conflicts)
 	}
+	want := []domain.Split{{CIK: testCIK, Date: day(t, "2025-06-10"), From: 1, To: 2, Source: "sec", Evidence: "q1b-2025"}}
+	if diff := cmp.Diff(want, s.Deferred); diff != "" {
+		t.Errorf("Deferred (-want +got):\n%s", diff)
+	}
 	if v := value(t, s, "Q1 FY24", fundamentals.EPSDiluted); v.V != 2.00 {
 		t.Errorf("Q1 FY24 EPS = %v, want 2.00 as filed", v.V)
 	}

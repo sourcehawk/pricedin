@@ -116,6 +116,9 @@ type Series struct {
 	// Splits are the confirmed splits, oldest first: the provider events,
 	// and the SEC split-ratio evidence with no provider event near its date.
 	Splits []domain.Split
+	// Deferred are the confirmed splits that Options.SplitsAsOf left out,
+	// oldest first. They apply once the cutoff reaches their date.
+	Deferred []domain.Split
 	// Conflicts are the reconciliation problems that the data page lists.
 	Conflicts []Conflict
 }
