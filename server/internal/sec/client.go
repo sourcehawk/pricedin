@@ -96,7 +96,7 @@ type Options struct {
 	// ResponseHeaderTimeout limits the wait for the headers of a response
 	// when HTTPClient is nil. Default DefaultResponseHeaderTimeout.
 	ResponseHeaderTimeout time.Duration
-	// Recorder receives every response body except the bulk archives. Nil
+	// Recorder receives every response body except the bulk archive. Nil
 	// records nothing.
 	Recorder Recorder
 	// Clock defaults to the system clock.

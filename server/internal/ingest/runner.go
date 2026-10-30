@@ -54,7 +54,7 @@ type Options struct {
 	// must keep one session per connection: New fails with
 	// ErrSessionRequired behind a pooler in transaction mode.
 	LockURL string
-	// Blob keeps the bulk archives. The clients record the other responses
+	// Blob keeps the bulk archive. The clients record the other responses
 	// themselves, with a Recorder over the same store.
 	Blob blob.Store
 	// SEC and Prices are the clients. A job that needs a nil one fails.
