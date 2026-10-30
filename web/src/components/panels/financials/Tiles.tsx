@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import type { SourcedNumber } from "@/api/types";
 import { pct, pp, signedPct } from "@/components/format";
-import { Sourced } from "@/components/Sourced";
+import { EstimateTag, Sourced } from "@/components/Sourced";
 import { InfoTip } from "@/components/tip/InfoTip";
 import type { FinancialsView, MaybeNumber, Metric, Tile as EngineTile, Tone } from "@/engine";
 import styles from "./Financials.module.css";
@@ -40,6 +40,7 @@ function Tile({
       </span>
       <b>
         <Sourced value={sourced}>{value}</Sourced>
+        <EstimateTag source={sourced?.source} />
       </b>
       <span className={`small ${toneClass(change.tone)}`} data-walk="tile-change">
         {change.text}

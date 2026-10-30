@@ -80,6 +80,16 @@ export function isEstimate(s: Source | null | undefined): boolean {
   return s?.kind === "derived" && s.estimate;
 }
 
+/** estimateNote is the text after a value whose source is an estimate: " (estimate)", and "" otherwise. */
+export function estimateNote(s: Source | null | undefined): string {
+  return isEstimate(s) ? " (estimate)" : "";
+}
+
+/** EstimateTag marks a shown value whose source is an estimate; it renders nothing otherwise. */
+export function EstimateTag({ source }: { source: Source | null | undefined }) {
+  return isEstimate(source) ? <span className="est">{estimateNote(source)}</span> : null;
+}
+
 function Inputs({ s }: { s: Source }) {
   if (s.kind !== "derived" || s.inputs.length === 0) {
     return null;
@@ -89,7 +99,7 @@ function Inputs({ s }: { s: Source }) {
       {s.inputs.map((i, k) => (
         <li key={k}>
           <SourceLine s={i} />
-          {isEstimate(i) ? " (estimate)" : ""}
+          {estimateNote(i)}
         </li>
       ))}
     </ul>
@@ -107,14 +117,14 @@ export function SourceTip({ value }: { value: SourcedNumber }) {
     <>
       <b>
         <SourceLine s={s} />
-        {isEstimate(s) ? " (estimate)" : ""}
+        {estimateNote(s)}
       </b>
       {s.kind === "derived" && s.inputs.length > 0 && (
         <ul className="tip-list">
           {s.inputs.map((i, k) => (
             <li key={k}>
               <SourceLine s={i} />
-              {isEstimate(i) ? " (estimate)" : ""}
+              {estimateNote(i)}
               <Inputs s={i} />
             </li>
           ))}

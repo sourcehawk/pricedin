@@ -4,9 +4,9 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import { joinNames } from "@/components/copy";
 import { multiple, shareCount, signedPct, times, usd } from "@/components/format";
 import { colorVar } from "@/components/Swatch";
-import { newestFiling } from "@/components/Sourced";
+import { EstimateTag, estimateNote, newestFiling } from "@/components/Sourced";
 import { useTip, useTipHandlers } from "@/components/tip/TipProvider";
-import type { QuarterSources, SecSource } from "@/api/types";
+import type { QuarterSources, SecSource, Source } from "@/api/types";
 import type { Chart, ChartPoint, ShareEvent } from "@/engine";
 import {
   bandSegments,
@@ -36,6 +36,8 @@ import type { OverlayKey } from "./overlays";
 export interface Marker {
   event: ShareEvent;
   href: string | null;
+  /** The sources of the share counts before and after the change; null without one. */
+  sources: { from: Source | null; to: Source | null };
 }
 
 export interface PricePlotProps {
@@ -334,7 +336,9 @@ function MarkerMark({ m, x }: { m: Marker; x: number }) {
       <div className="row">
         <span>Shares</span>
         <span>
-          {shareCount(e.from)} → {shareCount(e.to)}
+          {shareCount(e.from)}
+          <EstimateTag source={m.sources.from} /> → {shareCount(e.to)}
+          <EstimateTag source={m.sources.to} />
         </span>
       </div>
       <div className="row">
@@ -349,7 +353,7 @@ function MarkerMark({ m, x }: { m: Marker; x: number }) {
       </div>
     </>
   ));
-  const label = `${e.label}: ${e.kind}, ${shareCount(e.from)} to ${shareCount(e.to)} diluted shares, ${change}`;
+  const label = `${e.label}: ${e.kind}, ${shareCount(e.from)}${estimateNote(m.sources.from)} to ${shareCount(e.to)}${estimateNote(m.sources.to)} diluted shares, ${change}`;
   const body = (
     <>
       <line

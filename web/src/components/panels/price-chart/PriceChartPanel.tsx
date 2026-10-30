@@ -112,9 +112,10 @@ export function PriceChartPanel() {
   const markers = useMemo(
     (): Marker[] =>
       (chart?.shareCountEvents ?? []).map((event) => {
-        const q = history.quarters.find((s) => s.label === event.label);
-        const src = q?.dilutedShares ?? null;
-        return { event, href: src === null ? null : filingLink(src) };
+        const i = history.quarters.findIndex((s) => s.label === event.label);
+        const to = history.quarters[i]?.dilutedShares ?? null;
+        const from = i > 0 ? (history.quarters[i - 1]?.dilutedShares ?? null) : null;
+        return { event, href: to === null ? null : filingLink(to), sources: { from, to } };
       }),
     [chart, history.quarters],
   );

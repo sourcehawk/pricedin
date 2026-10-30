@@ -432,6 +432,13 @@ a.sourced {
   border-bottom-color: var(--accent);
   outline: none;
 }
+/* the mark of a value whose source is an estimate */
+.est {
+  font-size: 0.75em;
+  font-weight: 400;
+  opacity: 0.8;
+  white-space: nowrap;
+}
 
 .lh {
   display: inline-flex;

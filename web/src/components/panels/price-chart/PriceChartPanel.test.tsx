@@ -544,6 +544,36 @@ describe("PriceChartPanel", () => {
       expect(fireEvent.click(marker)).toBe(true);
     });
 
+    it("says which share count is an estimate", async () => {
+      serveHistory({
+        ...historyFixture,
+        quarters: historyFixture.quarters.map((q) =>
+          q.label === "Q4 FY25" && q.eps !== null
+            ? {
+                ...q,
+                dilutedShares: {
+                  kind: "derived",
+                  method: "weighted_average_q4",
+                  estimate: true,
+                  inputs: [q.eps],
+                },
+              }
+            : q,
+        ),
+      });
+      await renderReady(
+        <WhenReady>
+          <PriceChartPanel />
+        </WhenReady>,
+      );
+      const marker = within(chart()).getByRole("link", { name: /^Q4 FY25: buyback/ });
+      expect(marker).toHaveAccessibleName(
+        "Q4 FY25: buyback, 195.9M to 191.7M (estimate) diluted shares, -2.1%",
+      );
+      fireEvent.focus(marker);
+      expect(screen.getByRole("tooltip")).toHaveTextContent("Shares195.9M → 191.7M (estimate)");
+    });
+
     it("closes its tooltip on a tap elsewhere, so the next tap is a first tap again", async () => {
       serveHistory({
         ...historyFixture,

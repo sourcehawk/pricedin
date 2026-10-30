@@ -1,4 +1,4 @@
-import { act, fireEvent, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
 import { serveHistory, withApiServer } from "@/api/testing/server";
@@ -188,6 +188,26 @@ describe("FinancialsPanel tiles", () => {
   it("names buybacks when the share count fell", async () => {
     await renderPanel();
     expect(within(tile("Diluted shares")).getByText("-2.0% YoY (buybacks)")).toHaveClass("up");
+  });
+
+  it("says when the latest share count is an estimate", async () => {
+    await renderPanel();
+    expect(within(tile("Diluted shares")).queryByText(/estimate/)).toBeNull();
+    const h = financialsHistory();
+    const last = h.quarters.at(-1);
+    if (last?.dilutedShares == null) {
+      throw new Error("the test data has a share count");
+    }
+    last.dilutedShares = {
+      kind: "derived",
+      method: "weighted_average_q4",
+      estimate: true,
+      inputs: [last.dilutedShares],
+    };
+    serveHistory(h);
+    cleanup();
+    await renderPanel();
+    expect(within(tile("Diluted shares")).getByText("(estimate)")).toBeInTheDocument();
   });
 
   it("names dilution in red when the share count rose", async () => {
