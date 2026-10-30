@@ -1,0 +1,10 @@
+* text=auto eol=lf
+
+pnpm-lock.yaml linguist-generated=true -diff
+server/go.sum linguist-generated=true -diff
+
+# Synthetic price fixtures, written by tools/price-fixtures
+testdata/prices/massive/** linguist-generated=true
+
+# Shared engine cases, written by tools/engine-oracle
+testdata/engine/*.json linguist-generated=true

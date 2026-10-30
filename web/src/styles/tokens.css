@@ -1,0 +1,68 @@
+/*
+ * Design tokens from prototype/pricedin.html. The font variables come from
+ * next/font in src/app/layout.tsx.
+ */
+:root {
+  color-scheme: light;
+  --bg: #eef1f5;
+  --surface: #ffffff;
+  --sunk: #f6f8fb;
+  --ink: #14202e;
+  --muted: #5a6778;
+  --line: #dbe1e9;
+  --accent: #2747c9;
+  --accent-soft: #e3e9ff;
+  --good: #1d9a5a;
+  --warn: #d48a10;
+  --bad: #cf4339;
+  --s3: #0e8a86;
+  --s4: #7c4ddb;
+  --s6: #c2367a;
+  --hl: #ffe45c;
+  --hl-ink: #1d1a05;
+  --f-display: var(--font-bricolage), "Avenir Next", "Segoe UI", sans-serif;
+  --f-body: var(--font-plex-sans), "Segoe UI", system-ui, sans-serif;
+  --f-mono: var(--font-plex-mono), ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0d131a;
+    --surface: #151d27;
+    --sunk: #111821;
+    --ink: #e5ebf2;
+    --muted: #8a97a8;
+    --line: #253141;
+    --accent: #86a0ff;
+    --accent-soft: #1f2b4d;
+    --good: #3dbd7a;
+    --warn: #eea33a;
+    --bad: #ee6a5d;
+    --s3: #3cc8c0;
+    --s4: #b59cff;
+    --s6: #f27ab4;
+    --hl: #ffd93d;
+    --hl-ink: #1d1a05;
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0d131a;
+  --surface: #151d27;
+  --sunk: #111821;
+  --ink: #e5ebf2;
+  --muted: #8a97a8;
+  --line: #253141;
+  --accent: #86a0ff;
+  --accent-soft: #1f2b4d;
+  --good: #3dbd7a;
+  --warn: #eea33a;
+  --bad: #ee6a5d;
+  --s3: #3cc8c0;
+  --s4: #b59cff;
+  --s6: #f27ab4;
+  --hl: #ffd93d;
+  --hl-ink: #1d1a05;
+}

@@ -1,0 +1,35 @@
+{
+  "results": [
+    {
+      "ticker": "KO",
+      "name": "COCA COLA CO",
+      "market": "stocks",
+      "locale": "us",
+      "primary_exchange": "XNYS",
+      "type": "CS",
+      "active": true,
+      "currency_name": "usd",
+      "cik": "0000021344",
+      "composite_figi": "BBGFXF8E157D",
+      "share_class_figi": "BBGFXE6B5621",
+      "last_updated_utc": "2026-10-29T06:00:00Z"
+    },
+    {
+      "ticker": "NVDA",
+      "name": "NVIDIA CORP",
+      "market": "stocks",
+      "locale": "us",
+      "primary_exchange": "XNAS",
+      "type": "CS",
+      "active": true,
+      "currency_name": "usd",
+      "cik": "0001045810",
+      "composite_figi": "BBGFXC37F2C5",
+      "share_class_figi": "BBGFX44BE97A",
+      "last_updated_utc": "2026-10-29T06:00:00Z"
+    }
+  ],
+  "status": "OK",
+  "request_id": "fc19f1ebcd3aeaef523d25e99b41e9c4",
+  "count": 2
+}

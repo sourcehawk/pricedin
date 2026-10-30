@@ -1,0 +1,18 @@
+{
+  "request_id": "1a7567dc74bd08a930f566ca34a1d02f",
+  "results": {
+    "ticker": "GRMN",
+    "name": "Garmin Ltd.",
+    "market": "stocks",
+    "locale": "us",
+    "primary_exchange": "XNYS",
+    "type": "CS",
+    "active": true,
+    "currency_name": "usd",
+    "cik": "0001121788",
+    "composite_figi": "BBGFX1958561",
+    "share_class_figi": "BBGFX32837DC",
+    "last_updated_utc": "2026-10-29T06:00:00Z"
+  },
+  "status": "OK"
+}

@@ -1,0 +1,85 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:best-practices"],
+  "enabledManagers": ["asdf", "gomod", "npm", "github-actions", "dockerfile", "docker-compose"],
+  "timezone": "UTC",
+  "schedule": ["* 0-5 * * 1"],
+  "postUpdateOptions": ["gomodTidy", "pnpmDedupe"],
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["* 0-5 * * 1"]
+  },
+  "packageRules": [
+    {
+      "description": "Next.js and React move together.",
+      "groupName": "Next.js and React",
+      "matchPackageNames": [
+        "next",
+        "eslint-config-next",
+        "@next/**",
+        "react",
+        "react-dom",
+        "@types/react",
+        "@types/react-dom"
+      ]
+    },
+    {
+      "description": "The Playwright package and the browsers it installs move together.",
+      "groupName": "Playwright",
+      "matchPackageNames": ["@playwright/test", "playwright", "playwright-core"]
+    },
+    {
+      "description": "The golangci-lint version in .tool-versions and the action that installs it in CI.",
+      "groupName": "golangci-lint",
+      "matchPackageNames": [
+        "golangci-lint",
+        "golangci/golangci-lint",
+        "golangci/golangci-lint-action"
+      ]
+    },
+    {
+      "description": "Go in .tool-versions, the go directive in go.mod and the golang build image.",
+      "groupName": "Go toolchain",
+      "matchDatasources": ["golang-version", "github-tags", "github-releases", "docker"],
+      "matchPackageNames": ["go", "golang", "golang/go"]
+    },
+    {
+      "description": "Node.js in .tool-versions and the node images of the web Dockerfile.",
+      "groupName": "Node.js",
+      "matchPackageNames": ["nodejs", "node", "nodejs/node", "gcr.io/distroless/nodejs*"]
+    },
+    {
+      "description": "pnpm in .tool-versions and the packageManager field.",
+      "groupName": "pnpm",
+      "matchPackageNames": ["pnpm", "pnpm/pnpm"]
+    },
+    {
+      "description": "TypeScript waits for typescript-eslint support of each new major version.",
+      "matchPackageNames": ["typescript"],
+      "matchUpdateTypes": ["major"],
+      "enabled": false
+    },
+    {
+      "description": "Patch updates of development tooling merge on their own once CI passes.",
+      "matchDepTypes": ["devDependencies"],
+      "matchUpdateTypes": ["patch"],
+      "automerge": true,
+      "automergeType": "pr"
+    },
+    {
+      "description": "Patch updates of the linters in .tool-versions merge on their own once CI passes.",
+      "matchManagers": ["asdf"],
+      "matchPackageNames": [
+        "golangci-lint",
+        "golangci/golangci-lint",
+        "actionlint",
+        "rhysd/actionlint",
+        "shellcheck",
+        "koalaman/shellcheck"
+      ],
+      "matchUpdateTypes": ["patch"],
+      "automerge": true,
+      "automergeType": "pr"
+    }
+  ]
+}

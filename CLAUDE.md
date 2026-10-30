@@ -6,7 +6,15 @@ Product principle: show what must happen for an investment to succeed, not what 
 
 ## Status
 
-The project has one artifact so far: `prototype/pricedin.html`. It is a single self-contained HTML page with inline CSS and JavaScript.
+v1 is in development. The repository has these parts:
+
+- `server/`: Go module `github.com/sourcehawk/pricedin/server`. The `pricedin` command (`cmd/pricedin`) serves `/healthz`, `/readyz` and the metrics. `internal/config` reads the `PRICEDIN_` variables. `internal/domain` holds the types that later packages share.
+- `web/`: Next.js app (App Router, TypeScript) with a placeholder page that uses the prototype's design tokens and fonts.
+- `e2e/`: Playwright tests that run against the Docker Compose stack.
+- `Makefile`: the only entry point for tools, lint, tests, builds, images and the local stack. CI calls only `make` targets. `make` lists them.
+- `docker-compose.yml`: Postgres, the server and the web app. `.env.example` lists every variable.
+
+The prototype `prototype/pricedin.html` is a single self-contained HTML page with inline CSS and JavaScript.
 
 - All company data in it is invented demo data for eight tickers (GRMN, MSFT, GOOGL, AMD, PLTR, COST, KO, NKE). Do not reuse any of these numbers.
 - Treat the prototype as the specification for behavior, calculations, copy and layout. It is not production code. Port its logic into tested modules.
