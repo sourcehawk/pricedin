@@ -17,6 +17,12 @@ describe("safeNext", () => {
     expect(safeNext("/\\evil.example/")).toBe("/");
   });
 
+  it("goes home for a path that a URL parser turns into another site", () => {
+    expect(safeNext("/\n/evil.example")).toBe("/");
+    expect(safeNext("/\t/evil.example")).toBe("/");
+    expect(safeNext("/\u0000x")).toBe("/");
+  });
+
   it("goes home for the login page itself", () => {
     expect(safeNext("/login?next=/")).toBe("/");
   });

@@ -7,16 +7,20 @@ export const sessionCookie = "pricedin_session";
  * another site.
  */
 export function safeNext(next: string | null | undefined): string {
+  // A URL parser drops tabs and newlines, so "/\n/x" would become "//x".
   if (
     next === null ||
     next === undefined ||
     !next.startsWith("/") ||
     next.startsWith("//") ||
     next.startsWith("/\\") ||
-    next === "/login" ||
-    next.startsWith("/login?") ||
-    next.startsWith("/login/")
+    /[\u0000-\u001f\u007f]/.test(next)
   ) {
+    return "/";
+  }
+  const base = "http://pricedin.invalid";
+  const url = new URL(next, base);
+  if (url.origin !== base || url.pathname === "/login" || url.pathname.startsWith("/login/")) {
     return "/";
   }
   return next;
