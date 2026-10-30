@@ -1,0 +1,6 @@
+golang 1.27.3
+nodejs 26.13.0
+pnpm 12.16.1
+golangci-lint 2.15.0
+actionlint 1.7.12
+shellcheck 0.11.0
