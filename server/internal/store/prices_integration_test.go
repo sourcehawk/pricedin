@@ -241,7 +241,7 @@ func TestDividends(t *testing.T) {
 	s, _ := newStore(t)
 	regular := domain.Dividend{
 		Symbol: "KO", ExDate: date(t, "2026-03-13"), PayDate: datePtr(t, "2026-04-01"), DeclarationDate: datePtr(t, "2026-02-12"),
-		CashAmount: 0.51, Currency: "USD", Frequency: 4, Type: "CD", Source: "massive", ProviderID: "D2",
+		CashAmount: 0.437, Currency: "USD", Frequency: 4, Type: "CD", Source: "massive", ProviderID: "D2",
 	}
 	special := domain.Dividend{Symbol: "KO", ExDate: date(t, "2025-12-01"), CashAmount: 1, Currency: "USD", Type: "SC", Source: "massive", ProviderID: "D1"}
 
@@ -254,7 +254,7 @@ func TestDividends(t *testing.T) {
 		t.Fatalf("repeated UpsertDividends() = %d, %v; want 0, nil", n, err)
 	}
 	corrected := regular
-	corrected.CashAmount = 0.52
+	corrected.CashAmount = 0.443
 	n, err = s.UpsertDividends(ctx, []domain.Dividend{corrected})
 	if err != nil || n != 1 {
 		t.Fatalf("UpsertDividends() with a correction = %d, %v; want 1, nil", n, err)
@@ -302,7 +302,7 @@ func TestUpsertDividendsRejectsAnEmptyProviderID(t *testing.T) {
 	ctx := context.Background()
 	s, pool := newStore(t)
 	dividends := []domain.Dividend{
-		{Symbol: "KO", ExDate: date(t, "2026-03-13"), CashAmount: 0.51, Source: "massive", ProviderID: "D1"},
+		{Symbol: "KO", ExDate: date(t, "2026-03-13"), CashAmount: 0.437, Source: "massive", ProviderID: "D1"},
 		{Symbol: "PEP", ExDate: date(t, "2026-03-01"), CashAmount: 1.3, Source: "massive"},
 	}
 	if _, err := s.UpsertDividends(ctx, dividends); err == nil {

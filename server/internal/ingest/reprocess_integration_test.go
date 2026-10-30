@@ -883,7 +883,7 @@ func TestReprocessJoinsAResponseRecordedAcrossMidnight(t *testing.T) {
 	before, after := "2026-10-28T23:59:59Z", "2026-10-29T00:00:01Z"
 	record(t, bs, before, "prices/massive/splits/KO/page-1.json", `{"status":"OK","results":[]}`)
 	record(t, bs, after, "prices/massive/dividends/KO/page-1.json",
-		`{"status":"OK","results":[{"id":"d1","ticker":"KO","ex_dividend_date":"2026-09-15","cash_amount":0.51}]}`)
+		`{"status":"OK","results":[{"id":"d1","ticker":"KO","ex_dividend_date":"2026-09-15","cash_amount":0.437}]}`)
 	const grouped = "prices/massive/grouped/2025-10-29/"
 	record(t, bs, before, grouped+"page-1.json",
 		`{"status":"OK","results":[{"T":"KO","t":1761710400000,"c":70}],"next_url":"https://api.massive.com/v2/aggs?cursor=p2"}`)
@@ -1009,7 +1009,7 @@ func TestReprocessJoinsARepeatedFetchWithTheNextDay(t *testing.T) {
 	record(t, bs, "2026-10-27T12:00:00Z", splits, `{"status":"OK","results":[]}`)
 	record(t, bs, "2026-10-28T23:59:59Z", splits, `{"status":"OK","results":[]}`)
 	record(t, bs, "2026-10-29T00:00:01Z", "prices/massive/dividends/KO/page-1.json",
-		`{"status":"OK","results":[{"id":"d1","ticker":"KO","ex_dividend_date":"2026-09-15","cash_amount":0.51}]}`)
+		`{"status":"OK","results":[{"id":"d1","ticker":"KO","ex_dividend_date":"2026-09-15","cash_amount":0.437}]}`)
 	r, pool := offlineRunner(t, e, bs)
 	must(r.Reprocess(context.Background(), ingest.ReprocessOptions{}))(t)
 	db := &env{pool: pool}
@@ -1082,7 +1082,7 @@ func TestReprocessLoadsTheCorrectionOfTheDayThatCompletedTheDayBefore(t *testing
 	split := func(to string) string {
 		return `{"status":"OK","results":[{"id":"s1","ticker":"KO","execution_date":"2024-06-10","split_from":1,"split_to":` + to + `}]}`
 	}
-	dividends := `{"status":"OK","results":[{"id":"d1","ticker":"KO","ex_dividend_date":"2026-09-15","cash_amount":0.51}]}`
+	dividends := `{"status":"OK","results":[{"id":"d1","ticker":"KO","ex_dividend_date":"2026-09-15","cash_amount":0.437}]}`
 	record(t, bs, "2026-10-28T23:59:59Z", "prices/massive/splits/KO/page-1.json", split("2"))
 	record(t, bs, "2026-10-29T00:00:01Z", "prices/massive/dividends/KO/page-1.json", dividends)
 	// The job of the next day gets the corrected split and the same
