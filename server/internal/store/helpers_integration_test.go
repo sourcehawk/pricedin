@@ -64,6 +64,6 @@ var (
 		CIK: 1001, Name: "Acme Widgets Inc", SIC: "3420", SICDescription: "Cutlery, Handtools & General Hardware",
 		FiscalYearEnd: "1231", StateOfIncorporation: "DE",
 	}
-	globex = domain.Company{CIK: 1002, Name: "Globex Corp", SIC: "7372", FiscalYearEnd: "0630"}
+	globex  = domain.Company{CIK: 1002, Name: "Globex Corp", SIC: "7372", FiscalYearEnd: "0630"}
 	initech = domain.Company{CIK: 1003, Name: "Initech Holdings", FiscalYearEnd: "0131"}
 )

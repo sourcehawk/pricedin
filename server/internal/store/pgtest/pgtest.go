@@ -16,6 +16,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
 	// Registers the "pgx" driver for database/sql, which goose needs.
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/testcontainers/testcontainers-go"
@@ -169,13 +170,13 @@ func newDatabase(tb testing.TB, template string) string {
 	return urlFor(name)
 }
 
-func adminExec(ctx context.Context, sql string) error {
+func adminExec(ctx context.Context, stmt string) error {
 	conn, err := pgx.Connect(ctx, server.adminURL)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = conn.Close(context.WithoutCancel(ctx)) }()
-	_, err = conn.Exec(ctx, sql)
+	_, err = conn.Exec(ctx, stmt)
 	return err
 }
 

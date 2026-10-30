@@ -97,7 +97,7 @@ type APIToken struct {
 	RevokedAt  *time.Time // nil while the token is active
 }
 
-const apiTokenColumns = `id, name, token_hash, created_at, last_used_at, revoked_at`
+const apiTokenColumns = `id, name, token_hash, created_at, last_used_at, revoked_at` //nolint:gosec // G101: column names, not a credential
 
 func scanAPIToken(row pgx.Row) (APIToken, error) {
 	var t APIToken

@@ -4,6 +4,7 @@ package store_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -107,7 +108,7 @@ func TestWithTxRollsBackWhenTheFunctionFails(t *testing.T) {
 		}
 		return errStop
 	})
-	if err != errStop {
+	if !errors.Is(err, errStop) {
 		t.Fatalf("WithTx() error = %v, want the function's error", err)
 	}
 	_, err = s.GetCompany(ctx, acme.CIK)

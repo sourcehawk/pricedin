@@ -24,8 +24,10 @@ var factStage = stage{
 	name: "stage_facts",
 	ddl: `cik bigint, taxonomy text, concept text, unit text, period_start date, period_end date,
 		value numeric, form text, fiscal_year int, fiscal_period text, frame text, filed date, accession text`,
-	columns: []string{"cik", "taxonomy", "concept", "unit", "period_start", "period_end",
-		"value", "form", "fiscal_year", "fiscal_period", "frame", "filed", "accession"},
+	columns: []string{
+		"cik", "taxonomy", "concept", "unit", "period_start", "period_end",
+		"value", "form", "fiscal_year", "fiscal_period", "frame", "filed", "accession",
+	},
 }
 
 // InsertFacts adds the facts that are not stored yet and returns how many it
@@ -36,7 +38,8 @@ var factStage = stage{
 // never change or be removed.
 func (s *Store) InsertFacts(ctx context.Context, facts []domain.Fact) (int64, error) {
 	rows := make([][]any, len(facts))
-	for i, f := range facts {
+	for i := range facts {
+		f := &facts[i]
 		rows[i] = []any{
 			int64(f.CIK), f.Taxonomy, f.Concept, f.Unit, pgDatePtr(f.PeriodStart), pgDate(f.PeriodEnd),
 			f.Value, f.Form, f.FiscalYear, f.FiscalPeriod, f.Frame, pgDate(f.Filed), f.Accession,

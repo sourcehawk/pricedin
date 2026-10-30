@@ -39,8 +39,10 @@ var fundamentalsStage = stage{
 	name: "stage_quarterly_fundamentals",
 	ddl: `fiscal_year int, fiscal_quarter smallint, metric text, value numeric, method text,
 		period_start date, period_end date, filed date, inputs jsonb`,
-	columns: []string{"fiscal_year", "fiscal_quarter", "metric", "value", "method",
-		"period_start", "period_end", "filed", "inputs"},
+	columns: []string{
+		"fiscal_year", "fiscal_quarter", "metric", "value", "method",
+		"period_start", "period_end", "filed", "inputs",
+	},
 }
 
 // ReplaceQuarterlyFundamentals replaces every derived value of the CIK with
@@ -48,13 +50,16 @@ var fundamentalsStage = stage{
 // be a stored company, and each quarter and metric may appear once.
 func (s *Store) ReplaceQuarterlyFundamentals(ctx context.Context, cik domain.CIK, values []QuarterlyValue) error {
 	rows := make([][]any, len(values))
-	for i, v := range values {
+	for i := range values {
+		v := &values[i]
 		inputs := v.Inputs
 		if inputs == nil {
 			inputs = []SourceRef{}
 		}
-		rows[i] = []any{v.FiscalYear, v.FiscalQuarter, v.Metric, v.Value, v.Method,
-			pgDate(v.PeriodStart), pgDate(v.PeriodEnd), pgDate(v.Filed), inputs}
+		rows[i] = []any{
+			v.FiscalYear, v.FiscalQuarter, v.Metric, v.Value, v.Method,
+			pgDate(v.PeriodStart), pgDate(v.PeriodEnd), pgDate(v.Filed), inputs,
+		}
 	}
 	err := s.inTx(ctx, func(tx pgx.Tx) error {
 		if _, err := tx.Exec(ctx, `DELETE FROM quarterly_fundamentals WHERE cik = $1`, int64(cik)); err != nil {

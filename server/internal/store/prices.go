@@ -221,8 +221,10 @@ var dividendStage = stage{
 	name: "stage_dividends",
 	ddl: `ord int, provider_id text, symbol text, ex_dividend_date date, pay_date date, declaration_date date,
 		cash_amount numeric, currency text, frequency int, dividend_type text, source text`,
-	columns: []string{"ord", "provider_id", "symbol", "ex_dividend_date", "pay_date", "declaration_date",
-		"cash_amount", "currency", "frequency", "dividend_type", "source"},
+	columns: []string{
+		"ord", "provider_id", "symbol", "ex_dividend_date", "pay_date", "declaration_date",
+		"cash_amount", "currency", "frequency", "dividend_type", "source",
+	},
 }
 
 // UpsertDividends stores the provider's cash dividends, identified by
@@ -230,9 +232,12 @@ var dividendStage = stage{
 // differ. It returns the number of dividends added or changed.
 func (s *Store) UpsertDividends(ctx context.Context, dividends []domain.Dividend) (int64, error) {
 	rows := make([][]any, len(dividends))
-	for i, d := range dividends {
-		rows[i] = []any{i, d.ProviderID, d.Symbol, pgDate(d.ExDate), pgDatePtr(d.PayDate), pgDatePtr(d.DeclarationDate),
-			d.CashAmount, d.Currency, d.Frequency, d.Type, d.Source}
+	for i := range dividends {
+		d := &dividends[i]
+		rows[i] = []any{
+			i, d.ProviderID, d.Symbol, pgDate(d.ExDate), pgDatePtr(d.PayDate), pgDatePtr(d.DeclarationDate),
+			d.CashAmount, d.Currency, d.Frequency, d.Type, d.Source,
+		}
 	}
 	n, err := s.copyInsert(ctx, dividendStage, rows, `
 		INSERT INTO dividends (provider_id, symbol, ex_dividend_date, pay_date, declaration_date,

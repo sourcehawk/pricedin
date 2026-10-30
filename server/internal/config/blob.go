@@ -48,7 +48,7 @@ const (
 	envBlobS3Endpoint    = "PRICEDIN_BLOB_S3_ENDPOINT"
 	envBlobS3Region      = "PRICEDIN_BLOB_S3_REGION"
 	envBlobS3AccessKeyID = "PRICEDIN_BLOB_S3_ACCESS_KEY_ID"
-	envBlobS3Secret      = "PRICEDIN_BLOB_S3_SECRET_ACCESS_KEY"
+	envBlobS3Secret      = "PRICEDIN_BLOB_S3_SECRET_ACCESS_KEY" //nolint:gosec // G101: a variable name, not a credential
 	envBlobS3PathStyle   = "PRICEDIN_BLOB_S3_PATH_STYLE"
 )
 
