@@ -413,6 +413,8 @@ function MarkerMark({ m, x }: { m: Marker; x: number }) {
           if (tapOpen.current === false) {
             ev.preventDefault();
           }
+          // The rule covers one tap; a later click from the keyboard has no pointerdown.
+          tapOpen.current = null;
           handlers.onClick(ev);
         }}
       >

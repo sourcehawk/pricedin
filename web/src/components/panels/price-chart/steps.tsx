@@ -245,8 +245,8 @@ export function priceSteps(ticker: string): WalkthroughStep[] {
         return (
           <>
             The {lg("var(--s3)")} line is the <b>{multipleLabel(near)}</b> band, the one closest to
-            today&apos;s P/E. <Span c={c} /> the P/E went from <b>{a.toFixed(0)}×</b> to{" "}
-            <b>{z.toFixed(0)}×</b>.{" "}
+            today&apos;s P/E. <Span c={c} /> the P/E went from <b>{times(a)}</b> to{" "}
+            <b>{times(z)}</b>.{" "}
             {b.crossed.length === 0 ? (
               "No band line lies between the first and the last P/E."
             ) : (

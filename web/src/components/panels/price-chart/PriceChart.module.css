@@ -33,13 +33,13 @@
 /* Below this width the chart's text would shrink under 8 px, so the chart scrolls instead. */
 .plot svg {
   min-width: 560px;
-  touch-action: pan-y;
+  touch-action: pan-y pinch-zoom;
 }
 
 /* A horizontal drag scrolls the chart only while it overflows its panel. */
 @container (max-width: 559px) {
   .plot svg {
-    touch-action: pan-x pan-y;
+    touch-action: pan-x pan-y pinch-zoom;
   }
 }
 
