@@ -797,15 +797,16 @@ table.corr {
   padding: 8px;
   margin: -8px;
 }
+/* An outline and a shadow take no space, so a highlight never moves the
+   layout, and with it the page. Padding with a negative margin would
+   replace the element's own margin. */
 [data-tour-on] [data-thl]:not(td):not(.tile):not(.sc):not(svg):not(svg *) {
   border-radius: 6px;
-  padding: 2px 5px;
-  margin: -2px -5px;
+  outline: 2px solid var(--hl);
+  outline-offset: 3px;
   -webkit-box-decoration-break: clone;
   box-decoration-break: clone;
-  box-shadow:
-    0 0 0 2px var(--hl),
-    0 0 16px 2px color-mix(in srgb, var(--hl) 30%, transparent);
+  box-shadow: 0 0 16px 7px color-mix(in srgb, var(--hl) 30%, transparent);
   position: relative;
   z-index: 1;
 }

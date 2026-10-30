@@ -2,6 +2,8 @@ import { expect, test } from "@playwright/test";
 
 const apiURL = process.env.PRICEDIN_E2E_API_URL ?? "http://localhost:8080";
 
+test.use({ storageState: { cookies: [], origins: [] } });
+
 test("a visitor without a session lands on the login page", async ({ page }) => {
   await page.goto("/");
   await expect(page).toHaveURL(/\/login\?next=%2F$/);
