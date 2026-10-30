@@ -47,7 +47,8 @@ export interface StockContextValue {
   dispatch: Dispatch<LeverAction>;
   /** True once the saved levers of this browser are read; the page waits for it before it shows a stock. */
   restored: boolean;
-  profile: ReturnType<typeof useProfile>;
+  /** The profile query. Its data is the profile that was read with the history in use, which can be older than the latest read; its error and refresh status are the query's own. */
+  profile: Omit<ReturnType<typeof useProfile>, "data"> & { data: Profile | undefined };
   history: ReturnType<typeof useHistory>;
   /** The engine's levers; null until the stock gives a price and a TTM EPS. */
   levers: Levers | null;
@@ -138,6 +139,11 @@ export function StockProvider({
     setPaired(profile.data);
   }
   const start = history.isError && paired?.ticker.symbol === state.ticker ? paired : profile.data;
+  const shownProfile = useMemo(
+    (): StockContextValue["profile"] =>
+      start === profile.data ? profile : { ...profile, data: start },
+    [profile, start],
+  );
 
   // The engine and the panels run on a deferred copy of the levers, so a
   // slider drag stays responsive while the panels catch up.
@@ -192,7 +198,7 @@ export function StockProvider({
       state,
       evaluatedState: evaluated,
       restored,
-      profile,
+      profile: shownProfile,
       history,
       levers,
       evaluation: result.ev,
@@ -203,7 +209,7 @@ export function StockProvider({
         dividend: provenanceOf(state.dividend, present(p?.ttmDividend)),
       },
     }),
-    [state, evaluated, restored, profile, history, levers, result, p],
+    [state, evaluated, restored, shownProfile, history, levers, result, p],
   );
   return (
     <DispatchContext value={dispatch}>

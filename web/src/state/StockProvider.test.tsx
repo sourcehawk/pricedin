@@ -131,7 +131,8 @@ describe("StockProvider", () => {
       await waitFor(() => {
         expect(current().history.isError).toBe(true);
       });
-      expect(current().profile.data?.latestClose?.value).toBe(27);
+      // The context shows the profile that was read with the kept history.
+      expect(current().profile.data?.latestClose?.value).toBe(price);
       expect(current().levers?.price).toBe(price);
       expect(current().evaluation).not.toBeNull();
     } finally {
