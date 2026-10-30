@@ -270,8 +270,8 @@ export function priceSteps(ticker: string): WalkthroughStep[] {
           the quarter before. {sq("var(--bad)")}This marker means the count rose: dilution, such as
           new shares or more options. {sq("var(--good)")}This one means it fell, usually through
           buybacks. The count is a quarterly average, so a marker shows the change, not one
-          transaction. After a dilution, EPS grows slower than total profit, because the profit is
-          split over more shares.
+          transaction. After a dilution, the profit or loss is split over more shares, so each share
+          owns a smaller part of it.
         </p>
       ),
       highlight: ["events", "eps"],
@@ -344,7 +344,9 @@ export function priceSteps(ticker: string): WalkthroughStep[] {
       you: withChart((c) => {
         const link = c.link.value;
         if (link === null) {
-          return "Not enough history in this range to measure it.";
+          return "reason" in c.link && c.link.reason === "zero_variance"
+            ? "One of the two 12-month lines does not change in this range, so the correlation cannot be measured."
+            : "Not enough history in this range to measure it.";
         }
         return (
           <>

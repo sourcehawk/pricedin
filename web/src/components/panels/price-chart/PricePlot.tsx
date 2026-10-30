@@ -336,6 +336,8 @@ function MarkerMark({ m, x }: { m: Marker; x: number }) {
   const e = m.event;
   const dilution = e.kind === "dilution";
   const color = dilution ? "var(--bad)" : "var(--good)";
+  // The badge stays inside the view box; the guide stays on the event's day.
+  const bx = Math.min(Math.max(x, 27), width - 27);
   const change = signedPct(e.change, 1);
   const tip = useTip();
   const [node, setNode] = useState<Element | null>(null);
@@ -358,8 +360,8 @@ function MarkerMark({ m, x }: { m: Marker; x: number }) {
       </div>
       <div className="tm">
         {dilution
-          ? "Each share now owns a smaller part of the profit, so EPS grows slower than profit."
-          : "Each remaining share owns a larger part of the profit, so EPS grows faster than profit."}
+          ? "Each share now owns a smaller part of the profit or loss."
+          : "Each remaining share owns a larger part of the profit or loss."}
         {m.href !== null && " Click, or tap again, to open the filing."}
       </div>
     </>
@@ -377,9 +379,9 @@ function MarkerMark({ m, x }: { m: Marker; x: number }) {
         strokeDasharray="2 3"
         pointerEvents="none"
       />
-      <rect x={x - 26} y={bottom - 22} width={52} height={17} rx={8.5} fill={color} />
+      <rect x={bx - 26} y={bottom - 22} width={52} height={17} rx={8.5} fill={color} />
       <text
-        x={x}
+        x={bx}
         y={bottom - 10}
         textAnchor="middle"
         style={{ fill: "var(--surface)", fontWeight: 600, fontSize: 10.5 }}
@@ -538,6 +540,26 @@ export function PricePlot({
     [chart, g, specs, shown, feed, quarters, hover, showTip, moveTip],
   );
 
+  // The tooltip sits at fixed screen coordinates, so a scroll of the page
+  // drops the day. The plot's own scroll that reveals a day keeps it.
+  const revealing = useRef(false);
+  useEffect(() => {
+    const onScroll = (e: Event) => {
+      if (hover.get() === null) {
+        return;
+      }
+      if (revealing.current && e.target === svg.current?.parentElement) {
+        revealing.current = false;
+        return;
+      }
+      clear();
+    };
+    document.addEventListener("scroll", onScroll, { capture: true, passive: true });
+    return () => {
+      document.removeEventListener("scroll", onScroll, { capture: true });
+    };
+  }, [clear, hover]);
+
   // New values for the same days, or other lines, redraw the selected day.
   useEffect(() => {
     const i = hover.get();
@@ -594,8 +616,16 @@ export function PricePlot({
         return;
     }
     e.preventDefault();
-    const b = e.currentTarget.getBoundingClientRect();
     const cx = g.xs[i] ?? left;
+    const box = e.currentTarget.parentElement;
+    if (box !== null && box.scrollWidth > box.clientWidth) {
+      const at = (cx / width) * e.currentTarget.getBoundingClientRect().width;
+      if (at < box.scrollLeft + 20 || at > box.scrollLeft + box.clientWidth - 20) {
+        revealing.current = true;
+        box.scrollLeft = Math.max(0, at - box.clientWidth / 2);
+      }
+    }
+    const b = e.currentTarget.getBoundingClientRect();
     showDay(i, { x: b.left + (cx / width) * b.width, y: b.top + b.height * 0.3 });
     const p = chart.points[i];
     if (live.current !== null && p !== undefined) {
@@ -648,7 +678,7 @@ export function PricePlot({
         {g.ticks.map((k) => (
           <g key={k.label}>
             <line x1={k.x} x2={k.x} y1={bottom} y2={bottom + 4} stroke="var(--muted)" />
-            <text x={k.x} y={bottom + 17} textAnchor="middle">
+            <text x={k.x} y={bottom + 17} textAnchor={k.x > width - 24 ? "end" : "middle"}>
               {k.label}
             </text>
           </g>

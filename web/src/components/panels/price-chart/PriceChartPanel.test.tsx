@@ -205,6 +205,15 @@ describe("PriceChartPanel", () => {
     });
   });
 
+  it("drops a keyboard-selected day when the page scrolls", async () => {
+    await renderReady(<PriceChartPanel />);
+    chart().focus();
+    await userEvent.keyboard("{ArrowLeft}");
+    expect(screen.getByTestId("price-guide")).toHaveAttribute("visibility", "visible");
+    fireEvent.scroll(document);
+    expect(screen.getByTestId("price-guide")).toHaveAttribute("visibility", "hidden");
+  });
+
   it("drops the hovered day when the range changes", async () => {
     await renderReady(<PriceChartPanel />);
     pointer(sizeChart(), "pointermove", "mouse", { clientX: 50, clientY: 100 });
@@ -379,6 +388,10 @@ describe("PriceChartPanel", () => {
       expect(marker).toHaveClass("dilution");
       expect(marker.innerHTML).toContain("var(--bad)");
       expect(marker.innerHTML).not.toContain("var(--good)");
+      const badge = marker.querySelector("rect");
+      expect(
+        Number(badge?.getAttribute("x")) + Number(badge?.getAttribute("width")),
+      ).toBeLessThanOrEqual(760);
     });
 
     it("shows the share counts on the first tap and opens the filing on the second", async () => {

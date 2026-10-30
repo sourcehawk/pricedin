@@ -26,17 +26,19 @@
 }
 
 .plot {
-  touch-action: pan-y;
+  container-type: inline-size;
   overflow-x: auto;
 }
 
 /* Below this width the chart's text would shrink under 8 px, so the chart scrolls instead. */
 .plot svg {
   min-width: 560px;
+  touch-action: pan-y;
 }
 
-@media (max-width: 600px) {
-  .plot {
+/* A horizontal drag scrolls the chart only while it overflows its panel. */
+@container (max-width: 559px) {
+  .plot svg {
     touch-action: pan-x pan-y;
   }
 }
