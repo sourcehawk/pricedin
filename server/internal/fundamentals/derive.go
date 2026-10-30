@@ -306,10 +306,8 @@ func (d *deriver) rejectEstimate(q quarterSpan, year winner, v float64) {
 const shareNeighborDays = 200
 
 // rescaleShares corrects each used share count that is 1,000 or 1,000,000
-// times off. The reference is net income over diluted EPS of the same
-// period, which does not depend on how the filing tags its share counts.
-// Without it, the reference is the median of the counts within
-// shareNeighborDays.
+// times off. The first reference is net income over diluted EPS of the
+// same period, which does not depend on how the filing tags share counts.
 func (d *deriver) rescaleShares() {
 	concept := string(sec.WeightedAverageNumberOfDilutedSharesOutstanding)
 	var keys []periodKey
@@ -389,9 +387,7 @@ func (d *deriver) rescale(k periodKey, ref float64) {
 // A restatement after a split is rounded on the new basis, so subtracting
 // an unrestated value of the old basis, divided by the ratio, loses
 // precision: NVIDIA's FY23 EPS of 1.74 became 0.17 after its 10-for-1
-// split, while the 9M value of 1.17 was never restated. When the two were
-// adjusted by different ratios, the one on the newer basis is replaced by
-// its latest filing on the older basis, if there is one.
+// split, while the 9M value of 1.17 was never restated.
 func (d *deriver) sameBasis(c sec.Concept, pa span, a winner, pb span, b winner) (winner, winner) {
 	switch {
 	case a.obs.ratio < b.obs.ratio:

@@ -132,13 +132,14 @@ const (
 	// ConflictSplitMismatch is a restatement across a confirmed split that
 	// the split ratio does not explain.
 	ConflictSplitMismatch ConflictKind = "split_mismatch"
-	// ConflictShareScale is a share count that is 1,000 or 1,000,000 times
-	// off, a known tagging error. When two filings of one period disagree
-	// by that factor, the larger value is used. When net income over EPS
-	// of the period, or the neighboring counts, show that the used count
-	// is off, it is rescaled: Original is zero and Observed is the factor.
-	// When the inputs of a Q4 estimate differ in scale, Q4 has no count:
-	// Restated is the full year and Observed the input or result over it.
+	// ConflictShareScale is a share count on a scale that does not match
+	// another filing or a reference value, for example 1,000 or 1,000,000
+	// times off. When two filings of one period disagree by that factor,
+	// the larger value is used. When a used count is rescaled, Original is
+	// zero and Observed is the factor that multiplied it, 1,000 or
+	// 1,000,000. When an input or the result of a Q4 estimate differs in
+	// scale from the full year, Q4 gets no estimated count: Restated is the
+	// full year and Observed the input or result over it.
 	ConflictShareScale ConflictKind = "share_scale"
 	// ConflictSplitEvidence is a split that SEC data gives and that no
 	// provider event matches, although the provider was checked. When a
