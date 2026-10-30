@@ -26,10 +26,14 @@ function stats(s: Record<string, number>): string {
   return parts.length === 0 ? "none" : parts.join(", ");
 }
 
-/** latestSecRun is the newest successful run of an SEC job, the freshness of the filings. */
+// The ingestion jobs that read new filings for every company. sec-tickers
+// reads only the ticker map, and a company load covers one company.
+const filingJobs: ReadonlySet<string> = new Set(["sec-bulk", "sec-daily", "daily"]);
+
+/** latestSecRun is the newest successful run of a job that reads filings, the freshness of the filings. */
 function latestSecRun(runs: readonly IngestRun[]): IngestRun | undefined {
   return runs
-    .filter((r) => r.job.startsWith("sec-") && r.status === "succeeded" && r.finishedAt !== null)
+    .filter((r) => filingJobs.has(r.job) && r.status === "succeeded" && r.finishedAt !== null)
     .sort((a, b) => ((a.finishedAt ?? "") < (b.finishedAt ?? "") ? 1 : -1))[0];
 }
 

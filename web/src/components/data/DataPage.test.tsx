@@ -37,6 +37,33 @@ describe("DataPage", () => {
     );
   });
 
+  it("dates the SEC filings by a job that fetches filings, not by the ticker map", async () => {
+    apiServer.use(
+      http.get(apiUrl("/api/v1/status"), () =>
+        HttpResponse.json({
+          ...statusFixture,
+          ingestRuns: [
+            ...statusFixture.ingestRuns,
+            {
+              id: 12,
+              job: "sec-tickers",
+              startedAt: "2026-10-30T01:00:00Z",
+              finishedAt: "2026-10-30T01:00:05Z",
+              status: "succeeded",
+              abandoned: false,
+              stats: {},
+              error: "",
+            },
+          ],
+        }),
+      ),
+    );
+    renderWithStock(<DataPage />);
+    const tile = (await screen.findByText("SEC filings")).closest(".tile");
+    expect(tile).toHaveTextContent("2026-10-28");
+    expect(tile).toHaveTextContent("last read by sec-bulk");
+  });
+
   it("marks a run that a dead process left behind", async () => {
     renderWithStock(<DataPage />);
     const row = await screen.findByRole("row", { name: /prices-backfill/ });
