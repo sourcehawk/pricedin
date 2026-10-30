@@ -27,7 +27,7 @@ status: consumer-wave
 | Issue | Branch | Worktree path | PR (→ base) | Status |
 | --- | --- | --- | --- | --- |
 | planning | docs/pricedin-v1-plan | (main checkout) | #18 → main | self-merged |
-| #2 | chore/project-foundation | .claude/worktrees/project-foundation | #19 → main | ready |
+| #2 | chore/project-foundation | (removed) | #19 → main | self-merged |
 | #3 | feat/go-engine | .claude/worktrees/go-engine | → main | in-progress |
 | #4 | feat/database-store | .claude/worktrees/database-store | → main | in-progress |
 | #5 | feat/sec-client | .claude/worktrees/sec-client | → main | in-progress |
@@ -48,7 +48,7 @@ status: consumer-wave
 
 | Name | Realization | Realized in | Status |
 | --- | --- | --- | --- |
-| `domain-types` | pre-merge stub (inside #2) | #2 | pending |
+| `domain-types` | pre-merge stub (inside #2) | #19 | locked |
 | `engine-io` | data-only (cases file) | #3 | pending |
 | `engine-cases` | data-only | #3 | pending |
 | `raw-recorder` | data-only | #5, #6 | pending |
@@ -60,6 +60,7 @@ status: consumer-wave
 
 ## Bubble-up log
 
+- 2026-10-30: #19 merged (946668d). A `main` ruleset now requires the `ci-ok` check, blocks force-pushes and deletion, and runs Copilot code review on every push, so the review loop waits for the push-triggered review instead of re-requesting.
 - 2026-10-30: Wave 2 (#3-#6) started before #19 merged, from foundation head 140abf3. Each agent waits for #19 on main, then runs `git rebase --onto origin/main 140abf3` before opening its PR.
 - 2026-10-30: Copilot review of the planning PR (#18) added the spec section "Corrections to the prototype" (median, exact-baseline grid row, chart scales, band hover layering, scenario walkthrough), the `raw-recorder` contract with dated, hashed keys, the duration-weighted Q4 share rule, explicit dated split evidence, and the narrowed Origin check. Wave-2 briefs carry them.
 - 2026-10-30: Stooq requires a CAPTCHA-gated key and a JS browser check. The owner chose Massive Stocks Starter. Spec, plan and `CLAUDE.md` updated. Do not bypass Stooq's check.
@@ -67,7 +68,6 @@ status: consumer-wave
 
 ## Pending snapshot
 
-1. #2 (foundation) is being built by a subagent in `.claude/worktrees/project-foundation`. When its PR is open: Copilot review loop, orchestrator review, merge.
 2. Fan out wave 2 (#3, #4, #5, #6) with subagents in worktrees. Dispatch briefs are drafted in the session scratchpad (common-brief.md, brief-3..6.md); if they are lost, rebuild them from the plan.
 3. The orchestrator keeps this file on branch `chore/orchestration-state` in the main checkout and lands it on main through a PR at wave checkpoints.
 
