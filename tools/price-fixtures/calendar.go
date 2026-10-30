@@ -5,7 +5,7 @@ import "time"
 // This file copies the NYSE calendar of server/internal/prices, because a
 // program outside the server module cannot import its internal packages.
 // A test in server/internal/prices/massive checks that the dates of the
-// committed grouped fixtures are exactly the server's trading days.
+// committed aggs fixtures are exactly the server's trading days.
 
 // tradingDays returns the trading days from from to to, both included.
 // The times are midnight UTC.

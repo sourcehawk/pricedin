@@ -39,7 +39,23 @@ func fixtureDays() []domain.Date {
 	return prices.TradingDays(date("2021-11-01"), date("2026-10-29"))
 }
 
-func TestGroupedFixturesExistForEveryTradingDayAndDecode(t *testing.T) {
+// The generator writes grouped files only for the last trading days of the
+// range. A fixture server builds the other days from the aggs files.
+const groupedFixtureDays = 10
+
+func TestGroupedFixturesCoverTheLastTradingDaysAndMatchTheAggs(t *testing.T) {
+	aggsBar := map[string]map[domain.Date]domain.PriceBar{}
+	for _, sym := range fixtureSymbols() {
+		page, err := massive.ParseDailyBars(readFixture(t, "aggs/"+sym+".json"))
+		if err != nil {
+			t.Fatalf("%s: %v", sym, err)
+		}
+		aggsBar[sym] = map[domain.Date]domain.PriceBar{}
+		for _, b := range page.Items {
+			aggsBar[sym][b.Date] = b
+		}
+	}
+
 	entries, err := os.ReadDir(filepath.Join(fixtureDir, "grouped"))
 	if err != nil {
 		t.Fatal(err)
@@ -56,16 +72,17 @@ func TestGroupedFixturesExistForEveryTradingDayAndDecode(t *testing.T) {
 		symbols := make([]string, 0, len(page.Items))
 		for _, b := range page.Items {
 			symbols = append(symbols, b.Symbol)
-			if b.Date != day {
-				t.Errorf("%s: %s bar is dated %s", e.Name(), b.Symbol, b.Date)
+			if diff := cmp.Diff(aggsBar[b.Symbol][day], b); diff != "" {
+				t.Errorf("%s: %s bar differs from its aggs bar (-aggs +grouped):\n%s", e.Name(), b.Symbol, diff)
 			}
 		}
 		if !slices.Equal(fixtureSymbols(), symbols) {
 			t.Errorf("%s: symbols %v, want %v", e.Name(), symbols, fixtureSymbols())
 		}
 	}
-	if diff := cmp.Diff(fixtureDays(), got); diff != "" {
-		t.Errorf("grouped fixture dates differ from prices.TradingDays (-want +got):\n%s", diff)
+	days := fixtureDays()
+	if diff := cmp.Diff(days[len(days)-groupedFixtureDays:], got); diff != "" {
+		t.Errorf("grouped fixture dates differ from the last %d prices.TradingDays (-want +got):\n%s", groupedFixtureDays, diff)
 	}
 }
 

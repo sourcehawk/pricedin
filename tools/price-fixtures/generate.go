@@ -89,7 +89,10 @@ type anchor struct {
 }
 
 const (
-	nextURLBase = "https://api.massive.com/v3/reference/tickers?cursor=page-"
+	// defaultGroupedDays is the number of trading days with a grouped file
+	// in the committed fixtures.
+	defaultGroupedDays = 10
+	nextURLBase        = "https://api.massive.com/v3/reference/tickers?cursor=page-"
 	// meanReversion pulls the log price back toward its trend, so that a
 	// five-year walk stays at a plausible level.
 	meanReversion = 1.5
@@ -137,8 +140,10 @@ type bar struct {
 }
 
 // generate returns the content of every fixture file by its path relative
-// to the output folder. dir is the folder of the config file.
-func generate(cfg config, dir string) (map[string][]byte, error) {
+// to the output folder. dir is the folder of the config file. groupedDays
+// is the number of trading days at the end of the range that get a grouped
+// file; 0 or less gives every trading day one.
+func generate(cfg config, dir string, groupedDays int) (map[string][]byte, error) {
 	from, err := parseDay(cfg.From)
 	if err != nil {
 		return nil, fmt.Errorf("from: %w", err)
@@ -184,7 +189,11 @@ func generate(cfg config, dir string) (map[string][]byte, error) {
 		}
 		g.overview(&s.cfg, to)
 	}
-	g.grouped(all, days)
+	window := days
+	if groupedDays > 0 && groupedDays < len(days) {
+		window = days[len(days)-groupedDays:]
+	}
+	g.grouped(all, days, window)
 	g.tickerPages(tickers, cfg.TickersPageSize, to)
 	return g.files, nil
 }
@@ -381,8 +390,11 @@ func (g *generator) aggs(s *series) {
 	g.files[path] = barsDocument(head, s.bars, g.requestID(path))
 }
 
-func (g *generator) grouped(all []series, days []time.Time) {
-	for i, d := range days {
+// grouped writes a grouped file for each day of window, a tail of days.
+func (g *generator) grouped(all []series, days, window []time.Time) {
+	offset := len(days) - len(window)
+	for k, d := range window {
+		i := offset + k
 		path := "grouped/" + d.Format(time.DateOnly) + ".json"
 		results := make([]bar, 0, len(all))
 		for j := range all {

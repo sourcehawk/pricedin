@@ -70,9 +70,16 @@ func baseConfig() config {
 	}
 }
 
+// mustGenerate writes grouped files for every trading day, unless a test
+// asks for a window with mustGenerateWindow.
 func mustGenerate(t *testing.T, cfg config, dir string) map[string][]byte {
 	t.Helper()
-	files, err := generate(cfg, dir)
+	return mustGenerateWindow(t, cfg, dir, 0)
+}
+
+func mustGenerateWindow(t *testing.T, cfg config, dir string, groupedDays int) map[string][]byte {
+	t.Helper()
+	files, err := generate(cfg, dir, groupedDays)
 	if err != nil {
 		t.Fatalf("generate() error = %v", err)
 	}
@@ -178,6 +185,46 @@ func TestGroupedFilesCoverEveryTradingDayAndTicker(t *testing.T) {
 	if g.ResultsCount != 2 || g.Adjusted || g.Status != "OK" {
 		t.Errorf("grouped header = count %d, adjusted %t, status %q", g.ResultsCount, g.Adjusted, g.Status)
 	}
+}
+
+func TestGroupedFilesCoverOnlyTheLastTradingDaysOfTheWindow(t *testing.T) {
+	files := mustGenerateWindow(t, baseConfig(), t.TempDir(), 3)
+	var got []string
+	for path := range files {
+		if day, ok := strings.CutPrefix(path, "grouped/"); ok {
+			got = append(got, strings.TrimSuffix(day, ".json"))
+		}
+	}
+	slices.Sort(got)
+	// 2024-12-25 is Christmas Day.
+	want := []string{"2024-12-27", "2024-12-30", "2024-12-31"}
+	if !slices.Equal(want, got) {
+		t.Errorf("grouped dates = %v, want %v", got, want)
+	}
+	if _, ok := files["aggs/AAA.json"]; !ok {
+		t.Error("no aggs/AAA.json; the aggs files must still cover the whole range")
+	}
+}
+
+func TestGroupedBarsEqualTheAggsBarsOfTheSameDay(t *testing.T) {
+	files := mustGenerate(t, baseConfig(), t.TempDir())
+	aggs := decodeFile[testAggs](t, files, "aggs/BBB.json")
+	var fromAggs testBar
+	for _, b := range aggs.Results {
+		if sessionDate(b.Ts) == "2024-06-10" {
+			fromAggs = b
+		}
+	}
+	for _, b := range decodeFile[testAggs](t, files, "grouped/2024-06-10.json").Results {
+		if b.T == "BBB" {
+			b.T = ""
+			if b != fromAggs {
+				t.Errorf("grouped bar %+v, want the aggs bar %+v", b, fromAggs)
+			}
+			return
+		}
+	}
+	t.Error("no BBB bar in grouped/2024-06-10.json")
 }
 
 func TestBarsAreConsistent(t *testing.T) {
@@ -338,7 +385,7 @@ func TestInvalidConfigurationIsRejected(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			cfg := baseConfig()
 			change(&cfg)
-			if _, err := generate(cfg, t.TempDir()); err == nil {
+			if _, err := generate(cfg, t.TempDir(), 0); err == nil {
 				t.Error("generate() error = nil, want an error")
 			}
 		})
@@ -350,7 +397,7 @@ func TestCommittedFixturesMatchTheGenerator(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := mustGenerate(t, cfg, ".")
+	want := mustGenerateWindow(t, cfg, ".", defaultGroupedDays)
 	root := filepath.Join("..", "..", "testdata", "prices", "massive")
 	got := map[string][]byte{}
 	err = filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {

@@ -14,7 +14,7 @@ func mustDate(s string) time.Time {
 }
 
 // The full trading calendar is checked against the server's calendar in
-// server/internal/prices/massive, through the committed grouped fixtures.
+// server/internal/prices/massive, through the committed aggs fixtures.
 func TestIsTradingDay(t *testing.T) {
 	tests := map[string]bool{
 		"2024-06-10": true,
