@@ -28,8 +28,8 @@ export interface Tip {
   show: (owner: Element, content: ReactNode, at?: { x: number; y: number }) => void;
   /** Moves the tooltip of owner to the pointer. */
   move: (owner: Element, at: { x: number; y: number }) => void;
-  /** Replaces the content of the tooltip of owner, where it is; does nothing when owner shows none. */
-  update: (owner: Element, content: ReactNode) => void;
+  /** Replaces the content of the tooltip of owner, where it is; does nothing, and calls no content, when owner shows none. */
+  update: (owner: Element, content: () => ReactNode) => void;
   /** Hides the tooltip when owner shows it, or any tooltip without owner. */
   hide: (owner?: Element) => void;
   /** Hides the tooltip of owner soon, unless the pointer moves onto the tooltip first. */
@@ -65,8 +65,8 @@ export function TipProvider({ children }: { children: ReactNode }) {
   const move = useCallback((owner: Element, at: { x: number; y: number }) => {
     setTip((t) => (t !== null && t.owner === owner ? { ...t, at } : t));
   }, []);
-  const update = useCallback((owner: Element, content: ReactNode) => {
-    setTip((t) => (t !== null && t.owner === owner ? { ...t, content } : t));
+  const update = useCallback((owner: Element, content: () => ReactNode) => {
+    setTip((t) => (t !== null && t.owner === owner ? { ...t, content: content() } : t));
   }, []);
   const hide = useCallback(
     (owner?: Element) => {
@@ -213,7 +213,7 @@ export function useTipHandlers(content: () => ReactNode, data?: unknown) {
   const { update, hide } = tip;
   useEffect(() => {
     if (node !== null) {
-      update(node, latest.current());
+      update(node, () => latest.current());
     }
   }, [data, node, update]);
   useEffect(

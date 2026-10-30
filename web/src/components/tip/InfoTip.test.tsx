@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { InfoTip } from "./InfoTip";
-import { TipProvider, useTip } from "./TipProvider";
+import { TipProvider, useTip, useTipHandlers } from "./TipProvider";
 
 /** Elsewhere is another element with a tooltip of its own, which a click hides. */
 function Elsewhere() {
@@ -120,5 +120,53 @@ describe("InfoTip", () => {
     await waitFor(() => {
       expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
     });
+  });
+});
+
+describe("useTipHandlers", () => {
+  function Item({ data, content }: { data: number; content: () => string }) {
+    const handlers = useTipHandlers(content, data);
+    return (
+      <button type="button" {...handlers}>
+        item
+      </button>
+    );
+  }
+
+  it("computes no content for a tooltip that is not open", () => {
+    let calls = 0;
+    const content = () => {
+      calls++;
+      return "tip";
+    };
+    const { rerender } = render(
+      <TipProvider>
+        <Item data={1} content={content} />
+      </TipProvider>,
+    );
+    rerender(
+      <TipProvider>
+        <Item data={2} content={content} />
+      </TipProvider>,
+    );
+    expect(calls).toBe(0);
+  });
+
+  it("shows new content in an open tooltip when its data changes", () => {
+    const { rerender } = render(
+      <TipProvider>
+        <Item data={1} content={() => "one"} />
+      </TipProvider>,
+    );
+    act(() => {
+      screen.getByRole("button", { name: "item" }).focus();
+    });
+    expect(screen.getByRole("tooltip")).toHaveTextContent("one");
+    rerender(
+      <TipProvider>
+        <Item data={2} content={() => "two"} />
+      </TipProvider>,
+    );
+    expect(screen.getByRole("tooltip")).toHaveTextContent("two");
   });
 });
