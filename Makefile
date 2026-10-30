@@ -156,12 +156,16 @@ endif
 
 # --- Tests --------------------------------------------------------------------
 .PHONY: test
-test: test-server test-web ## Run the Go and web unit tests
+test: test-server test-web test-scripts ## Run the Go, web and shell script unit tests
 
 .PHONY: test-server
 test-server: ## Run the Go unit tests with the race detector
 	cd $(SERVER_DIR) && $(GO) test -race ./...
 	cd $(PRICE_FIXTURES_DIR) && $(GO) test -race ./...
+
+.PHONY: test-scripts
+test-scripts: ## Run the tests of the shell scripts in scripts/
+	scripts/deploy-gate_test.sh
 
 .PHONY: test-integration
 test-integration: ## Run the Go integration tests (build tag integration)
