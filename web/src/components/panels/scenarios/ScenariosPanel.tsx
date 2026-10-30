@@ -114,6 +114,9 @@ export function ScenariosPanel() {
       you: (e) => {
         const s = e.scenarios;
         const meeting = s.meetingTarget;
+        if (s.cases.every((c) => c.result.value === null)) {
+          return <>No case has a return: {noReturnReason(e)}.</>;
+        }
         return (
           <>
             Returns a year:{" "}
@@ -151,12 +154,15 @@ export function ScenariosPanel() {
           </>
         );
       },
-      takeaway: (e) => (
-        <>
-          <strong>{ticker} in one line:</strong> {verdictLine(e)} Worst case:{" "}
-          {signedPct(e.scenarios.worstYearlyReturn.value)} a year.
-        </>
-      ),
+      takeaway: (e) => {
+        const worst = e.scenarios.worstYearlyReturn.value;
+        return (
+          <>
+            <strong>{ticker} in one line:</strong> {verdictLine(e)}
+            {worst !== null && <> Worst case: {signedPct(worst)} a year.</>}
+          </>
+        );
+      },
     },
   ];
 
@@ -194,10 +200,36 @@ export function ScenariosPanel() {
   );
 }
 
-/** verdictLine names the cases that meet the target and the ones that do not. */
+/** noReturnReason says why the cases have no return, as a lower-case clause. */
+function noReturnReason(e: Evaluation): string {
+  const first = e.scenarios.cases[0]?.result;
+  return first !== undefined && "reason" in first && first.reason === "needs_positive_eps"
+    ? "returns need positive EPS"
+    : "the inputs give none";
+}
+
+/** verdictLine names the cases that meet the target, the ones that do not, and the ones without a return. */
 function verdictLine(e: Evaluation): string {
+  const cases = e.scenarios.cases;
   const meeting = e.scenarios.meetingTarget;
-  const others = e.scenarios.cases.map((c) => c.name).filter((name) => !meeting.includes(name));
+  const missing = cases.filter((c) => c.result.value === null).map((c) => c.name);
+  if (missing.length === cases.length) {
+    return `no case has a return, because ${noReturnReason(e)}.`;
+  }
+  const others = cases
+    .filter((c) => c.result.value !== null && !meeting.includes(c.name))
+    .map((c) => c.name);
+  const tail =
+    missing.length === 0
+      ? ""
+      : ` ${joinNames(missing)} ${missing.length > 1 ? "have" : "has"} no return.`;
+  if (missing.length > 0 && others.length === 0) {
+    return `${joinNames(meeting)} ${meeting.length > 1 ? "beat" : "beats"} your target.${tail}`;
+  }
+  return verdictOf(meeting, others) + tail;
+}
+
+function verdictOf(meeting: readonly string[], others: readonly string[]): string {
   if (others.length === 0) {
     return "every case beats your target, so the price leaves room for mistakes.";
   }

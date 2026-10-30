@@ -156,6 +156,37 @@ describe("the walkthrough of the three cases", () => {
     );
   });
 
+  it("says that no case has a return without positive EPS", async () => {
+    const { tour, next } = await start(
+      leversWith({ type: "setStartingPoint", field: "ttmEps", value: -1 }),
+    );
+    for (let i = 0; i < 3; i++) {
+      await next();
+    }
+    expect(tour).toHaveTextContent("No case has a return: returns need positive EPS.");
+    await next();
+    expect(tour).toHaveTextContent(
+      "GRMN in one line: no case has a return, because returns need positive EPS.",
+    );
+    expect(tour).not.toHaveTextContent("best case");
+    expect(tour).not.toHaveTextContent("Worst case");
+  });
+
+  it("names a case without a return apart from the cases that miss", async () => {
+    const cases: ScenarioCase[] = [
+      { name: "Bear", growth: 0.1, exitPe: 15 },
+      { name: "Base", growth: 0.3, exitPe: 30 },
+      { name: "Bull", growth: 20, exitPe: 24 },
+    ];
+    const { tour, next } = await start(leversWith({ type: "setScenarios", cases }));
+    for (let i = 0; i < 4; i++) {
+      await next();
+    }
+    expect(tour).toHaveTextContent(
+      "GRMN in one line: Base beats your target, but Bear does not. Bull has no return.",
+    );
+  });
+
   it("says when no case meets the target", async () => {
     const { tour, next } = await start(leversWith({ type: "setTargetReturn", value: 0.5 }));
     for (let i = 0; i < 4; i++) {
