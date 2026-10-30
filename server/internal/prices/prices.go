@@ -16,11 +16,17 @@ import (
 // list of US stocks. Every price is raw: not adjusted for splits or
 // dividends. Use AdjustForSplits with the provider's splits to adjust.
 //
-// A call for data that the provider does not have yet, or does not have for
-// that date, such as a market holiday or a day that is not over, returns an
-// empty slice and no error. A call for data outside what the provider's
-// plan covers, such as history that is too old, returns an error that wraps
-// ErrNotAuthorized. Each method returns its results sorted by date, or by
+// No method returns a bar of a session that is not over. A session is over
+// from SessionOverHour in New York on its day. GroupedDaily for a later date
+// returns an empty slice, and DailyBars leaves out the part of its range
+// after the last session that is over.
+//
+// A call for data that the provider does not have for that date, such as a
+// market holiday, returns an empty slice and no error. A call for data
+// outside what the provider's plan covers, such as history that is too old,
+// returns an error that wraps ErrNotAuthorized. DailyBars for a range that
+// starts before the plan's history and ends inside it returns the bars that
+// the plan covers. Each method returns its results sorted by date, or by
 // symbol for Tickers.
 type Provider interface {
 	// Name identifies the provider. It is the Source of every value the
@@ -59,6 +65,10 @@ type ProviderTicker struct {
 	CompositeFIGI string
 	Source        string
 }
+
+// SessionOverHour is the hour in New York from which a provider counts the
+// session of that day as over, four hours after the 16:00 close.
+const SessionOverHour = 20
 
 // ErrNotAuthorized means that the provider's plan does not cover the
 // requested data, such as history older than the plan allows.

@@ -181,14 +181,6 @@ func TestEmptyResultsAreNotAnError(t *testing.T) {
 			},
 		},
 		{
-			name: "grouped daily of a day that is not over",
-			body: `{"queryCount":0,"resultsCount":0,"adjusted":false,"status":"DELAYED","request_id":"r1"}`,
-			call: func(ctx context.Context, c *massive.Client) (int, error) {
-				bars, err := c.GroupedDaily(ctx, date("2026-10-30"))
-				return len(bars), err
-			},
-		},
-		{
 			name: "daily bars of an unknown symbol",
 			body: `{"ticker":"ZZZZ","queryCount":0,"resultsCount":0,"adjusted":false,"status":"OK","request_id":"r1"}`,
 			call: func(ctx context.Context, c *massive.Client) (int, error) {
@@ -234,18 +226,85 @@ func TestDataOutsideThePlanIsNotAuthorized(t *testing.T) {
 	}
 }
 
-func TestDataThatIsNotPublishedYetIsEmpty(t *testing.T) {
-	// Massive answers NOT_AUTHORIZED for a day that has not ended yet.
-	srv := httptest.NewServer(serveStatus(http.StatusForbidden, notAuthorizedBody))
-	defer srv.Close()
+// newYorkTime returns a moment in New York.
+func newYorkTime(t *testing.T, s string) time.Time {
+	t.Helper()
 	newYork, err := time.LoadLocation("America/New_York")
 	if err != nil {
 		t.Fatal(err)
 	}
-	c := newClient(t, srv, func(o *massive.Options) {
-		// 22:30 in New York on October 30 is already October 31 in UTC.
-		o.Now = func() time.Time { return time.Date(2026, time.October, 30, 22, 30, 0, 0, newYork) }
-	})
+	tm, err := time.ParseInLocation("2006-01-02 15:04", s, newYork)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return tm
+}
+
+// sessionServer serves a grouped daily answer and a per-ticker answer with
+// one bar on each of 2026-10-28, 2026-10-29 and 2026-10-30, and records the
+// paths it was asked for.
+func sessionServer(t *testing.T) (*httptest.Server, *[]string) {
+	t.Helper()
+	var mu sync.Mutex
+	var paths []string
+	// Midnight in New York of 2026-10-28, 2026-10-29 and 2026-10-30.
+	bars := `[{"T":"AAPL","o":1,"h":1,"l":1,"c":1,"v":1,"t":1793160000000},{"T":"AAPL","o":1,"h":1,"l":1,"c":2,"v":1,"t":1793246400000},{"T":"AAPL","o":1,"h":1,"l":1,"c":3,"v":1,"t":1793332800000}]`
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		paths = append(paths, r.URL.Path)
+		mu.Unlock()
+		if strings.HasPrefix(r.URL.Path, "/v2/aggs/grouped/") {
+			serveJSON(`{"status":"DELAYED","results":[{"T":"AAPL","o":1,"h":1,"l":1,"c":3,"v":1,"t":1793332800000}]}`)(w, r)
+			return
+		}
+		serveJSON(`{"ticker":"AAPL","status":"DELAYED","results":` + bars + `}`)(w, r)
+	}))
+	t.Cleanup(srv.Close)
+	return srv, &paths
+}
+
+func TestASessionIsOverAt20InNewYork(t *testing.T) {
+	tests := []struct {
+		now       string
+		wantLast  string // the date of the last bar that DailyBars returns
+		wantGroup bool   // whether GroupedDaily(2026-10-30) asks Massive
+	}{
+		{"2026-10-30 19:59", "2026-10-29", false},
+		{"2026-10-30 20:00", "2026-10-30", true},
+		{"2026-10-31 10:00", "2026-10-30", true}, // a Saturday
+		{"2026-10-30 09:00", "2026-10-29", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.now, func(t *testing.T) {
+			srv, paths := sessionServer(t)
+			c := newClient(t, srv, func(o *massive.Options) { o.Now = func() time.Time { return newYorkTime(t, tt.now) } })
+
+			bars, err := c.DailyBars(t.Context(), "AAPL", date("2026-10-28"), date("2026-11-06"))
+			if err != nil {
+				t.Fatalf("DailyBars() error = %v", err)
+			}
+			if got := bars[len(bars)-1].Date.String(); got != tt.wantLast {
+				t.Errorf("last bar of DailyBars = %s, want %s", got, tt.wantLast)
+			}
+			if want := "/v2/aggs/ticker/AAPL/range/1/day/2026-10-28/" + tt.wantLast; (*paths)[0] != want {
+				t.Errorf("DailyBars asked for %s, want %s (to cut to the last finished session)", (*paths)[0], want)
+			}
+
+			grouped, err := c.GroupedDaily(t.Context(), date("2026-10-30"))
+			if err != nil {
+				t.Fatalf("GroupedDaily() error = %v", err)
+			}
+			asked := len(*paths) == 2
+			if asked != tt.wantGroup || (len(grouped) > 0) != tt.wantGroup {
+				t.Errorf("GroupedDaily(2026-10-30): asked Massive %t with %d bars, want %t", asked, len(grouped), tt.wantGroup)
+			}
+		})
+	}
+}
+
+func TestDataAfterTheLastFinishedSessionIsEmptyWithoutARequest(t *testing.T) {
+	srv, paths := sessionServer(t)
+	c := newClient(t, srv, func(o *massive.Options) { o.Now = func() time.Time { return newYorkTime(t, "2026-10-30 15:00") } })
 
 	for _, d := range []string{"2026-10-30", "2026-11-05"} {
 		bars, err := c.GroupedDaily(t.Context(), date(d))
@@ -257,8 +316,28 @@ func TestDataThatIsNotPublishedYetIsEmpty(t *testing.T) {
 	if err != nil || len(bars) != 0 {
 		t.Errorf("DailyBars(from today) = %v, %v; want no bars and no error", bars, err)
 	}
-	if _, err := c.DailyBars(t.Context(), "AAPL", date("2026-10-29"), date("2026-11-06")); !errors.Is(err, prices.ErrNotAuthorized) {
-		t.Errorf("DailyBars(from yesterday) error = %v, want ErrNotAuthorized", err)
+	if len(*paths) != 0 {
+		t.Errorf("requests = %v, want none", *paths)
+	}
+}
+
+func TestBarsOfAnUnfinishedSessionAreDropped(t *testing.T) {
+	// The server answers a request that ends on 2026-10-29 with a bar of
+	// 2026-10-30 too, as a provider that does not respect the range could.
+	srv, _ := sessionServer(t)
+	c := newClient(t, srv, func(o *massive.Options) { o.Now = func() time.Time { return newYorkTime(t, "2026-10-30 15:00") } })
+
+	bars, err := c.DailyBars(t.Context(), "AAPL", date("2026-10-28"), date("2026-10-30"))
+	if err != nil {
+		t.Fatalf("DailyBars() error = %v", err)
+	}
+	for _, b := range bars {
+		if b.Date.After(date("2026-10-29")) {
+			t.Errorf("DailyBars returned a bar of %s, a session that is not over", b.Date)
+		}
+	}
+	if len(bars) != 2 {
+		t.Errorf("DailyBars returned %d bars, want the 2 of the finished sessions", len(bars))
 	}
 }
 

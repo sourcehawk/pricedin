@@ -148,14 +148,16 @@ func (c *Client) Name() string { return source }
 // GroupedDaily returns the raw bar of every US stock that traded on date,
 // sorted by symbol.
 func (c *Client) GroupedDaily(ctx context.Context, date domain.Date) ([]domain.PriceBar, error) {
+	last := c.lastFinishedSession()
+	if date.After(last) {
+		return []domain.PriceBar{}, nil
+	}
 	rel := "/v2/aggs/grouped/locale/us/market/stocks/" + date.String() + "?adjusted=false"
 	bars, err := fetchAll(ctx, c, rel, "prices/massive/grouped/"+date.String(), ParseGroupedDaily)
 	if err != nil {
-		if c.notPublishedYet(err, date) {
-			return []domain.PriceBar{}, nil
-		}
 		return nil, err
 	}
+	bars = finishedOnly(bars, last)
 	slices.SortStableFunc(bars, func(a, b domain.PriceBar) int { return strings.Compare(a.Symbol, b.Symbol) })
 	return bars, nil
 }
@@ -181,6 +183,13 @@ func (c *Client) dailyBars(ctx context.Context, symbol string, from, to domain.D
 	if from.After(to) {
 		return nil, fmt.Errorf("massive: daily bars %s: from %s is after to %s", symbol, from, to)
 	}
+	last := c.lastFinishedSession()
+	if to.After(last) {
+		to = last
+	}
+	if from.After(to) {
+		return []domain.PriceBar{}, nil
+	}
 	q := url.Values{"adjusted": {strconv.FormatBool(adjusted)}, "sort": {"asc"}, "limit": {"50000"}}
 	rel := fmt.Sprintf("/v2/aggs/ticker/%s/range/1/day/%s/%s?%s", url.PathEscape(symbol), from, to, q.Encode())
 	kind := "aggs"
@@ -190,21 +199,31 @@ func (c *Client) dailyBars(ctx context.Context, symbol string, from, to domain.D
 	key := fmt.Sprintf("prices/massive/%s/%s/%s_%s", kind, url.PathEscape(symbol), from, to)
 	bars, err := fetchAll(ctx, c, rel, key, ParseDailyBars)
 	if err != nil {
-		if c.notPublishedYet(err, from) {
-			return []domain.PriceBar{}, nil
-		}
 		return nil, err
 	}
+	bars = finishedOnly(bars, last)
 	slices.SortStableFunc(bars, func(a, b domain.PriceBar) int { return a.Date.Time().Compare(b.Date.Time()) })
 	return bars, nil
 }
 
-// notPublishedYet reports whether err is Massive's NOT_AUTHORIZED answer to
-// a request that starts today or later in New York. Massive gives that
-// answer for a day that is not over, and an empty result once it is over.
-func (c *Client) notPublishedYet(err error, start domain.Date) bool {
-	today := domain.DateOf(c.now().In(c.newYork))
-	return errors.Is(err, prices.ErrNotAuthorized) && !start.Before(today)
+// lastFinishedSession returns the latest trading day whose session is over
+// at the time of c.now.
+func (c *Client) lastFinishedSession() domain.Date {
+	now := c.now().In(c.newYork)
+	d := domain.DateOf(now)
+	if now.Hour() < prices.SessionOverHour {
+		d = d.AddDays(-1)
+	}
+	for !prices.IsTradingDay(d) {
+		d = d.AddDays(-1)
+	}
+	return d
+}
+
+// finishedOnly leaves out the bars dated after last. Massive marks the bars
+// of a session that is not over DELAYED, and they can be incomplete.
+func finishedOnly(bars []domain.PriceBar, last domain.Date) []domain.PriceBar {
+	return slices.DeleteFunc(bars, func(b domain.PriceBar) bool { return b.Date.After(last) })
 }
 
 // Splits returns every split event of symbol, sorted by date. Massive's
