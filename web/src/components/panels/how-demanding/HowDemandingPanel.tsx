@@ -25,10 +25,24 @@ const y0 = 14;
 const y1 = H - 30;
 
 const ink = "var(--ink)";
+/** peakTie is the engine's tolerance for equal required growths. */
+const peakTie = 1e-9;
 const accent = "var(--accent)";
 
 function hasRequired(d: Demanding): boolean {
   return d.points.some((p) => p.required.value !== null);
+}
+
+/** missingText says why no quarter has a required growth. */
+function missingText(d: Demanding): string {
+  const reasons = new Set(d.points.map((p) => ("reason" in p.required ? p.required.reason : null)));
+  if (reasons.size === 1 && reasons.has("dividends_reach_target")) {
+    return "Your dividends alone reach the target return, so no EPS growth is required.";
+  }
+  if (reasons.size === 1 && reasons.has("needs_positive_eps")) {
+    return "Needs positive EPS.";
+  }
+  return "The required growth is not available for these inputs.";
 }
 
 /** HowDemandingPanel shows the growth the price required at each past quarter, with today's levers, against the growth the company delivered. */
@@ -73,7 +87,7 @@ export function HowDemandingPanel() {
       body: (
         <p>
           Each point is how much TTM EPS (earnings per share over the last twelve months) actually
-          grew over the year before that date. It is what the business had just shown when you would
+          grew over the year to that quarter: the record the business was building when you would
           have bought.
         </p>
       ),
@@ -204,14 +218,14 @@ export function HowDemandingPanel() {
           </p>
         </>
       ) : (
-        <p className="note">Needs positive EPS.</p>
+        <p className="note">{missingText(d)}</p>
       )}
       <Walkthrough
         id="how-demanding"
         name="how demanding the stock has been"
         launcher="Walk me through how demanding the stock has been"
         steps={steps}
-        watchOut="A lower requirement does not make a stock cheap by itself. Earnings can fall later, and each point uses only the earnings known on that date."
+        watchOut="A lower requirement does not make a stock cheap by itself, because earnings can fall later. Each point pairs the quarter-end price with the TTM EPS of that quarter, which the company reported some weeks later. The chart looks back: it is not a record of what a buyer knew on that date."
       />
     </Panel>
   );
@@ -224,7 +238,8 @@ function todayLine(e: Evaluation): ReactNode {
   if (last === null || peak === null) {
     return null;
   }
-  if (peak.index === d.points.length - 1) {
+  // The engine keeps the first of tied peaks, so today can tie without being the peak.
+  if (last >= peak.growth - peakTie) {
     return (
       <>
         Today&apos;s <b>{pct(last)}</b> is the most demanding point in the range.

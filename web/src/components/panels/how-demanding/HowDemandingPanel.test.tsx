@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { withApiServer } from "@/api/testing/server";
 import { pct, signedPct, times, usd } from "@/components/format";
 import { evaluationProbe, leversWith, WhenReady } from "../earnings-trajectory/testing";
+import { exampleEvaluation } from "@/api/testing/fixtures";
 import { renderReady } from "@/testing/render";
 import { HowDemandingPanel } from "./HowDemandingPanel";
 
@@ -95,6 +96,21 @@ describe("HowDemandingPanel", () => {
     expect(screen.getByRole("tooltip")).not.toHaveTextContent("Delivered");
   });
 
+  it("says that the dividends reach the target when no growth is required", async () => {
+    await renderReady(
+      <WhenReady>
+        <HowDemandingPanel />
+      </WhenReady>,
+      { levers: leversWith({ type: "setStartingPoint", field: "dividend", value: 150 }) },
+    );
+    expect(
+      screen.getByText(
+        "Your dividends alone reach the target return, so no EPS growth is required.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Needs positive EPS.")).not.toBeInTheDocument();
+  });
+
   it("asks for positive EPS when no quarter has a required growth", async () => {
     await renderReady(
       <WhenReady>
@@ -109,8 +125,8 @@ describe("HowDemandingPanel", () => {
 });
 
 describe("the walkthrough of how demanding the stock has been", () => {
-  async function start() {
-    const shown = await show();
+  async function start(levers = leversWith()) {
+    const shown = await show(levers);
     await userEvent.click(
       screen.getByRole("button", { name: "Walk me through how demanding the stock has been" }),
     );
@@ -138,6 +154,36 @@ describe("the walkthrough of how demanding the stock has been", () => {
     expect(card).toHaveTextContent(
       `In ${String(d.requiredAboveDelivered)} of ${String(d.compared)} quarters the price asked for more growth`,
     );
+  });
+
+  it("calls today the most demanding point when it ties with an earlier peak", async () => {
+    const peak = exampleEvaluation.howDemanding.peak.value;
+    if (peak === null) {
+      throw new Error("the example has a peak");
+    }
+    // The price that requires the peak growth at a 20x exit, a hair lower
+    // so that the engine keeps the earlier quarter as the peak.
+    const price = ((10.8 * 20 * Math.pow(1 + peak.growth, 3)) / Math.pow(1.15, 3)) * (1 - 1e-12);
+    const { card, next, d } = await start(
+      leversWith(
+        { type: "setExitPe", value: 20 },
+        { type: "setStartingPoint", field: "price", value: price },
+      ),
+    );
+    expect(d.peak.value?.index).toBe(peak.index);
+    for (let i = 0; i < 4; i++) {
+      await next();
+    }
+    expect(card).toHaveTextContent("is the most demanding point in the range.");
+  });
+
+  it("does not claim that each point uses only the earnings known on its date", async () => {
+    const { card, next } = await start();
+    for (let i = 0; i < 4; i++) {
+      await next();
+    }
+    expect(card).not.toHaveTextContent("known on that date");
+    expect(card).toHaveTextContent("it is not a record of what a buyer knew on that date");
   });
 
   it("compares today with the peak and ends with a take-away", async () => {
