@@ -2,6 +2,7 @@ package fundamentals
 
 import (
 	"cmp"
+	"maps"
 	"math"
 	"slices"
 	"strconv"
@@ -77,10 +78,11 @@ func confirmSplits(cik domain.CIK, ratios []domain.Fact, opts Options) ([]domain
 // period ends close together. Facts without a positive ratio other than 1
 // are dropped.
 func groupRatios(ratios []domain.Fact) [][]domain.Fact {
+	latest := latestByPeriod(ratios)
 	var valid []domain.Fact
-	for _, f := range latestByPeriod(ratios) {
-		if f.Value > 0 && f.Value != 1 {
-			valid = append(valid, f)
+	for i := range latest {
+		if f := &latest[i]; f.Value > 0 && f.Value != 1 {
+			valid = append(valid, *f)
 		}
 	}
 	slices.SortFunc(valid, func(a, b domain.Fact) int {
@@ -117,11 +119,7 @@ func latestByPeriod(ratios []domain.Fact) []domain.Fact {
 			latest[k] = *f
 		}
 	}
-	out := make([]domain.Fact, 0, len(latest))
-	for _, f := range latest {
-		out = append(out, f)
-	}
-	return out
+	return slices.Collect(maps.Values(latest))
 }
 
 func abs(n int) int {
