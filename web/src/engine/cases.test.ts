@@ -42,7 +42,7 @@ import {
   type Quarter,
   type ScenarioCase,
 } from "./index";
-import { compareJson, readJson, toJson, type Json } from "./testing/json";
+import { compareJson, readJson, toJson, unknownKeys, type Json, type Schema } from "./testing/json";
 
 interface SharedCase {
   name: string;
@@ -61,12 +61,9 @@ interface CaseFile {
 
 /** Input is a case input with its JSON keys; a missing key reads as Go's zero value. */
 class Input {
-  private readonly used = new Set<string>();
-
   constructor(private readonly raw: Record<string, Json>) {}
 
   get(key: string): unknown {
-    this.used.add(key);
     return this.raw[key];
   }
 
@@ -83,18 +80,94 @@ class Input {
       dividend: this.number("dividend"),
     };
   }
-
-  /** unused lists the input keys that the runner did not read. */
-  unused(): string[] {
-    return Object.keys(this.raw).filter((k) => !this.used.has(k));
-  }
 }
 
+const object = (fields: Record<string, Schema>): Schema => ({ object: fields });
+const array = (item: Schema): Schema => ({ array: item });
+const leaf = "leaf";
+const leaves = (...keys: string[]): Record<string, Schema> =>
+  Object.fromEntries(keys.map((k) => [k, leaf]));
+
+const maybe = object(leaves("value", "reason"));
+const quarter = object(
+  leaves(
+    "label",
+    "periodEnd",
+    "eps",
+    "close",
+    "dilutedShares",
+    "revenue",
+    "operatingIncome",
+    "operatingCosts",
+    "freeCashFlow",
+  ),
+);
+const pricePoint = object(leaves("date", "close", "ttmEps"));
+const scenarioCase = object(leaves("name", "growth", "exitPe"));
+const customGrowth = object(leaves("yearly", "rate", "rates"));
+const investment = leaves("price", "eps", "targetReturn", "years", "dividend");
+const quarters = { quarters: array(quarter) };
+
 /**
- * runners maps each fn name of the case file to the TypeScript function.
- * A runner reads only the keys of its function's arguments, so a case key
- * that no runner reads fails the case, as it does in the Go runner.
+ * inputs holds the exact JSON field names of each fn's input. A case key
+ * that is not one of them fails the case, at any depth, as it does in the
+ * Go runner.
  */
+const inputs: Record<string, Schema> = {
+  requiredGrowth: object({ ...investment, exitPe: leaf }),
+  requirement: object({ ...investment, exitPe: leaf }),
+  project: object({ ...investment, growth: leaf, exitPe: leaf }),
+  exitPeNeeded: object({ ...investment, growth: leaf, exitPe: leaf }),
+  tone: object(leaves("diff")),
+  verdict: object(leaves("gap")),
+  niceStep: object(leaves("range", "target")),
+  quarterSeries: object(quarters),
+  weightedTrend: object({ ...quarters, at: leaf }),
+  trailingGrowth: object({ ...quarters, months: leaf }),
+  trajectoryFill: object({ ...quarters, years: leaf }),
+  yearRates: object({ custom: customGrowth, years: leaf }),
+  yearlyAverage: object(leaves("rates")),
+  baselinePath: object(leaves("eps", "growth", "quarters", "yearlyRates")),
+  growthScale: object(leaves("values")),
+  typicalPe: object({ ...quarters, ...leaves("price", "eps", "months") }),
+  estimatedExitPe: object(leaves("price", "eps", "years", "weightedTrend", "typicalPe")),
+  returnGrid: object({
+    ...investment,
+    exitPe: leaf,
+    required: maybe,
+    baseline: object({ mode: leaf, growth: maybe }),
+    weighted: maybe,
+    today: maybe,
+    trailing: maybe,
+  }),
+  earningsPaths: object({
+    ...quarters,
+    ...leaves("eps", "years", "yearlyRates"),
+    baseline: maybe,
+    requiredEps: maybe,
+  }),
+  howDemanding: object({ ...investment, ...quarters, exitPe: maybe }),
+  defaultScenarios: object(leaves("weightedTrend", "exitPe")),
+  scenarios: object({ ...investment, cases: array(scenarioCase) }),
+  shareCountEvents: object(quarters),
+  correlation: object(leaves("xs", "ys")),
+  peBands: object({ points: array(pricePoint) }),
+  bandPrice: object(leaves("ttmEps", "multiple")),
+  priceChart: object({ daily: array(pricePoint), ...quarters, range: leaf }),
+  financials: object(quarters),
+  compareScale: object(leaves("values")),
+  evaluate: object({
+    history: object({ quarters: array(quarter), daily: array(pricePoint) }),
+    levers: object({
+      ...leaves("price", "ttmEps", "dividend", "targetReturn", "holdingYears", "chartRange"),
+      exitPe: object(leaves("mode", "custom", "trailingMonths")),
+      baseline: object({ mode: leaf, trailingMonths: leaf, custom: customGrowth }),
+      scenarios: array(scenarioCase),
+    }),
+  }),
+};
+
+/** runners maps each fn name of the case file to the TypeScript function. */
 const runners: Record<string, (in_: Input) => unknown> = {
   requiredGrowth: (i) => requiredGrowth(i.investment(), i.number("exitPe")),
   requirement: (i) => requirement(i.investment(), i.number("exitPe")),
@@ -187,6 +260,11 @@ describe("shared engine cases", () => {
     expect(unknown).toEqual([]);
   });
 
+  it("knows the input fields of every runner", () => {
+    expect(Object.keys(runners).filter((fn) => !Object.hasOwn(inputs, fn))).toEqual([]);
+    expect(Object.keys(inputs).filter((fn) => !Object.hasOwn(runners, fn))).toEqual([]);
+  });
+
   it("has a case for every runner", () => {
     const named = new Set(file.cases.map((c) => c.fn));
     expect(Object.keys(runners).filter((fn) => !named.has(fn))).toEqual([]);
@@ -199,7 +277,10 @@ describe("shared engine cases", () => {
     }
     const input = new Input(c.input);
     let got = toJson(run(input));
-    expect(input.unused(), "input keys that no argument reads").toEqual([]);
+    expect(
+      unknownKeys(c.input, inputs[c.fn] ?? "leaf"),
+      "input keys that match no field name exactly",
+    ).toEqual([]);
     if (c.select !== undefined) {
       if (got === null || typeof got !== "object" || Array.isArray(got)) {
         throw new Error(`select "${c.select}" on a non-object output`);

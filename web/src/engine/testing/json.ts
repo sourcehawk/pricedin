@@ -86,3 +86,33 @@ function walk(at: string, want: Json, got: Json, tol: number, diffs: string[]): 
     diffs.push(`${at}: want ${JSON.stringify(want)}, got ${JSON.stringify(got)}`);
   }
 }
+
+/**
+ * Schema is the shape of a case input: "leaf" for a value whose keys are
+ * not checked (a number, a string, a date), an array of one schema, or an
+ * object with its exact JSON field names.
+ */
+export type Schema = "leaf" | { array: Schema } | { object: Readonly<Record<string, Schema>> };
+
+/**
+ * unknownKeys returns the path of each object key in raw that is not the
+ * exact name of a field of schema, as the Go runner's unknownKeys does.
+ * Absent keys and null values pass.
+ */
+export function unknownKeys(raw: unknown, schema: Schema, at = "$"): string[] {
+  if (schema === "leaf" || raw === null || typeof raw !== "object") {
+    return [];
+  }
+  if ("array" in schema) {
+    return Array.isArray(raw)
+      ? raw.flatMap((v: unknown, i) => unknownKeys(v, schema.array, `${at}[${String(i)}]`))
+      : [];
+  }
+  if (Array.isArray(raw)) {
+    return [];
+  }
+  return Object.entries(raw).flatMap(([k, v]: [string, unknown]) => {
+    const field = Object.hasOwn(schema.object, k) ? schema.object[k] : undefined;
+    return field === undefined ? [`${at}.${k}`] : unknownKeys(v, field, `${at}.${k}`);
+  });
+}
