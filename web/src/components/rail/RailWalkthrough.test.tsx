@@ -3,7 +3,8 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { withApiServer } from "@/api/testing/server";
 import { WalkthroughSlot } from "@/components/walkthrough/WalkthroughProvider";
-import { renderReady } from "@/testing/render";
+import { leversReducer } from "@/state/levers";
+import { renderReady, testLevers } from "@/testing/render";
 import { Rail } from "./Rail";
 
 withApiServer();
@@ -42,6 +43,25 @@ describe("the walkthrough of the inputs", () => {
     expect(card).toHaveTextContent(
       /Your target is 15\.0%, above the S&P 500's long-run 10%\. At 15\.0% GRMN requires \d+\.\d% growth; at 10% it would require \d+\.\d%\./,
     );
+  });
+
+  it("shows n/a, not 0.0×, for a P/E that the engine cannot compute", async () => {
+    await renderReady(
+      <div className="grid">
+        <Rail />
+        <main>
+          <WalkthroughSlot name="main" />
+        </main>
+      </div>,
+      { levers: leversReducer(testLevers(), { type: "setStartingPoint", field: "ttmEps", value: -1 }) },
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Walk me through these inputs" }));
+    const card = screen.getByRole("region", { name: "Walkthrough of the inputs" });
+    await userEvent.click(within(card).getByRole("button", { name: "Next" }));
+    expect(card).toHaveTextContent("With a n/a exit");
+    await userEvent.click(within(card).getByRole("button", { name: "Next" }));
+    expect(card).toHaveTextContent("GRMN trades at n/a today");
+    expect(card).not.toHaveTextContent("0.0×");
   });
 
   it("ends with a one-line take-away", async () => {

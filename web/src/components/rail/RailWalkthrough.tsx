@@ -1,13 +1,13 @@
 "use client";
 
 import type { Evaluation } from "@/engine";
-import { pct, usd, years } from "@/components/format";
+import { pct, times, usd, years } from "@/components/format";
 import { Walkthrough, type WalkthroughStep } from "@/components/walkthrough/Walkthrough";
 import { useStock } from "@/state/StockProvider";
 import { baselineName, typicalText } from "./notes";
 
-const exitPe = (ev: Evaluation): string => `${(ev.exitPe.inUse.value?.pe ?? 0).toFixed(1)}×`;
-const peNow = (ev: Evaluation): string => `${(ev.peNow.value ?? 0).toFixed(1)}×`;
+const exitPe = (ev: Evaluation): string => times(ev.exitPe.inUse.value?.pe);
+const peNow = (ev: Evaluation): string => times(ev.peNow.value);
 
 /** RailWalkthrough walks through the inputs of the left panel; its card shows at the top of the main column. */
 export function RailWalkthrough() {
