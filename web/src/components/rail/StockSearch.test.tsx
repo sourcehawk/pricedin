@@ -108,6 +108,33 @@ describe("StockSearch", () => {
     expect(loaded).toBe("GOOGL");
   });
 
+  it("keeps a newer pick when an older load finishes later", async () => {
+    let finish: () => void = () => undefined;
+    apiServer.use(
+      http.post(
+        apiUrl("/api/v1/stocks/:t/load"),
+        () =>
+          new Promise<Response>((resolve) => {
+            finish = () => {
+              resolve(HttpResponse.json(profileFixture));
+            };
+          }),
+      ),
+    );
+    const box = await setup();
+    await userEvent.type(box, "goo");
+    await screen.findByRole("option", { name: /GOOGL/ });
+    await userEvent.keyboard("{Enter}");
+    await userEvent.type(box, "ge");
+    await userEvent.click(await screen.findByRole("option", { name: /GE Aerospace/ }));
+    expect(screen.getByRole("status", { name: "ticker" })).toHaveTextContent("GE");
+    finish();
+    await waitFor(() => {
+      expect(screen.queryByText(/Loading GOOGL/)).not.toBeInTheDocument();
+    });
+    expect(screen.getByRole("status", { name: "ticker" })).toHaveTextContent("GE");
+  });
+
   it("shows why a load failed and keeps the stock", async () => {
     apiServer.use(
       http.post(apiUrl("/api/v1/stocks/:t/load"), () =>

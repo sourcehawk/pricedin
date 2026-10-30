@@ -41,6 +41,8 @@ export function StockSearch({ inputId }: { inputId: string }) {
   const query = useDebounced(text, 150);
   const search = useSearch(open ? query : "");
   const load = useLoadCompany();
+  // The newest pick; a load that finishes after a newer pick selects nothing.
+  const lastPick = useRef<string | null>(null);
   const hits: TickerMatch[] = open && query.trim() !== "" ? (search.data ?? []) : [];
   const current = Math.min(active, Math.max(0, hits.length - 1));
 
@@ -65,13 +67,16 @@ export function StockSearch({ inputId }: { inputId: string }) {
   const pick = (m: TickerMatch) => {
     close();
     input.current?.blur();
+    lastPick.current = m.symbol;
     if (m.loaded) {
       dispatch({ type: "pickStock", ticker: m.symbol });
       return;
     }
     load.mutate(m.symbol, {
       onSuccess: () => {
-        dispatch({ type: "pickStock", ticker: m.symbol });
+        if (lastPick.current === m.symbol) {
+          dispatch({ type: "pickStock", ticker: m.symbol });
+        }
       },
     });
   };
