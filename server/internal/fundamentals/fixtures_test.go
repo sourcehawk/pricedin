@@ -637,3 +637,102 @@ func TestDeriveRescalesTheFixtureShareCountsTaggedInThousandsOrMillions(t *testi
 		})
 	}
 }
+
+// splitRow is a filingRow with the revenue concept of its filings, for
+// quarters around the splits.
+type splitRow struct {
+	label      string
+	end        string
+	eps        float64
+	epsFrom    string
+	revenue    float64
+	revenueFrm string
+	concept    sec.Concept
+}
+
+func TestDeriveMatchesTheFilingsAcrossEachSplit(t *testing.T) {
+	// The quarters around each split, as the filings give them. A filing
+	// made before a split is divided by its ratio: NVIDIA by 4 (July 2021)
+	// and 10 (June 2024), Apple by 7 (June 2014) and 4 (August 2020),
+	// Coca-Cola by 2 (August 2012). A Q4 whose two inputs came on two
+	// split bases takes both from the older basis.
+	tests := []struct {
+		name   string
+		cik    domain.CIK
+		splits []domain.Split
+		rows   []splitRow
+	}{
+		{"NVDA", cikNVDA, nvdaSplits(t), []splitRow{
+			{"Q2 FY21", "2020-07-26", 0.025, "10-Q 0001045810-21-000131", 3866000000, "10-Q 0001045810-21-000131", sec.Revenues},
+			{"Q3 FY21", "2020-10-25", 0.053, "10-Q 0001045810-21-000163", 4726000000, "10-Q 0001045810-21-000163", sec.Revenues},
+			// EPS (1.73 − 1.15) / 10; revenue (16675000000 − 11672000000).
+			{"Q4 FY21", "2021-01-31", 0.058, "10-K 0001045810-23-000017 − 10-Q 0001045810-21-000163", 5003000000, "10-K 0001045810-23-000017 − 10-Q 0001045810-21-000163", sec.Revenues},
+			{"Q1 FY22", "2021-05-02", 0.076, "10-Q 0001045810-22-000079", 5661000000, "10-Q 0001045810-22-000079", sec.Revenues},
+			{"Q2 FY22", "2021-08-01", 0.094, "10-Q 0001045810-22-000147", 6507000000, "10-Q 0001045810-22-000147", sec.Revenues},
+			{"Q3 FY22", "2021-10-31", 0.097, "10-Q 0001045810-22-000166", 7103000000, "10-Q 0001045810-22-000166", sec.Revenues},
+			// EPS (3.85 − 2.67) / 10; revenue (26914000000 − 19271000000).
+			{"Q4 FY22", "2022-01-30", 0.118, "10-K 0001045810-24-000029 − 10-Q 0001045810-22-000166", 7643000000, "10-K 0001045810-24-000029 − 10-Q 0001045810-22-000166", sec.Revenues},
+			{"Q1 FY23", "2022-05-01", 0.064, "10-Q 0001045810-23-000093", 8288000000, "10-Q 0001045810-23-000093", sec.Revenues},
+			{"Q2 FY23", "2022-07-31", 0.026, "10-Q 0001045810-23-000175", 6704000000, "10-Q 0001045810-23-000175", sec.Revenues},
+			{"Q3 FY23", "2022-10-30", 0.027, "10-Q 0001045810-23-000227", 5931000000, "10-Q 0001045810-23-000227", sec.Revenues},
+			// EPS (1.74 − 1.17) / 10; revenue (26974000000 − 20923000000).
+			{"Q4 FY23", "2023-01-29", 0.057, "10-K 0001045810-24-000029 − 10-Q 0001045810-23-000227", 6051000000, "10-K 0001045810-25-000023 − 10-Q 0001045810-23-000227", sec.Revenues},
+			{"Q1 FY24", "2023-04-30", 0.082, "10-Q 0001045810-24-000124", 7192000000, "10-Q 0001045810-24-000124", sec.Revenues},
+			{"Q2 FY24", "2023-07-30", 0.25, "10-Q 0001045810-24-000264", 13507000000, "10-Q 0001045810-24-000264", sec.Revenues},
+			{"Q3 FY24", "2023-10-29", 0.37, "10-Q 0001045810-24-000316", 18120000000, "10-Q 0001045810-24-000316", sec.Revenues},
+			// EPS (1.19 − 0.7); revenue (60922000000 − 38819000000).
+			{"Q4 FY24", "2024-01-28", 0.49, "10-K 0001045810-26-000021 − 10-Q 0001045810-24-000316", 22103000000, "10-K 0001045810-26-000021 − 10-Q 0001045810-24-000316", sec.Revenues},
+		}},
+		{"AAPL", cikAAPL, aaplSplits(t), []splitRow{
+			{"Q4 FY13", "2013-09-28", 0.295, "10-K 0001193125-14-383437", 37472000000, "10-K 0001193125-14-383437", sec.SalesRevenueNet},
+			{"Q1 FY14", "2013-12-28", 0.5175, "10-K 0001193125-15-356351", 57594000000, "10-K 0001193125-15-356351", sec.SalesRevenueNet},
+			{"Q2 FY14", "2014-03-29", 0.415, "10-K 0001193125-15-356351", 45646000000, "10-K 0001193125-15-356351", sec.SalesRevenueNet},
+			{"Q3 FY14", "2014-06-28", 0.32, "10-K 0001193125-15-356351", 37432000000, "10-K 0001193125-15-356351", sec.SalesRevenueNet},
+			{"Q4 FY14", "2014-09-27", 0.355, "10-K 0001193125-15-356351", 42123000000, "10-K 0001193125-15-356351", sec.SalesRevenueNet},
+			{"Q1 FY15", "2014-12-27", 0.765, "10-K 0001628280-16-020309", 74599000000, "10-K 0001628280-16-020309", sec.SalesRevenueNet},
+			{"Q2 FY15", "2015-03-28", 0.5825, "10-K 0001628280-16-020309", 58010000000, "10-K 0001628280-16-020309", sec.SalesRevenueNet},
+			{"Q1 FY20", "2019-12-28", 1.25, "10-Q 0000320193-21-000010", 91819000000, "10-Q 0000320193-21-000010", sec.RevenueFromContractWithCustomerExcludingAssessedTax},
+			{"Q2 FY20", "2020-03-28", 0.64, "10-Q 0000320193-21-000056", 58313000000, "10-Q 0000320193-21-000056", sec.RevenueFromContractWithCustomerExcludingAssessedTax},
+			{"Q3 FY20", "2020-06-27", 0.65, "10-Q 0000320193-21-000065", 59685000000, "10-Q 0000320193-21-000065", sec.RevenueFromContractWithCustomerExcludingAssessedTax},
+			{"Q4 FY20", "2020-09-26", 0.73, "10-K 0000320193-20-000096", 64698000000, "10-K 0000320193-20-000096", sec.RevenueFromContractWithCustomerExcludingAssessedTax},
+			{"Q1 FY21", "2020-12-26", 1.68, "10-Q 0000320193-22-000007", 111439000000, "10-Q 0000320193-22-000007", sec.RevenueFromContractWithCustomerExcludingAssessedTax},
+			{"Q2 FY21", "2021-03-27", 1.4, "10-Q 0000320193-22-000059", 89584000000, "10-Q 0000320193-22-000059", sec.RevenueFromContractWithCustomerExcludingAssessedTax},
+			{"Q3 FY21", "2021-06-26", 1.3, "10-Q 0000320193-22-000070", 81434000000, "10-Q 0000320193-22-000070", sec.RevenueFromContractWithCustomerExcludingAssessedTax},
+			// EPS (5.61 − 4.38); revenue (365817000000 − 282457000000).
+			{"Q4 FY21", "2021-09-25", 1.23, "10-K 0000320193-23-000106 − 10-Q 0000320193-22-000070", 83360000000, "10-K 0000320193-23-000106 − 10-Q 0000320193-22-000070", sec.RevenueFromContractWithCustomerExcludingAssessedTax},
+		}},
+		{"KO", cikKO, koSplits(t), []splitRow{
+			{"Q1 FY11", "2011-04-01", 0.41, "10-Q 0000021344-12-000023", 10517000000, "10-Q 0000021344-12-000023", sec.SalesRevenueGoodsNet},
+			// The 10-Q of July 2012 repeats Q2 2011 for a period that starts
+			// one day later, on 2011-04-03. It is the latest filing.
+			{"Q2 FY11", "2011-07-01", 0.6, "10-Q 0000021344-12-000037", 12737000000, "10-Q 0000021344-12-000037", sec.SalesRevenueGoodsNet},
+			{"Q3 FY11", "2011-09-30", 0.48, "10-Q 0000021344-12-000051", 12248000000, "10-Q 0000021344-12-000051", sec.SalesRevenueGoodsNet},
+			// EPS (1.85 − 1.49); revenue (46542000000 − 35502000000).
+			{"Q4 FY11", "2011-12-31", 0.36, "10-K 0000021344-14-000008 − 10-Q 0000021344-12-000051", 11040000000, "10-K 0000021344-14-000008 − 10-Q 0000021344-12-000051", sec.SalesRevenueGoodsNet},
+			{"Q1 FY12", "2012-03-30", 0.45, "10-Q 0000021344-13-000017", 11137000000, "10-Q 0000021344-13-000017", sec.SalesRevenueGoodsNet},
+			{"Q2 FY12", "2012-06-29", 0.61, "10-Q 0000021344-13-000039", 13085000000, "10-Q 0000021344-13-000039", sec.SalesRevenueGoodsNet},
+			{"Q3 FY12", "2012-09-28", 0.5, "10-Q 0000021344-13-000050", 12340000000, "10-Q 0000021344-13-000050", sec.SalesRevenueGoodsNet},
+			// EPS (1.97 − 1.56); revenue (48017000000 − 36562000000).
+			{"Q4 FY12", "2012-12-31", 0.41, "10-K 0000021344-15-000005 − 10-Q 0000021344-13-000050", 11455000000, "10-K 0000021344-15-000005 − 10-Q 0000021344-13-000050", sec.SalesRevenueGoodsNet},
+			{"Q1 FY13", "2013-03-29", 0.39, "10-Q 0000021344-14-000016", 11035000000, "10-Q 0000021344-14-000016", sec.SalesRevenueGoodsNet},
+			{"Q2 FY13", "2013-06-28", 0.59, "10-Q 0000021344-14-000029", 12749000000, "10-Q 0000021344-14-000029", sec.SalesRevenueGoodsNet},
+			{"Q3 FY13", "2013-09-27", 0.54, "10-Q 0000021344-14-000036", 12030000000, "10-Q 0000021344-14-000036", sec.SalesRevenueGoodsNet},
+			// EPS (1.9 − 1.52); revenue (46854000000 − 35814000000).
+			{"Q4 FY13", "2013-12-31", 0.38, "10-K 0000021344-16-000050 − 10-Q 0000021344-14-000036", 11040000000, "10-K 0000021344-16-000050 − 10-Q 0000021344-14-000036", sec.SalesRevenueGoodsNet},
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := deriveFixture(t, tt.cik, fundamentals.Options{Splits: tt.splits})
+			for _, row := range tt.rows {
+				q := quarter(t, s, row.label)
+				if q.PeriodEnd.String() != row.end {
+					t.Errorf("%s ends %s, want %s", row.label, q.PeriodEnd, row.end)
+					continue
+				}
+				checkFiled(t, q, fundamentals.EPSDiluted, row.eps, row.epsFrom, sec.EarningsPerShareDiluted)
+				checkFiled(t, q, fundamentals.Revenue, row.revenue, row.revenueFrm, row.concept)
+			}
+		})
+	}
+}
