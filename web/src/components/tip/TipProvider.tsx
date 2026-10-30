@@ -30,26 +30,77 @@ export interface Tip {
   move: (owner: Element, at: { x: number; y: number }) => void;
   /** Hides the tooltip when owner shows it, or any tooltip without owner. */
   hide: (owner?: Element) => void;
+  /** Hides the tooltip of owner soon, unless the pointer moves onto the tooltip first. */
+  leave: (owner: Element) => void;
   /** The element whose tooltip shows; null when none shows. */
   owner: Element | null;
 }
 
 const TipContext = createContext<Tip | null>(null);
 
-/** TipProvider renders the tooltip layer; Escape and a scroll by touch hide the tooltip. */
+/** leaveDelay gives the pointer time to move from an element onto its tooltip. */
+const leaveDelay = 150;
+
+/**
+ * TipProvider renders the tooltip layer. Escape hides the tooltip; a scroll
+ * hides one that a tap or focus opened; the tooltip stays open while the
+ * pointer is on it.
+ */
 export function TipProvider({ children }: { children: ReactNode }) {
   const [tip, setTip] = useState<TipState | null>(null);
   const el = useRef<HTMLDivElement>(null);
+  const leaving = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const show = useCallback((owner: Element, content: ReactNode, at?: { x: number; y: number }) => {
-    setTip({ owner, content, at: at ?? null });
+  const stay = useCallback(() => {
+    if (leaving.current !== null) {
+      clearTimeout(leaving.current);
+      leaving.current = null;
+    }
   }, []);
+  const show = useCallback(
+    (owner: Element, content: ReactNode, at?: { x: number; y: number }) => {
+      stay();
+      setTip({ owner, content, at: at ?? null });
+    },
+    [stay],
+  );
   const move = useCallback((owner: Element, at: { x: number; y: number }) => {
     setTip((t) => (t !== null && t.owner === owner ? { ...t, at } : t));
   }, []);
-  const hide = useCallback((owner?: Element) => {
-    setTip((t) => (t === null || owner === undefined || t.owner === owner ? null : t));
-  }, []);
+  const hide = useCallback(
+    (owner?: Element) => {
+      stay();
+      setTip((t) => (t === null || owner === undefined || t.owner === owner ? null : t));
+    },
+    [stay],
+  );
+  const leave = useCallback(
+    (owner: Element) => {
+      stay();
+      leaving.current = setTimeout(() => {
+        leaving.current = null;
+        setTip((t) => (t !== null && t.owner === owner ? null : t));
+      }, leaveDelay);
+    },
+    [stay],
+  );
+  useEffect(() => stay, [stay]);
+
+  // A tooltip that a tap or focus opened sits under its element and would
+  // stay behind when the element scrolls away. Capture sees every scroll.
+  const placedUnder = tip !== null && tip.at === null;
+  useEffect(() => {
+    if (!placedUnder) {
+      return;
+    }
+    const onScroll = () => {
+      hide();
+    };
+    document.addEventListener("scroll", onScroll, { capture: true, passive: true });
+    return () => {
+      document.removeEventListener("scroll", onScroll, { capture: true });
+    };
+  }, [placedUnder, hide]);
 
   useEffect(() => {
     if (tip === null) {
@@ -99,14 +150,23 @@ export function TipProvider({ children }: { children: ReactNode }) {
   }, [tip]);
 
   const value = useMemo<Tip>(
-    () => ({ show, move, hide, owner: tip?.owner ?? null }),
-    [show, move, hide, tip?.owner],
+    () => ({ show, move, hide, leave, owner: tip?.owner ?? null }),
+    [show, move, hide, leave, tip?.owner],
   );
   return (
     <TipContext value={value}>
       {children}
       {tip !== null && (
-        <div ref={el} id={tipId} role="tooltip" className="tip">
+        <div
+          ref={el}
+          id={tipId}
+          role="tooltip"
+          className="tip"
+          onPointerEnter={stay}
+          onPointerLeave={() => {
+            hide();
+          }}
+        >
           {tip.content}
         </div>
       )}
@@ -154,7 +214,7 @@ export function useTipHandlers(content: () => ReactNode) {
     },
     onPointerLeave: (e: React.PointerEvent) => {
       if (e.pointerType !== "touch") {
-        tip.hide(e.currentTarget);
+        tip.leave(e.currentTarget);
       }
     },
     onFocus: (e: React.FocusEvent) => {
