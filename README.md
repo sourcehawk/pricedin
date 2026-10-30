@@ -52,7 +52,7 @@ If one of these ports is in use, change it in `.env` (`PRICEDIN_WEB_PORT`, `PRIC
 | Path | Content |
 | --- | --- |
 | `server/` | Go module: the `pricedin` command, the API, the calculation engine (`internal/engine`), and later the ingestion jobs |
-| `web/` | Next.js app in TypeScript |
+| `web/` | Next.js app in TypeScript, with the browser copy of the calculation engine (`src/engine`) |
 | `e2e/` | Playwright tests that run against the Compose stack |
 | `prototype/` | The prototype, the reference for behavior, calculations, copy and layout |
 | `docs/` | The design, the plan and later the architecture and runbooks |
