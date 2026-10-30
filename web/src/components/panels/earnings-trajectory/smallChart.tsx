@@ -244,12 +244,19 @@ export function useColumns(layout: ColumnsLayout, tipFor: (i: number) => ReactNo
   return { active, chartProps, layer, live };
 }
 
-/** linePath joins the points into an SVG path; null points and points without a finite y are left out. */
+/** linePath joins the points into an SVG path; the line breaks at null points and at points without a finite y. */
 export function linePath(points: readonly (readonly [number, number] | null)[]): string {
-  return points
-    .filter((p): p is readonly [number, number] => p !== null && Number.isFinite(p[1]))
-    .map((p, i) => `${i === 0 ? "M" : "L"}${p[0].toFixed(1)},${p[1].toFixed(1)}`)
-    .join(" ");
+  const parts: string[] = [];
+  let drawing = false;
+  for (const p of points) {
+    if (p === null || !Number.isFinite(p[1])) {
+      drawing = false;
+      continue;
+    }
+    parts.push(`${drawing ? "L" : "M"}${p[0].toFixed(1)},${p[1].toFixed(1)}`);
+    drawing = true;
+  }
+  return parts.join(" ");
 }
 
 /** endLabels spaces two right-edge labels at least 13 apart so they never overlap. */
