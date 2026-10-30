@@ -93,10 +93,8 @@ export function Walkthrough(props: WalkthroughProps) {
     };
   }, [running]);
 
-  // The marks are set after every render of the walkthrough. Another
-  // component of the panel can re-render alone: an attribute that no
-  // component renders survives that, and the observer marks the nodes that
-  // it adds. The marks set only attributes, so they do not wake it.
+  // An attribute that no component renders survives a re-render. The marks
+  // set only attributes, so they do not wake the observer.
   useLayoutEffect(() => {
     const scope = wrap.current?.closest("[data-walk-scope]") ?? null;
     if (!running || step === undefined) {
