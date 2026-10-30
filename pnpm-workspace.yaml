@@ -1,0 +1,5 @@
+packages:
+  - web
+  - e2e
+allowBuilds:
+  unrs-resolver: false
