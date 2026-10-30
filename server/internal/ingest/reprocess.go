@@ -473,10 +473,13 @@ func (r *Runner) indexRaw(ctx context.Context, opts ReprocessOptions, cikSymbols
 			sig := f.signature()
 			repeats := i > 0 && all[i-1].signature() == sig
 			endsRun := i == len(all)-1 || all[i+1].signature() != sig
-			tickerMap := source.kind == rawSECTickers || source.kind == rawProviderTickers
 			// A ticker map keeps the last of a run of repeats, because the
-			// store takes the day of the sync from the last map loaded.
-			if repeats && (!tickerMap || !endsRun) {
+			// store takes the day of the sync from the last map loaded. A
+			// source of bars keeps it too, because its newest response
+			// wins over the bars of another source between the repeats.
+			keepsLast := source.kind == rawSECTickers || source.kind == rawProviderTickers ||
+				source.kind == rawGrouped || source.kind == rawBars
+			if repeats && (!keepsLast || !endsRun) {
 				res.Unchanged += isNew(f.files)
 				continue
 			}
@@ -484,9 +487,14 @@ func (r *Runner) indexRaw(ctx context.Context, opts ReprocessOptions, cikSymbols
 		}
 		var units []*rawUnit
 		if mergesVersions(source.kind) && len(kept) > 0 {
-			day := kept[len(kept)-1].day
-			if source.kind == rawSubmissions {
+			var day domain.Date
+			switch source.kind {
+			case rawSubmissions:
 				day = kept[0].day
+			case rawGrouped, rawBars:
+				day = r.lastDayWithBars(ctx, kept)
+			default:
+				day = kept[len(kept)-1].day
 			}
 			units = []*rawUnit{{source: *source, day: day, fetches: kept}}
 		} else {
@@ -665,8 +673,35 @@ func (r *Runner) versionFailed(ctx context.Context, f *rawFetch, files int64, er
 	return nil
 }
 
-// loadUnit loads u. A version of u that is incomplete or fails does not
-// stop the others; the outcome counts its files.
+// fileFailed records one file that failed to read, parse or load. It
+// returns err when the context ended, which stops the unit.
+func (r *Runner) fileFailed(ctx context.Context, file *rawFile, err error, out *unitOutcome, fails *failures) error {
+	if ctx.Err() != nil {
+		return err
+	}
+	out.failed++
+	fails.add(file.key, err)
+	r.logger.WarnContext(ctx, "ingest: reprocess failed to load a stored file", "key", file.key, "error", err.Error())
+	return nil
+}
+
+// lastDayWithBars returns the day of the newest fetch of fetches, oldest
+// first, that gives bars, or the day of the first fetch when no later one
+// does. A fetch that fails or gives no bar must not move older bars after
+// the bars of another source.
+func (r *Runner) lastDayWithBars(ctx context.Context, fetches []*rawFetch) domain.Date {
+	ignore := func(*rawFile, error) error { return nil }
+	for i := len(fetches) - 1; i > 0; i-- {
+		pages, _, err := r.readPages(ctx, fetches[i].files, ignore)
+		if err == nil && len(pages[prices.StoredGroupedDaily].Bars)+len(pages[prices.StoredDailyBars].Bars) > 0 {
+			return fetches[i].day
+		}
+	}
+	return fetches[0].day
+}
+
+// loadUnit loads u. A version or a file of u that is incomplete or fails
+// does not stop the others; the outcome counts its files.
 func (r *Runner) loadUnit(ctx context.Context, idx *rawIndex, u *rawUnit, opts ReprocessOptions, keep map[string]bool, res *ReprocessResult, fails *failures) (unitOutcome, error) {
 	switch u.source.kind {
 	case rawSubmissions:
@@ -674,11 +709,13 @@ func (r *Runner) loadUnit(ctx context.Context, idx *rawIndex, u *rawUnit, opts R
 	case rawReference, rawGrouped, rawBars:
 		return r.reprocessPriceUnit(ctx, u, opts, keep, res, fails)
 	default:
-		return unitOutcome{}, r.reprocessFetch(ctx, idx, u.fetches[0], opts, res)
+		var out unitOutcome
+		err := r.reprocessFetch(ctx, idx, u.fetches[0], opts, res, &out, fails)
+		return out, err
 	}
 }
 
-func (r *Runner) reprocessFetch(ctx context.Context, idx *rawIndex, f *rawFetch, opts ReprocessOptions, res *ReprocessResult) error {
+func (r *Runner) reprocessFetch(ctx context.Context, idx *rawIndex, f *rawFetch, opts ReprocessOptions, res *ReprocessResult, out *unitOutcome, fails *failures) error {
 	switch f.source.kind {
 	case rawSECTickers:
 		if err := r.checkSyncDay(ctx, store.TickerSourceSEC, f.day); err != nil {
@@ -686,12 +723,15 @@ func (r *Runner) reprocessFetch(ctx context.Context, idx *rawIndex, f *rawFetch,
 		}
 		for i := range f.files {
 			body, err := r.readRaw(ctx, f.files[i].key)
-			if err != nil {
-				return err
+			var entries []sec.TickerEntry
+			if err == nil {
+				entries, err = sec.ParseTickers(body, f.day)
 			}
-			entries, err := sec.ParseTickers(body, f.day)
 			if err != nil {
-				return err
+				if err := r.fileFailed(ctx, &f.files[i], err, out, fails); err != nil {
+					return err
+				}
+				continue
 			}
 			got, err := r.storeSECTickers(ctx, entries, f.day)
 			res.TickersOpened += got.Opened
@@ -703,12 +743,15 @@ func (r *Runner) reprocessFetch(ctx context.Context, idx *rawIndex, f *rawFetch,
 	case rawFacts:
 		for i := range f.files {
 			body, err := r.readRaw(ctx, f.files[i].key)
-			if err != nil {
-				return err
+			var facts []domain.Fact
+			if err == nil {
+				facts, err = sec.ParseCompanyFacts(body)
 			}
-			facts, err := sec.ParseCompanyFacts(body)
 			if err != nil {
-				return err
+				if err := r.fileFailed(ctx, &f.files[i], err, out, fails); err != nil {
+					return err
+				}
+				continue
 			}
 			n, err := r.storeFacts(ctx, f.source.cik, facts)
 			if err != nil {
@@ -739,11 +782,13 @@ func (r *Runner) reprocessFetch(ctx context.Context, idx *rawIndex, f *rawFetch,
 				_, exists := slices.BinarySearch(stored, cik)
 				return exists && (idx.submitted[cik] || covered[cik]) && (opts.CIK == 0 || cik == opts.CIK)
 			}, res); err != nil {
-				return err
+				if err := r.fileFailed(ctx, &f.files[i], err, out, fails); err != nil {
+					return err
+				}
 			}
 		}
 	case rawProviderTickers:
-		return r.reprocessProviderTickers(ctx, f, res)
+		return r.reprocessProviderTickers(ctx, f, res, out, fails)
 	default:
 		return fmt.Errorf("ingest: reprocess: unknown source %s", f.source)
 	}
@@ -783,7 +828,7 @@ func (r *Runner) reprocessSubmissions(ctx context.Context, idx *rawIndex, u *raw
 // Each version of a list of one page is a list of its own. The versions
 // of a list of more pages cannot be told apart, so such a day loads only
 // when it has one version of each page.
-func (r *Runner) reprocessProviderTickers(ctx context.Context, f *rawFetch, res *ReprocessResult) error {
+func (r *Runner) reprocessProviderTickers(ctx context.Context, f *rawFetch, res *ReprocessResult, out *unitOutcome, fails *failures) error {
 	if err := r.checkSyncDay(ctx, r.stored.Name(), f.day); err != nil {
 		return err
 	}
@@ -801,8 +846,14 @@ func (r *Runner) reprocessProviderTickers(ctx context.Context, f *rawFetch, res 
 	case len(f.files) > len(pages):
 		return fmt.Errorf("%w: a page of the ticker list has two versions on one day", errIncomplete)
 	}
+	failed := func(file *rawFile, err error) error { return r.fileFailed(ctx, file, err, out, fails) }
 	for _, list := range lists {
-		got, err := r.readPages(ctx, list)
+		got, bad, err := r.readPages(ctx, list, failed)
+		if errors.Is(err, errIncomplete) {
+			out.skipped += int64(len(list)) - bad
+			r.logger.InfoContext(ctx, "ingest: reprocess skipped an incomplete response", "source", f.String(), "error", err.Error())
+			continue
+		}
 		if err != nil {
 			return err
 		}
@@ -830,8 +881,9 @@ func (r *Runner) reprocessPriceUnit(ctx context.Context, u *rawUnit, opts Reproc
 	// bars, and the first mark stays.
 	returned := 0
 	complete := 0
+	failed := func(file *rawFile, err error) error { return r.fileFailed(ctx, file, err, &out, fails) }
 	for _, f := range u.fetches {
-		pages, err := r.readPages(ctx, f.files)
+		pages, bad, err := r.readPages(ctx, f.files, failed)
 		if err == nil && u.source.kind == rawReference {
 			_, okS := pages[prices.StoredSplits]
 			_, okD := pages[prices.StoredDividends]
@@ -840,7 +892,7 @@ func (r *Runner) reprocessPriceUnit(ctx context.Context, u *rawUnit, opts Reproc
 			}
 		}
 		if err != nil {
-			if err := r.versionFailed(ctx, f, int64(len(f.files)), err, &out, fails); err != nil {
+			if err := r.versionFailed(ctx, f, int64(len(f.files))-bad, err, &out, fails); err != nil {
 				return out, err
 			}
 			continue
@@ -895,10 +947,12 @@ func (r *Runner) checkSyncDay(ctx context.Context, source string, day domain.Dat
 }
 
 // readPages decodes the price files of one fetch and joins the pages of
-// each kind of request. It returns errIncomplete when a request lacks a
-// page: when a page before the highest one is missing, or no copy of the
-// highest one is the last page.
-func (r *Runner) readPages(ctx context.Context, files []rawFile) (map[prices.StoredKind]prices.StoredPage, error) {
+// each kind of request. A file that fails to read or decode goes to
+// failed and is left out; readPages returns the number of such files, and
+// stops with the error of failed when that is not nil. It returns
+// errIncomplete when a request lacks a page: when a page before the
+// highest one is missing, or no copy of the highest one is the last page.
+func (r *Runner) readPages(ctx context.Context, files []rawFile, failed func(*rawFile, error) error) (map[prices.StoredKind]prices.StoredPage, int64, error) {
 	type state struct {
 		seen map[int]bool
 		max  int
@@ -906,15 +960,20 @@ func (r *Runner) readPages(ctx context.Context, files []rawFile) (map[prices.Sto
 		page prices.StoredPage
 	}
 	states := map[prices.StoredKind]*state{}
+	var bad int64
 	for i := range files {
 		file := &files[i]
 		body, err := r.readRaw(ctx, file.key)
-		if err != nil {
-			return nil, err
+		var page prices.StoredPage
+		if err == nil {
+			page, err = r.stored.DecodeStored(file.req, body)
 		}
-		page, err := r.stored.DecodeStored(file.req, body)
 		if err != nil {
-			return nil, err
+			bad++
+			if err := failed(file, err); err != nil {
+				return nil, bad, err
+			}
+			continue
 		}
 		st := states[file.req.Kind]
 		if st == nil {
@@ -936,12 +995,15 @@ func (r *Runner) readPages(ctx context.Context, files []rawFile) (map[prices.Sto
 	out := map[prices.StoredKind]prices.StoredPage{}
 	for kind, st := range states {
 		if len(st.seen) != st.max || !st.last {
-			return nil, fmt.Errorf("%w: %s has %d of its pages", errIncomplete, kind, len(st.seen))
+			return nil, bad, fmt.Errorf("%w: %s has %d of its pages", errIncomplete, kind, len(st.seen))
 		}
 		st.page.Last = true
 		out[kind] = st.page
 	}
-	return out, nil
+	if len(states) == 0 && bad > 0 {
+		return nil, bad, fmt.Errorf("%w: no file of the response could be read", errIncomplete)
+	}
+	return out, bad, nil
 }
 
 // readSubmissions decodes a stored submissions file with the filings of

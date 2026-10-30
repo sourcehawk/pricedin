@@ -663,3 +663,73 @@ func TestReprocessLoadsTheOtherVersionsOfASourceWhenOneDoesNotParse(t *testing.T
 		t.Errorf("close = %v, want 2 of the grouped version that parses", c)
 	}
 }
+
+// A per-symbol response that repeats an older one is still the newest
+// response, so its bar wins over a grouped day between them.
+func TestReprocessKeepsTheBarOfARepeatedNewestResponse(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, envOptions{})
+	bs := newBlob(t)
+	const aggs = "prices/massive/aggs/KO/2025-10-01_2025-10-29/page-1.json"
+	record(t, bs, "2026-10-27T12:00:00Z", aggs, barsBody(false, "1"))
+	record(t, bs, "2026-10-28T12:00:00Z", "prices/massive/grouped/2025-10-29/page-1.json", barsBody(true, "2"))
+	record(t, bs, "2026-10-29T12:00:00Z", aggs, barsBody(false, "1"))
+	r, pool := offlineRunner(t, e, bs)
+	must(r.Reprocess(context.Background(), ingest.ReprocessOptions{}))(t)
+	if c := koClose(t, pool); c != 1 {
+		t.Errorf("close = %v, want 1 of the newest response", c)
+	}
+}
+
+// A newer per-symbol response that gives no bar does not make the older
+// bars win over a grouped day between them.
+func TestReprocessOrdersBarsByTheNewestResponseThatGivesBars(t *testing.T) {
+	for name, newest := range map[string]string{
+		"does not parse": `not json`,
+		"is empty":       `{"status":"OK","ticker":"KO","results":[]}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			e := newEnv(t, envOptions{})
+			bs := newBlob(t)
+			const aggs = "prices/massive/aggs/KO/2025-10-01_2025-10-29/page-1.json"
+			record(t, bs, "2026-10-27T12:00:00Z", aggs, barsBody(false, "1"))
+			record(t, bs, "2026-10-28T12:00:00Z", "prices/massive/grouped/2025-10-29/page-1.json", barsBody(true, "2"))
+			record(t, bs, "2026-10-29T12:00:00Z", aggs, newest)
+			r, pool := offlineRunner(t, e, bs)
+			_, _ = r.Reprocess(context.Background(), ingest.ReprocessOptions{})
+			if c := koClose(t, pool); c != 2 {
+				t.Errorf("close = %v, want 2 of the grouped day, the newest response with the bar", c)
+			}
+		})
+	}
+}
+
+// A copy of a response that does not parse fails alone: another copy of
+// the same day still loads.
+func TestReprocessLoadsTheValidCopyOfADayWhenAnotherDoesNotParse(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, envOptions{})
+	bs := newBlob(t)
+	at := "2026-10-29T12:00:00Z"
+	record(t, bs, at, "prices/massive/grouped/2025-10-29/page-1.json", `not json`)
+	record(t, bs, at, "prices/massive/grouped/2025-10-29/page-1.json", barsBody(true, "2"))
+	record(t, bs, at, "prices/massive/splits/KO/page-1.json", `{"status":"OK","results":[]}`)
+	record(t, bs, at, "prices/massive/dividends/KO/page-1.json", `{"status":"OK","results":[]}`)
+	record(t, bs, at, "sec/submissions/CIK0000021344.json", `{"cik":"21344","name":"KO","filings":{"recent":{}}}`)
+	record(t, bs, "2026-10-30T12:00:00Z", "sec/companyfacts/CIK0000021344.json", `not json`)
+	record(t, bs, "2026-10-30T12:00:00Z", "sec/companyfacts/CIK0000021344.json", `{"cik":21344,"facts":{"us-gaap":{"EarningsPerShareDiluted":{"units":{"USD/shares":[`+
+		`{"start":"2025-01-01","end":"2025-03-31","val":0.5,"accn":"0000021344-25-000001","fy":2025,"fp":"Q1","form":"10-Q","filed":"2025-04-25"}]}}}}}`)
+	r, pool := offlineRunner(t, e, bs)
+	res, err := r.Reprocess(context.Background(), ingest.ReprocessOptions{})
+	if err == nil || res.Failed != 2 {
+		t.Errorf("Reprocess() = %+v, %v; want the 2 copies that do not parse as failed", res, err)
+	}
+	if c := koClose(t, pool); c != 2 {
+		t.Errorf("close = %v, want 2 of the valid grouped copy", c)
+	}
+	db := &env{pool: pool}
+	if n := db.count(t, `SELECT count(*) FROM facts WHERE cik = 21344`); n != 1 {
+		t.Errorf("facts of KO = %d, want the 1 fact of the valid copy", n)
+	}
+}
