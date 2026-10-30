@@ -80,7 +80,7 @@ func serve(ctx context.Context, getenv func(string) string, stdout io.Writer) er
 	api.Handle("/api/", httpapi.New(httpapi.Options{
 		Logger:             logger,
 		Auth:               authSvc,
-		Stocks:             stocks.New(st, stocks.Options{Loader: stocks.UnavailableLoader{}}),
+		Stocks:             stocks.New(st, stocks.Options{Loader: stocks.UnavailableLoader{}, Logger: logger}),
 		Origins:            auth.NewOrigins(cfg.Auth.PublicOrigins),
 		CookieSecure:       cfg.Auth.CookieSecure,
 		TrustedProxyHeader: cfg.Auth.TrustedProxyHeader,

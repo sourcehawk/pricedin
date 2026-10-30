@@ -18,6 +18,7 @@ import (
 
 	"github.com/sourcehawk/pricedin/server/api"
 	"github.com/sourcehawk/pricedin/server/internal/auth/authtest"
+	"github.com/sourcehawk/pricedin/server/internal/domain"
 	"github.com/sourcehawk/pricedin/server/internal/engine"
 	"github.com/sourcehawk/pricedin/server/internal/httpapi"
 	"github.com/sourcehawk/pricedin/server/internal/stocks"
@@ -439,4 +440,29 @@ func TestLoadWithAnEmptyBody(t *testing.T) {
 func TestUnknownAPIPathIsAProblem(t *testing.T) {
 	h := newHarness(t)
 	h.do(t, request(t, http.MethodGet, "/api/nothing", nil), false).problem(t, http.StatusNotFound, "not-found")
+}
+
+// Stored data never makes an evaluation fail: a TTM EPS too small for the
+// engine and a close above its bounds still give 200, with reasons.
+func TestStoredDataOutsideTheEngineBoundsAnswers200(t *testing.T) {
+	h := newHarness(t)
+	for i, v := range []float64{-0.2, -0.2, -0.12995} {
+		end := []string{"2026-04-03", "2026-07-03", "2026-10-02"}[i]
+		d, _ := domain.ParseDate(end)
+		h.data.SetQuarterValue(t, stockstest.CIKKO, "EarningsPerShareDiluted", d, v)
+	}
+	today, _ := domain.ParseDate("2026-10-30")
+	h.data.Bars = append(h.data.Bars, domain.PriceBar{Symbol: "KO", Date: today, Close: 2e6, Source: "massive"})
+	res := h.do(t, withBearer(request(t, http.MethodPost, "/api/v1/stocks/KO/evaluation", map[string]any{}), h.token(t)), true)
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, body %.300s", res.StatusCode, res.body)
+	}
+	var got struct {
+		Levers     engine.Levers     `json:"levers"`
+		Evaluation engine.Evaluation `json:"evaluation"`
+	}
+	res.json(t, &got)
+	if got.Levers.TTMEPS != 0 || got.Levers.Price != 81.38 || got.Evaluation.Required.Growth.Reason != engine.ReasonNeedsPositiveEPS {
+		t.Errorf("ttmEps %v, price %v, required %+v; want 0, 81.38 and needs_positive_eps", got.Levers.TTMEPS, got.Levers.Price, got.Evaluation.Required.Growth)
+	}
 }

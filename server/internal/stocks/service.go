@@ -9,6 +9,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
+	"math"
 	"regexp"
 	"slices"
 	"strings"
@@ -85,6 +87,9 @@ type Options struct {
 	Now func() time.Time
 	// Loader loads a company on demand; nil means UnavailableLoader.
 	Loader CompanyLoader
+	// Logger receives a warning for each stored value outside the engine's
+	// bounds; nil discards them.
+	Logger *slog.Logger
 }
 
 // Service is safe for concurrent use.
@@ -92,6 +97,7 @@ type Service struct {
 	store   Store
 	now     func() time.Time
 	loader  CompanyLoader
+	logger  *slog.Logger
 	newYork *time.Location
 }
 
@@ -103,6 +109,10 @@ func New(st Store, opts Options) *Service {
 	}
 	if s.loader == nil {
 		s.loader = UnavailableLoader{}
+	}
+	s.logger = opts.Logger
+	if s.logger == nil {
+		s.logger = slog.New(slog.DiscardHandler)
 	}
 	loc, err := time.LoadLocation("America/New_York")
 	if err != nil {
@@ -125,6 +135,7 @@ const maxCloseLag = 7
 type stock struct {
 	ticker  domain.Ticker
 	company domain.Company
+	log     *slog.Logger // with the ticker
 	loaded  bool
 	today   domain.Date
 	// symbol is the price provider's symbol of the ticker.
@@ -157,7 +168,10 @@ func (s *Service) open(ctx context.Context, ticker string) (*stock, error) {
 	if err != nil {
 		return nil, fmt.Errorf("stocks: %s: %w", ticker, err)
 	}
-	st := &stock{ticker: t, today: domain.DateOf(s.now().In(s.newYork)), symbol: priceSymbol(t.Symbol)}
+	st := &stock{
+		ticker: t, today: domain.DateOf(s.now().In(s.newYork)), symbol: priceSymbol(t.Symbol),
+		log: s.logger.With(slog.String("ticker", t.Symbol)),
+	}
 	if st.company, err = s.store.GetCompany(ctx, t.CIK); err != nil {
 		return nil, fmt.Errorf("stocks: %s: %w", ticker, err)
 	}
@@ -255,6 +269,7 @@ func (s *Service) withFundamentals(ctx context.Context, st *stock) error {
 
 // applySplits makes splits the splits in effect and adjusts the bars for
 // them. Splits from the filings carry no symbol; they get the provider's.
+// It leaves out a bar whose adjusted close is outside the engine's bounds.
 func (st *stock) applySplits(splits []domain.Split) error {
 	st.splits = make([]domain.Split, 0, len(splits))
 	for _, sp := range splits {
@@ -263,9 +278,18 @@ func (st *stock) applySplits(splits []domain.Split) error {
 			st.splits = append(st.splits, sp)
 		}
 	}
-	var err error
-	st.bars, err = prices.AdjustForSplits(st.rawBars, st.splits, st.today)
-	return err
+	bars, err := prices.AdjustForSplits(st.rawBars, st.splits, st.today)
+	if err != nil {
+		return err
+	}
+	st.bars = slices.DeleteFunc(bars, func(b prices.AdjustedBar) bool {
+		if closeOK(b.Close) {
+			return false
+		}
+		st.log.Warn("close outside the engine's bounds left out", slog.String("date", b.Bar.Date.String()), slog.Float64("close", b.Close))
+		return true
+	})
+	return nil
 }
 
 // priceSymbol maps an SEC ticker to the provider's symbol: SEC writes a
@@ -310,12 +334,14 @@ func (st *stock) latestClose() *SourcedNumber {
 	return &SourcedNumber{Value: b.Close, Source: priceSource(b), AsOf: b.Bar.Date, AsOfLabel: "as of close"}
 }
 
-// ttmEPS is the newest TTM diluted EPS known today, or nil.
+// ttmEPS is the newest TTM diluted EPS known today, or nil. The value is
+// always a valid ttmEps lever.
 func (st *stock) ttmEPS() *SourcedNumber {
 	at, v, ok := fundamentals.TTMKnownOn(st.series, fundamentals.EPSDiluted, st.today)
 	if !ok {
 		return nil
 	}
+	v.V = boundedEPS(v.V)
 	src := DerivedSource{Method: string(fundamentals.MethodTTM), Estimate: v.Estimate, Label: st.series.Quarters[at].Label}
 	for _, q := range st.series.Quarters[at-3 : at+1] {
 		src.Inputs = append(src.Inputs, valueSource(st.ticker.CIK, q.Values[fundamentals.EPSDiluted], st.filings))
@@ -347,7 +373,23 @@ func (st *stock) ttmDividend() SourcedNumber {
 			Amount: d.CashAmount, SplitRatio: ratio, DividendType: d.Type,
 		})
 	}
-	return SourcedNumber{Value: total, Source: src, AsOf: st.today}
+	// The lever's bound; no real dividend comes near it.
+	return SourcedNumber{Value: math.Min(total, maxPerShare), Source: src, AsOf: st.today}
+}
+
+// boundedEPS returns a TTM EPS within the engine's bounds: 0 for a value
+// smaller in size than the smallest EPS, or not a number, which the engine
+// reports as needs_positive_eps, and the largest EPS of the same sign for a
+// larger one.
+func boundedEPS(v float64) float64 {
+	switch a := math.Abs(v); {
+	case !(a >= minPerShare):
+		return 0
+	case a > maxPerShare:
+		return math.Copysign(maxPerShare, v)
+	default:
+		return v
+	}
 }
 
 func laterDate(a, b domain.Date) domain.Date {

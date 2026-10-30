@@ -275,3 +275,24 @@ func (l *Loader) LoadCompany(_ context.Context, symbol string) error {
 	l.Symbols = append(l.Symbols, symbol)
 	return l.Err
 }
+
+// SetQuarterValue sets the value of every three-month fact of the CIK and
+// concept that ends on periodEnd, in every filing that reports it.
+func (m *Store) SetQuarterValue(t testing.TB, cik domain.CIK, concept string, periodEnd domain.Date, value float64) {
+	t.Helper()
+	n := 0
+	for i := range m.Facts {
+		f := &m.Facts[i]
+		if f.CIK != cik || f.Concept != concept || f.PeriodEnd != periodEnd || f.PeriodStart == nil {
+			continue
+		}
+		if days := f.PeriodEnd.Time().Sub(f.PeriodStart.Time()).Hours() / 24; days < 80 || days > 100 {
+			continue
+		}
+		f.Value = value
+		n++
+	}
+	if n == 0 {
+		t.Fatalf("no three-month %s fact of %s ends on %s", concept, cik, periodEnd)
+	}
+}

@@ -2,6 +2,7 @@ package stocks
 
 import (
 	"context"
+	"log/slog"
 	"math"
 
 	"github.com/sourcehawk/pricedin/server/internal/domain"
@@ -133,6 +134,15 @@ func (st *stock) history(rng HistoryRange) History {
 			if f.metric == fundamentals.DilutedShares {
 				x = math.Round(x) // whole shares
 			}
+			valid := amountOK(x)
+			if f.metric == fundamentals.EPSDiluted {
+				valid = perShareOK(x)
+			}
+			if !valid {
+				st.log.Warn("value outside the engine's bounds left out",
+					slog.String("quarter", q.Label), slog.String("metric", string(f.metric)), slog.Float64("value", x))
+				continue
+			}
 			*f.value, *f.source = &x, valueSource(cik, v, st.filings)
 		}
 		if b, ok := st.closeOn(q.PeriodEnd); ok {
@@ -152,8 +162,8 @@ func (st *stock) history(rng HistoryRange) History {
 			continue
 		}
 		p := engine.PricePoint{Date: b.Bar.Date, Close: b.Close}
-		if _, v, ok := fundamentals.TTMKnownOn(st.series, fundamentals.EPSDiluted, b.Bar.Date); ok {
-			eps := v.V
+		if _, v, ok := fundamentals.TTMKnownOn(st.series, fundamentals.EPSDiluted, b.Bar.Date); ok && math.Abs(v.V) <= maxPerShare {
+			eps := boundedEPS(v.V)
 			p.TTMEPS = &eps
 		}
 		out.History.Daily = append(out.History.Daily, p)

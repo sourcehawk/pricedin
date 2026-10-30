@@ -685,3 +685,109 @@ func mustFundamentals(t *testing.T, svc *stocks.Service, ticker string) stocks.F
 }
 
 func ptr[T any](v T) *T { return &v }
+
+// Stored data outside the engine's bounds must never fail an evaluation
+// that uses the default levers: only levers the user sends can.
+func TestStoredDataOutsideTheEngineBoundsStillEvaluates(t *testing.T) {
+	koLast := []string{"2026-04-03", "2026-07-03", "2026-10-02"}
+	tests := map[string]struct {
+		edit  func(t *testing.T, m *stockstest.Store)
+		check func(t *testing.T, ev stocks.Evaluation, h stocks.History)
+	}{
+		"a quarter EPS of 1e-7": {
+			edit: func(t *testing.T, m *stockstest.Store) {
+				m.SetQuarterValue(t, stockstest.CIKKO, "EarningsPerShareDiluted", date(t, koLast[1]), 1e-7)
+			},
+			check: func(t *testing.T, _ stocks.Evaluation, h stocks.History) {
+				for i, q := range h.History.Quarters {
+					if q.PeriodEnd == date(t, koLast[1]) && (q.EPS != nil || h.Quarters[i].EPS != nil) {
+						t.Errorf("%s EPS = %v, want null: 1e-7 is below the engine's smallest EPS", q.Label, *q.EPS)
+					}
+				}
+			},
+		},
+		"a TTM EPS of 0.00005": {
+			// Q4 FY25 is 0.53 (3.04 for the year less 2.51 for nine months).
+			edit: func(t *testing.T, m *stockstest.Store) {
+				for i, v := range []float64{-0.2, -0.2, -0.12995} {
+					m.SetQuarterValue(t, stockstest.CIKKO, "EarningsPerShareDiluted", date(t, koLast[i]), v)
+				}
+			},
+			check: func(t *testing.T, ev stocks.Evaluation, h stocks.History) {
+				if ev.Levers.TTMEPS != 0 || ev.Evaluation.Required.Growth.Reason != engine.ReasonNeedsPositiveEPS {
+					t.Errorf("ttmEps %v, required growth %+v; want 0 and needs_positive_eps", ev.Levers.TTMEPS, ev.Evaluation.Required.Growth)
+				}
+				if last := h.History.Daily[len(h.History.Daily)-1]; last.TTMEPS == nil || *last.TTMEPS != 0 {
+					t.Errorf("last daily ttmEps = %v, want 0", last.TTMEPS)
+				}
+			},
+		},
+		"a close of 2e6": {
+			edit: func(t *testing.T, m *stockstest.Store) {
+				m.Bars = append(m.Bars, domain.PriceBar{Symbol: "KO", Date: date(t, "2026-10-30"), Close: 2e6, Source: "massive"})
+				for i := range m.Bars {
+					if m.Bars[i].Symbol == "KO" && m.Bars[i].Date == date(t, "2025-03-03") {
+						m.Bars[i].Close = 2e6
+					}
+				}
+			},
+			check: func(t *testing.T, ev stocks.Evaluation, h stocks.History) {
+				if ev.Levers.Price != 81.38 {
+					t.Errorf("price = %v, want the last close within bounds, 81.38", ev.Levers.Price)
+				}
+				for _, d := range h.History.Daily {
+					if d.Close > 1e6 {
+						t.Errorf("daily close %v on %s, want it left out", d.Close, d.Date)
+					}
+				}
+			},
+		},
+		"gaps in the quarters and the closes": {
+			edit: func(_ *testing.T, m *stockstest.Store) {
+				m.Facts = slices.DeleteFunc(m.Facts, func(f domain.Fact) bool {
+					return f.CIK == stockstest.CIKKO && f.PeriodEnd.Year == 2024
+				})
+				m.Bars = slices.DeleteFunc(m.Bars, func(b domain.PriceBar) bool {
+					return b.Symbol == "KO" && b.Date.Year == 2025 && b.Date.Month <= 6
+				})
+			},
+			check: func(t *testing.T, ev stocks.Evaluation, _ stocks.History) {
+				if !ev.Evaluation.PENow.Ok() {
+					t.Errorf("peNow = %+v, want a value", ev.Evaluation.PENow)
+				}
+			},
+		},
+		"a TTM dividend above the lever bound": {
+			edit: func(t *testing.T, m *stockstest.Store) {
+				m.Dividends = append(m.Dividends, domain.Dividend{Symbol: "KO", ExDate: date(t, "2026-10-01"), CashAmount: 2e6, Currency: "USD", Type: "recurring", Source: "massive", ProviderID: "big"})
+			},
+			check: func(t *testing.T, ev stocks.Evaluation, _ stocks.History) {
+				if ev.Levers.Dividend != 1e6 {
+					t.Errorf("dividend = %v, want it clamped to 1e6", ev.Levers.Dividend)
+				}
+			},
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			m := stockstest.Fixture(t)
+			tt.edit(t, m)
+			svc := newService(t, m, nil)
+			ev, err := svc.Evaluate(context.Background(), "KO", stocks.LeversInput{})
+			if err != nil {
+				t.Fatalf("Evaluate() error = %v, want an evaluation with reasons", err)
+			}
+			h, err := svc.History(context.Background(), "KO", stocks.RangeMax)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := h.History.Validate(); err != nil {
+				t.Errorf("History.Validate() = %v, want a history the engine accepts", err)
+			}
+			if _, err := svc.Profile(context.Background(), "KO"); err != nil {
+				t.Errorf("Profile() error = %v", err)
+			}
+			tt.check(t, ev, h)
+		})
+	}
+}
