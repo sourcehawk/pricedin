@@ -11,13 +11,17 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 
 	"github.com/sourcehawk/pricedin/server/api"
+	"github.com/sourcehawk/pricedin/server/internal/auth/authtest"
 	"github.com/sourcehawk/pricedin/server/internal/engine"
 	"github.com/sourcehawk/pricedin/server/internal/httpapi"
 	"github.com/sourcehawk/pricedin/server/internal/stocks"
+	"github.com/sourcehawk/pricedin/server/internal/stocks/stockstest"
+	"github.com/sourcehawk/pricedin/server/internal/store"
 )
 
 // v1Path fills the path parameters of a route pattern.
@@ -97,7 +101,36 @@ func TestAnInvalidBearerTokenDoesNotFallBackToTheCookie(t *testing.T) {
 	h := newHarness(t)
 	c := h.login(t)
 	req := withBearer(withCookie(request(t, http.MethodGet, "/api/v1/status", nil), c), "wrong")
-	h.do(t, req, false).problem(t, http.StatusUnauthorized, "unauthenticated")
+	res := h.do(t, req, false)
+	res.problem(t, http.StatusUnauthorized, "unauthenticated")
+	if len(res.Cookies()) != 0 {
+		t.Errorf("cookies = %v, want the session cookie kept: the bearer token failed, not the session", res.Cookies())
+	}
+	if res := h.do(t, withCookie(request(t, http.MethodGet, "/api/v1/status", nil), c), true); res.StatusCode != http.StatusOK {
+		t.Errorf("the session after a bad bearer token: status %d, want 200", res.StatusCode)
+	}
+}
+
+// deadlineStore records whether the token lookup had a deadline.
+type deadlineStore struct {
+	*authtest.Store
+	deadline time.Duration
+}
+
+func (d *deadlineStore) GetActiveAPIToken(ctx context.Context, hash []byte) (store.APIToken, error) {
+	if at, ok := ctx.Deadline(); ok {
+		d.deadline = time.Until(at)
+	}
+	return d.Store.GetActiveAPIToken(ctx, hash)
+}
+
+func TestCredentialLookupsHaveADeadline(t *testing.T) {
+	as := &deadlineStore{Store: authtest.NewStore()}
+	h := newHarnessOn(t, as, stockstest.Fixture(t))
+	h.do(t, withBearer(request(t, http.MethodGet, "/api/v1/status", nil), "unknown"), true).problem(t, http.StatusUnauthorized, "unauthenticated")
+	if as.deadline <= 0 || as.deadline > 15*time.Second {
+		t.Errorf("token lookup deadline = %v away, want at most 15s", as.deadline)
+	}
 }
 
 func TestCookieWritesNeedTheWebAppsOrigin(t *testing.T) {

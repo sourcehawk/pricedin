@@ -85,12 +85,12 @@ func (a *api) logout(w http.ResponseWriter, r *http.Request) {
 func (a *api) session(w http.ResponseWriter, r *http.Request) {
 	c, err := r.Cookie(CookieName)
 	if err != nil {
-		a.unauthenticated(w, r)
+		a.unauthenticated(w, r, false)
 		return
 	}
 	sess, err := a.Auth.Session(r.Context(), c.Value)
 	if err != nil {
-		a.authFailure(w, r, err)
+		a.authFailure(w, r, err, true)
 		return
 	}
 	writeJSON(a.Logger, w, r, sessionInfo(sess))

@@ -237,15 +237,18 @@ func (a *api) notFound(w http.ResponseWriter, r *http.Request) {
 // token alone. A write with the cookie must also come from a web origin.
 func (a *api) authenticate(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// The route's own deadline starts after this check.
+		ctx, cancel := context.WithTimeout(r.Context(), requestTimeout)
+		defer cancel()
 		if h := r.Header.Get("Authorization"); h != "" {
 			scheme, token, _ := strings.Cut(h, " ")
 			token = strings.TrimSpace(token)
 			if !strings.EqualFold(scheme, "Bearer") || token == "" {
-				a.unauthenticated(w, r)
+				a.unauthenticated(w, r, false)
 				return
 			}
-			if _, err := a.Auth.APIToken(r.Context(), token); err != nil {
-				a.authFailure(w, r, err)
+			if _, err := a.Auth.APIToken(ctx, token); err != nil {
+				a.authFailure(w, r, err, false)
 				return
 			}
 			next.ServeHTTP(w, r)
@@ -253,11 +256,11 @@ func (a *api) authenticate(next http.Handler) http.Handler {
 		}
 		c, err := r.Cookie(CookieName)
 		if err != nil {
-			a.unauthenticated(w, r)
+			a.unauthenticated(w, r, false)
 			return
 		}
-		if _, err := a.Auth.Session(r.Context(), c.Value); err != nil {
-			a.authFailure(w, r, err)
+		if _, err := a.Auth.Session(ctx, c.Value); err != nil {
+			a.authFailure(w, r, err, true)
 			return
 		}
 		if isWrite(r.Method) && !a.Origins.Allowed(r.Header.Get("Origin")) {
@@ -268,18 +271,21 @@ func (a *api) authenticate(next http.Handler) http.Handler {
 	})
 }
 
-func (a *api) authFailure(w http.ResponseWriter, r *http.Request, err error) {
+// authFailure writes the response to a failed credential check.
+// clearCookie is set when the session cookie failed.
+func (a *api) authFailure(w http.ResponseWriter, r *http.Request, err error, clearCookie bool) {
 	if errors.Is(err, auth.ErrUnauthenticated) {
-		a.unauthenticated(w, r)
+		a.unauthenticated(w, r, clearCookie)
 		return
 	}
 	writeInternal(a.Logger, w, r, err)
 }
 
-// unauthenticated writes a 401 problem, and clears a session cookie that
-// the request sent, since it is not valid.
-func (a *api) unauthenticated(w http.ResponseWriter, r *http.Request) {
-	if _, err := r.Cookie(CookieName); err == nil {
+// unauthenticated writes a 401 problem. With clearCookie, it also deletes
+// the session cookie, which is not valid; a failed bearer token leaves a
+// cookie alone.
+func (a *api) unauthenticated(w http.ResponseWriter, r *http.Request, clearCookie bool) {
+	if clearCookie {
 		http.SetCookie(w, a.cookie("", -1))
 	}
 	w.Header().Set("WWW-Authenticate", `Bearer realm="pricedin"`)
