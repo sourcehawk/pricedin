@@ -6,6 +6,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -811,5 +812,79 @@ func TestReprocessLoadsTheValidCopyOfADayWhenAnotherDoesNotParse(t *testing.T) {
 	db := &env{pool: pool}
 	if n := db.count(t, `SELECT count(*) FROM facts WHERE cik = 21344`); n != 1 {
 		t.Errorf("facts of KO = %d, want the 1 fact of the valid copy", n)
+	}
+}
+
+// A fetch that repeats the one before still joins the rest of its
+// request from the next day.
+func TestReprocessJoinsARepeatedFetchWithTheNextDay(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, envOptions{})
+	bs := newBlob(t)
+	const splits = "prices/massive/splits/KO/page-1.json"
+	record(t, bs, "2026-10-27T12:00:00Z", splits, `{"status":"OK","results":[]}`)
+	record(t, bs, "2026-10-28T23:59:59Z", splits, `{"status":"OK","results":[]}`)
+	record(t, bs, "2026-10-29T00:00:01Z", "prices/massive/dividends/KO/page-1.json",
+		`{"status":"OK","results":[{"id":"d1","ticker":"KO","ex_dividend_date":"2026-09-15","cash_amount":0.51}]}`)
+	r, pool := offlineRunner(t, e, bs)
+	must(r.Reprocess(context.Background(), ingest.ReprocessOptions{}))(t)
+	db := &env{pool: pool}
+	if n := db.count(t, `SELECT count(*) FROM dividends WHERE provider_id = 'd1'`); n != 1 {
+		t.Error("the dividend after midnight did not load with the repeated splits before it")
+	}
+}
+
+// A per-symbol retry whose pages span midnight is the newest response,
+// so its bar wins over a grouped day before it.
+func TestReprocessOrdersBarsByAResponseJoinedAcrossMidnight(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, envOptions{})
+	bs := newBlob(t)
+	const aggs = "prices/massive/aggs/KO/2025-10-01_2025-10-29/"
+	record(t, bs, "2026-10-26T12:00:00Z", aggs+"page-1.json", barsBody(false, "1"))
+	record(t, bs, "2026-10-27T12:00:00Z", "prices/massive/grouped/2025-10-29/page-1.json", barsBody(true, "2"))
+	record(t, bs, "2026-10-28T23:59:59Z", aggs+"page-1.json",
+		`{"status":"OK","ticker":"KO","results":[],"next_url":"https://api.massive.com/v2/aggs?cursor=p2"}`)
+	record(t, bs, "2026-10-29T00:00:01Z", aggs+"page-2.json", barsBody(false, "3"))
+	r, pool := offlineRunner(t, e, bs)
+	must(r.Reprocess(context.Background(), ingest.ReprocessOptions{}))(t)
+	if c := koClose(t, pool); c != 3 {
+		t.Errorf("close = %v, want 3 of the retry joined across midnight", c)
+	}
+}
+
+// An archive takes its universe from the newest SEC ticker map that
+// parses.
+func TestReprocessTakesTheArchiveUniverseFromTheNewestTickerMapThatParses(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, envOptions{})
+	bs := newBlob(t)
+	record(t, bs, "2026-10-27T12:00:00Z", "sec/tickers/company_tickers_exchange.json",
+		`{"fields":["cik","name","ticker","exchange"],"data":[[21344,"Coca-Cola Co","KO","NYSE"]]}`)
+	record(t, bs, "2026-10-28T12:00:00Z", "sec/tickers/company_tickers_exchange.json", `not json`)
+	record(t, bs, "2026-10-28T12:00:00Z", "sec/archives/companyfacts.zip", koArchive(t))
+	r, pool := offlineRunner(t, e, bs)
+	_, _ = r.Reprocess(context.Background(), ingest.ReprocessOptions{})
+	db := &env{pool: pool}
+	if n := db.count(t, `SELECT count(*) FROM facts WHERE cik = 21344`); n != 1 {
+		t.Errorf("facts of KO = %d, want the archive fact of the covered company", n)
+	}
+}
+
+// Two versions of a ticker page on the next day cannot be paired with
+// the page before midnight.
+func TestReprocessDoesNotJoinATickerPageWithTwoVersionsOnTheNextDay(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, envOptions{})
+	bs := newBlob(t)
+	const list = "prices/massive/tickers/stocks-active/"
+	record(t, bs, "2026-10-28T23:59:59Z", list+"page-1.json",
+		`{"status":"OK","results":[{"ticker":"KO","cik":"0000021344"}],"next_url":"https://api.massive.com/v3/reference/tickers?cursor=p2"}`)
+	record(t, bs, "2026-10-29T00:00:01Z", list+"page-2.json", `{"status":"OK","results":[{"ticker":"KOF","cik":"0000021344"}]}`)
+	record(t, bs, "2026-10-29T00:00:01Z", list+"page-2.json", `{"status":"OK","results":[]}`)
+	r, pool := offlineRunner(t, e, bs)
+	must(r.Reprocess(context.Background(), ingest.ReprocessOptions{}))(t)
+	if _, err := store.New(pool).GetTickerSyncDate(context.Background(), "massive"); !errors.Is(err, store.ErrNotFound) {
+		t.Errorf("GetTickerSyncDate(massive) error = %v, want no sync", err)
 	}
 }
