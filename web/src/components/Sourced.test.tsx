@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import type { SecSource, SourcedNumber } from "@/api/types";
@@ -72,7 +72,7 @@ describe("Sourced", () => {
     );
   });
 
-  it("links the newest filing also when it sits in a nested derived input", () => {
+  it("links the newest filing also when it sits in a nested derived input, and lists it", async () => {
     const sec = (form: string, filed: string): SecSource => ({
       kind: "sec",
       form,
@@ -110,6 +110,39 @@ describe("Sourced", () => {
     expect(screen.getByRole("link", { name: "$4.00" })).toHaveAttribute(
       "href",
       "https://www.sec.gov/10-K/2027-02-20",
+    );
+    await userEvent.hover(screen.getByText("$4.00"));
+    const tip = screen.getByRole("tooltip");
+    const quarters = tip.querySelectorAll(":scope > ul > li");
+    expect(quarters).toHaveLength(4);
+    // The derived quarter lists the filings it comes from, one level down.
+    const q4 = quarters[3] as HTMLElement;
+    expect(q4).toHaveTextContent("Fiscal year minus the first three quarters");
+    expect(
+      within(q4)
+        .getAllByRole("listitem")
+        .map((li) => li.textContent),
+    ).toEqual([
+      "Form 10-K, filed 2027-02-20, period ending 2027-02-20",
+      "Form 10-Q, filed 2026-11-01, period ending 2026-11-01",
+    ]);
+  });
+
+  it("marks an estimated input of a derived value", async () => {
+    const value: SourcedNumber = {
+      value: 1,
+      source: {
+        kind: "derived",
+        method: "derived",
+        estimate: false,
+        inputs: [{ kind: "derived", method: "weighted_average_q4", estimate: true, inputs: [] }],
+      },
+      asOf: "2026-01-01",
+    };
+    renderSourced(<Sourced value={value}>1</Sourced>);
+    await userEvent.hover(screen.getByText("1"));
+    expect(screen.getByRole("tooltip")).toHaveTextContent(
+      "Fourth quarter from the yearly weighted average (estimate)",
     );
   });
 

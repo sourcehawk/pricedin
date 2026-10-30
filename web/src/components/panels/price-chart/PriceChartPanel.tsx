@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useState, type ReactNode } from "react";
-import { coefficient, multiple, signedPct, times, usd } from "@/components/format";
+import type { SourcedNumber } from "@/api/types";
+import { coefficient, factor, multiple, signedPct, times, usd } from "@/components/format";
 import { filingLink, Sourced } from "@/components/Sourced";
 import { InfoTip } from "@/components/tip/InfoTip";
 import { Walkthrough } from "@/components/walkthrough/Walkthrough";
@@ -21,6 +22,7 @@ import {
 } from "./overlays";
 import { PricePlot, type Marker } from "./PricePlot";
 import styles from "./PriceChart.module.css";
+import { closeSourced, ttmSourced } from "./sources";
 import { bandsStep, priceSteps } from "./steps";
 
 const ranges: readonly ChartRange[] = ["6M", "1Y", "3Y"];
@@ -39,7 +41,19 @@ function toggled(s: ReadonlySet<OverlayKey>, k: OverlayKey): Set<OverlayKey> {
   return next;
 }
 
-function BandCaption({ chart, lifted }: { chart: Chart; lifted: number | null }) {
+function BandCaption({
+  chart,
+  lifted,
+  close,
+  ttmEps,
+}: {
+  chart: Chart;
+  lifted: number | null;
+  /** The last close with its source, when it has one. */
+  close: SourcedNumber | null;
+  /** The last day's TTM EPS with its source, when it has one. */
+  ttmEps: SourcedNumber | null;
+}) {
   const bands = chart.bands.value;
   const last = chart.points.at(-1);
   let text: ReactNode = "Hover a dotted line or its label on the right to follow one P/E band.";
@@ -56,9 +70,9 @@ function BandCaption({ chart, lifted }: { chart: Chart; lifted: number | null })
           "Today TTM EPS is not positive, so the band has no price."
         ) : (
           <>
-            Today that is {usd(last?.ttmEps)} × {String(band.multiple)} ={" "}
-            <b>{usd(band.priceToday.value)}</b>, {vsWords[vs]} today&apos;s price of{" "}
-            {usd(last?.close)}.
+            Today that is <Sourced value={ttmEps}>{usd(last?.ttmEps)}</Sourced> ×{" "}
+            {factor(band.multiple)} = <b>{usd(band.priceToday.value)}</b>, {vsWords[vs]}{" "}
+            today&apos;s price of <Sourced value={close}>{usd(last?.close)}</Sourced>.
           </>
         )}
       </>
@@ -173,14 +187,22 @@ export function PriceChartPanel() {
   const lifted = bandsOn ? (tourBand ?? hoverBand) : null;
   const last = chart.points.at(-1);
   const link = chart.link.value;
-  const close = profile.latestClose;
   const period = spanLabel(chart.start, chart.end, chart.range);
+  const sourced = (v: number) => {
+    const p = chart.points.find((x) => x.close === v);
+    return p === undefined ? null : closeSourced(p.date, v, history.quarters, profile.latestClose);
+  };
+  const lastClose = last === undefined ? null : sourced(last.close);
 
   const sub = (
     <span data-testid="price-sub">
       {period.startsWith("since ") ? `Since ${period.slice(6)}` : chart.range}:{" "}
       <span className={chart.priceChange >= 0 ? "up" : "down"}>{signedPct(chart.priceChange)}</span>
-      {` · high ${usd(chart.high)} · low ${usd(chart.low)} · P/E ${times(chart.peStart.value)} → ${times(chart.peEnd.value)}`}
+      {" · high "}
+      <Sourced value={sourced(chart.high)}>{usd(chart.high)}</Sourced>
+      {" · low "}
+      <Sourced value={sourced(chart.low)}>{usd(chart.low)}</Sourced>
+      {` · P/E ${times(chart.peStart.value)} → ${times(chart.peEnd.value)}`}
       {link !== null && (
         <>
           {" · "}
@@ -201,9 +223,7 @@ export function PriceChartPanel() {
       {last !== undefined && (
         <>
           {" · last close "}
-          <Sourced value={close !== null && close.asOf === chart.end ? close : null}>
-            {usd(last.close)}
-          </Sourced>
+          <Sourced value={lastClose}>{usd(last.close)}</Sourced>
           {` on ${dayLabel(chart.end)}`}
         </>
       )}
@@ -219,7 +239,14 @@ export function PriceChartPanel() {
         locked={touring}
         onToggle={onToggle}
       />
-      {shown.has("bands") && <BandCaption chart={chart} lifted={lifted} />}
+      {shown.has("bands") && (
+        <BandCaption
+          chart={chart}
+          lifted={lifted}
+          close={lastClose}
+          ttmEps={last === undefined ? null : ttmSourced(last, history.quarters)}
+        />
+      )}
       <div className={["px", styles.plot, lifted === null ? "" : "band-hover"].join(" ").trim()}>
         <PricePlot
           chart={chart}

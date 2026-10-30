@@ -395,6 +395,22 @@ describe("PriceChartPanel", () => {
       expect(chart().querySelector('[data-bm="25"].bline')).not.toHaveClass("bh");
     });
 
+    it("sources the TTM EPS and the close in the caption", async () => {
+      await withBands();
+      fireEvent.pointerOver(chart().querySelector('[data-bm="25"].bhit') as Element, {
+        pointerType: "mouse",
+      });
+      const eps = within(caption()).getByRole("link", { name: "$10.80" });
+      await userEvent.hover(eps);
+      const tip = screen.getByRole("tooltip");
+      expect(tip).toHaveTextContent("Sum of the last four quarters");
+      expect(tip.querySelectorAll(":scope > ul > li")).toHaveLength(4);
+      await userEvent.unhover(eps);
+      const close = within(caption()).getAllByText("$270.00").at(-1) as HTMLElement;
+      await userEvent.hover(close);
+      expect(screen.getByRole("tooltip")).toHaveTextContent("Close on 2026-09-30 from Massive");
+    });
+
     it("lifts a band whose label gets the focus", async () => {
       await withBands();
       act(() => {
