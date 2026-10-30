@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { PriceSource, QuarterSources, Source } from "@/api/types";
+import type { PriceFeed, QuarterSources, Source } from "@/api/types";
 import { historyFixture, priceSourced } from "@/api/testing/fixtures";
 import type { ChartPoint } from "@/engine";
 import { closeSourced, ttmSourced } from "./sources";
@@ -18,36 +18,59 @@ const day = (change: Partial<ChartPoint> = {}): ChartPoint => ({
 });
 
 describe("closeSourced", () => {
-  it("gives the latest close its source on its own day", () => {
-    expect(closeSourced(priceSourced.asOf, priceSourced.value, [], priceSourced)).toBe(
+  const feed: PriceFeed = {
+    provider: "massive",
+    symbol: "GRMN",
+    splits: [
+      { date: "2024-03-01", ratio: 2 },
+      { date: "2025-06-02", ratio: 3 },
+    ],
+  };
+
+  it("gives the latest close the profile's source on its own day", () => {
+    expect(closeSourced(priceSourced.asOf, priceSourced.value, feed, priceSourced)).toBe(
       priceSourced,
     );
   });
 
-  it("gives a quarter-end close the source of that quarter", () => {
-    const src: PriceSource = {
-      kind: "price",
-      provider: "massive",
-      symbol: "GRMN",
-      closeDate: "2025-06-27",
-      rawClose: 201,
-      splitFactor: 1,
-    };
-    const qs: QuarterSources[] = [{ ...(quarters[0] as QuarterSources), close: src }];
-    expect(closeSourced("2025-06-27", 201, qs, null)).toEqual({
-      value: 201,
-      source: src,
-      asOf: "2025-06-27",
+  it("gives a close after every split the provider's close of that day", () => {
+    expect(closeSourced("2025-08-14", 201.5, feed, priceSourced)).toEqual({
+      value: 201.5,
+      source: {
+        kind: "price",
+        provider: "massive",
+        symbol: "GRMN",
+        closeDate: "2025-08-14",
+        rawClose: 201.5,
+        splitFactor: 1,
+      },
+      asOf: "2025-08-14",
       asOfLabel: "as of close",
     });
   });
 
-  it("has no source for a day that neither the profile nor a quarter sources", () => {
-    expect(closeSourced("2025-01-15", 180, quarters, priceSourced)).toBeNull();
+  it("multiplies a close back by the ratio of every split after its day", () => {
+    const before = closeSourced("2024-02-29", 50.25, feed, null);
+    expect(before?.source).toMatchObject({ splitFactor: 6, rawClose: 301.5 });
+    const between = closeSourced("2025-05-30", 80, feed, null);
+    expect(between?.source).toMatchObject({ splitFactor: 3, rawClose: 240 });
   });
 
-  it("has no source when the latest close of the profile differs", () => {
-    expect(closeSourced(priceSourced.asOf, priceSourced.value + 1, [], priceSourced)).toBeNull();
+  it("does not adjust a close on the day of a split", () => {
+    expect(closeSourced("2025-06-02", 81, feed, null)?.source).toMatchObject({
+      splitFactor: 1,
+      rawClose: 81,
+    });
+  });
+
+  it("gives the latest day the provider's close when the profile's close differs", () => {
+    const s = closeSourced(priceSourced.asOf, priceSourced.value + 1, feed, priceSourced);
+    expect(s).not.toBe(priceSourced);
+    expect(s).toMatchObject({ value: priceSourced.value + 1, asOf: priceSourced.asOf });
+  });
+
+  it("has no source without a price feed", () => {
+    expect(closeSourced("2025-01-15", 180, null, priceSourced)).toBeNull();
   });
 });
 

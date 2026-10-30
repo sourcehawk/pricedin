@@ -268,16 +268,11 @@ export function PriceChartPanel() {
   const link = chart.link.value;
   const period = spanLabel(chart.start, chart.end, chart.range);
   const sourcedOn = (date: string, close: number) =>
-    closeSourced(date, close, history.quarters, profile.latestClose);
-  // The high and the low can close on several days; any of them with a source will do.
+    closeSourced(date, close, history.prices, profile.latestClose);
+  // The high and the low can close on several days; the first of them is their source.
   const sourced = (v: number) => {
-    for (const p of chart.points) {
-      const s = p.close === v ? sourcedOn(p.date, v) : null;
-      if (s !== null) {
-        return s;
-      }
-    }
-    return null;
+    const p = chart.points.find((x) => x.close === v);
+    return p === undefined ? null : sourcedOn(p.date, v);
   };
   const lastClose = last === undefined ? null : sourcedOn(last.date, last.close);
 
@@ -345,7 +340,8 @@ export function PriceChartPanel() {
           onBand={onBand}
           hover={hover}
           markers={markers}
-          feed={history.prices?.provider ?? null}
+          feed={history.prices}
+          latest={profile.latestClose}
           quarters={history.quarters}
         />
       </div>

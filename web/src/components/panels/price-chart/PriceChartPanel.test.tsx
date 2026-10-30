@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import type { StockHistory } from "@/api/types";
 import { historyFixture } from "@/api/testing/fixtures";
+import { usd } from "@/components/format";
 import { serveHistory, withApiServer } from "@/api/testing/server";
 import { renderReady, WhenReady } from "@/testing/render";
 import { PriceChartPanel } from "./PriceChartPanel";
@@ -95,6 +96,39 @@ describe("PriceChartPanel", () => {
     );
   });
 
+  it("shows the high and the low with the provider's close of their day", async () => {
+    await renderReady(
+      <WhenReady>
+        <PriceChartPanel />
+      </WhenReady>,
+    );
+    const sub = within(panel()).getByTestId("price-sub");
+    for (const shown of ["$273.81", "$101.55"]) {
+      const day = historyFixture.history.daily.find((d) => usd(d.close) === shown);
+      within(sub).getByText(shown).focus();
+      const tip = await screen.findByRole("tooltip");
+      expect(tip).toHaveTextContent(`Close on ${day?.date ?? "?"} from Massive`);
+      expect(tip).toHaveTextContent(`As of close ${day?.date ?? "?"}`);
+    }
+  });
+
+  it("names the raw close and the split factor of a close before a split", async () => {
+    serveHistory({
+      ...historyFixture,
+      prices: { provider: "massive", symbol: "GRMN", splits: [{ date: "2024-01-02", ratio: 2 }] },
+    });
+    await renderReady(
+      <WhenReady>
+        <PriceChartPanel />
+      </WhenReady>,
+    );
+    const low = within(within(panel()).getByTestId("price-sub")).getByText("$101.55");
+    low.focus();
+    expect(await screen.findByRole("tooltip")).toHaveTextContent(
+      "$203.10 as reported, divided by 2 for later stock splits",
+    );
+  });
+
   it("starts with the TTM EPS, P/E and share-change overlays on", async () => {
     await renderReady(
       <WhenReady>
@@ -154,7 +188,7 @@ describe("PriceChartPanel", () => {
     expect(screen.getByTestId("price-guide")).toHaveAttribute("x1", "50");
     expect(await screen.findByRole("tooltip")).toHaveTextContent("30 Sep 2023");
     expect(screen.getByRole("tooltip")).toHaveTextContent(
-      "Close from Massive, adjusted for splits",
+      "Close on 2023-09-30 from Massive. As of close 2023-09-30.",
     );
     expect(screen.getByRole("tooltip")).toHaveTextContent(
       "TTM EPS adds up Q4 FY22, Q1 FY23, Q2 FY23 and Q3 FY23, known from the filings on 2023-09-30, with the values of the latest filings; the newest is Form 10-Q, filed 2023-09-30. P/E is the close over this TTM EPS.",
@@ -491,6 +525,22 @@ describe("PriceChartPanel", () => {
       const close = within(caption()).getAllByText("$270.00").at(-1) as HTMLElement;
       await userEvent.hover(close);
       expect(screen.getByRole("tooltip")).toHaveTextContent("Close on 2026-09-30 from Massive");
+    });
+
+    it("sources the close in the caption when the chart ends before the latest close", async () => {
+      serveEngineHistory({
+        ...historyFixture.history,
+        daily: historyFixture.history.daily.slice(0, -1),
+      });
+      await withBands();
+      fireEvent.pointerOver(chart().querySelector('[data-bm="25"].bhit') as Element, {
+        pointerType: "mouse",
+      });
+      const close = within(caption()).getAllByText("$267.47").at(-1) as HTMLElement;
+      await userEvent.hover(close);
+      const tip = screen.getByRole("tooltip");
+      expect(tip).toHaveTextContent("Close on 2026-09-29 from Massive");
+      expect(tip).toHaveTextContent("As of close 2026-09-29");
     });
 
     it("lifts a band whose label gets the focus", async () => {

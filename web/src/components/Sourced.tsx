@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import type { SecSource, Source, SourcedNumber } from "@/api/types";
 import type { Provenance } from "@/state/StockProvider";
+import { factor, usd } from "./format";
 import { useTipHandlers } from "./tip/TipProvider";
 
 // Names of the derivation methods that the API reports for a derived value.
@@ -48,7 +49,8 @@ export function filingLink(s: Source): string | null {
   return newestFiling(s)?.url ?? null;
 }
 
-function SourceLine({ s }: { s: Source }) {
+/** SourceLine names where a value comes from, in one line without the as-of date. */
+export function SourceLine({ s }: { s: Source }) {
   switch (s.kind) {
     case "sec":
       return (
@@ -59,7 +61,9 @@ function SourceLine({ s }: { s: Source }) {
     case "price":
       return (
         <>
-          Close on {s.closeDate} from {providerName(s.provider)}, adjusted for splits
+          Close on {s.closeDate} from {providerName(s.provider)}
+          {s.splitFactor !== 1 &&
+            `, ${usd(s.rawClose)} as reported, divided by ${factor(s.splitFactor)} for later stock splits`}
         </>
       );
     case "dividend":

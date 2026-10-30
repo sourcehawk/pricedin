@@ -3,10 +3,10 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { joinNames } from "@/components/copy";
 import { multiple, shareCount, signedPct, times, usd } from "@/components/format";
-import { EstimateTag, estimateNote, newestFiling } from "@/components/Sourced";
+import { EstimateTag, estimateNote, newestFiling, SourceLine } from "@/components/Sourced";
 import { TipRow } from "@/components/tip/TipRow";
 import { useTip, useTipHandlers } from "@/components/tip/TipProvider";
-import type { QuarterSources, SecSource, Source } from "@/api/types";
+import type { PriceFeed, QuarterSources, SecSource, Source, SourcedNumber } from "@/api/types";
 import type { Chart, ChartPoint, ShareEvent } from "@/engine";
 import {
   bandSegments,
@@ -31,6 +31,7 @@ import {
 } from "./geometry";
 import type { HoverStore } from "./hover";
 import type { OverlayKey } from "./overlays";
+import { closeSourced } from "./sources";
 
 /** Marker is a share-count event with the filing that reports its share count, when known. */
 export interface Marker {
@@ -50,8 +51,10 @@ export interface PricePlotProps {
   onBand: (multiple: number | null) => void;
   hover: HoverStore;
   markers: readonly Marker[];
-  /** The price provider of the daily closes; null when the history names none. */
-  feed: string | null;
+  /** Where the daily closes come from; null when the history names nothing. */
+  feed: PriceFeed | null;
+  /** The profile's latest close with its source. */
+  latest: SourcedNumber | null;
   /** The sources of the history's quarters, oldest first. */
   quarters: readonly QuarterSources[];
 }
@@ -196,12 +199,13 @@ function dotSpecs(g: Drawing): {
 function DayTip({
   p,
   shown,
-  feed,
+  close,
   quarters,
 }: {
   p: ChartPoint;
   shown: ReadonlySet<OverlayKey>;
-  feed: string | null;
+  /** The day's close with its source, when it has one. */
+  close: SourcedNumber | null;
   quarters: readonly QuarterSources[];
 }) {
   return (
@@ -227,10 +231,14 @@ function DayTip({
         />
       )}
       <div className="tm">
-        {feed === null
-          ? "Daily close"
-          : `Close from ${feed.charAt(0).toUpperCase()}${feed.slice(1)}`}
-        , adjusted for splits. {ttmNote(p, quarters)}
+        {close === null ? (
+          "Daily close, adjusted for splits."
+        ) : (
+          <>
+            <SourceLine s={close.source} />. As of close {close.asOf}.
+          </>
+        )}{" "}
+        {ttmNote(p, quarters)}
       </div>
     </>
   );
@@ -426,6 +434,7 @@ export function PricePlot({
   hover,
   markers,
   feed,
+  latest,
   quarters,
 }: PricePlotProps) {
   const bandsOn = shown.has("bands");
@@ -509,12 +518,13 @@ export function PricePlot({
         d.setAttribute("visibility", "visible");
       });
       if (changed) {
-        showTip(owner, <DayTip p={p} shown={shown} feed={feed} quarters={quarters} />, at);
+        const close = closeSourced(p.date, p.close, feed, latest);
+        showTip(owner, <DayTip p={p} shown={shown} close={close} quarters={quarters} />, at);
       } else {
         moveTip(owner, at);
       }
     },
-    [chart, g, specs, shown, feed, quarters, hover, showTip, moveTip],
+    [chart, g, specs, shown, feed, latest, quarters, hover, showTip, moveTip],
   );
 
   // The tooltip sits at fixed screen coordinates, so a scroll of the page
