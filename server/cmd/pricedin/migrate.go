@@ -32,7 +32,7 @@ func newMigrateCmd(getenv func(string) string) *cobra.Command {
 		Short: "Apply every pending migration",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return withMigrator(cmd.Context(), getenv, func(p *goose.Provider) error {
+			return withMigrator(cmd.Context(), getenv, func(p *goose.Provider, _ *sql.DB) error {
 				results, err := p.Up(cmd.Context())
 				printResults(cmd.OutOrStdout(), results)
 				if len(results) == 0 && err == nil {
@@ -44,12 +44,18 @@ func newMigrateCmd(getenv func(string) string) *cobra.Command {
 	}
 
 	var to int64
+	var force bool
 	down := &cobra.Command{
 		Use:   "down",
 		Short: "Roll back the latest migration, or every migration after --to",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return withMigrator(cmd.Context(), getenv, func(p *goose.Provider) error {
+			return withMigrator(cmd.Context(), getenv, func(p *goose.Provider, db *sql.DB) error {
+				if !force {
+					if err := refuseWhileFactsHasRows(cmd.Context(), db); err != nil {
+						return err
+					}
+				}
 				if !cmd.Flags().Changed("to") {
 					result, err := p.Down(cmd.Context())
 					if result != nil {
@@ -64,13 +70,14 @@ func newMigrateCmd(getenv func(string) string) *cobra.Command {
 		},
 	}
 	down.Flags().Int64Var(&to, "to", 0, "roll back every migration newer than this version (0 rolls back all)")
+	down.Flags().BoolVar(&force, "force", false, "roll back also when facts holds rows, which a rollback can delete")
 
 	status := &cobra.Command{
 		Use:   "status",
 		Short: "List each migration as applied or pending",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return withMigrator(cmd.Context(), getenv, func(p *goose.Provider) error {
+			return withMigrator(cmd.Context(), getenv, func(p *goose.Provider, _ *sql.DB) error {
 				statuses, err := p.Status(cmd.Context())
 				if err != nil {
 					return err
@@ -91,9 +98,9 @@ func newMigrateCmd(getenv func(string) string) *cobra.Command {
 	return cmd
 }
 
-// withMigrator opens the configured database, runs fn with a migrator, and
-// closes the database.
-func withMigrator(ctx context.Context, getenv func(string) string, fn func(*goose.Provider) error) (err error) {
+// withMigrator opens the configured database, runs fn with a migrator and
+// the database, and closes the database.
+func withMigrator(ctx context.Context, getenv func(string) string, fn func(*goose.Provider, *sql.DB) error) (err error) {
 	cfg, err := config.Load(getenv)
 	if err != nil {
 		return err
@@ -113,8 +120,28 @@ func withMigrator(ctx context.Context, getenv func(string) string, fn func(*goos
 	if err != nil {
 		return err
 	}
-	if err := fn(p); err != nil {
+	if err := fn(p, db); err != nil {
 		return fmt.Errorf("migrate: %w", err)
+	}
+	return nil
+}
+
+// refuseWhileFactsHasRows returns an error when the table facts exists and
+// holds rows. Facts are append-only, and a rollback can drop them.
+func refuseWhileFactsHasRows(ctx context.Context, db *sql.DB) error {
+	var exists bool
+	if err := db.QueryRowContext(ctx, `SELECT to_regclass('public.facts') IS NOT NULL`).Scan(&exists); err != nil {
+		return fmt.Errorf("check facts: %w", err)
+	}
+	if !exists {
+		return nil
+	}
+	var hasRows bool
+	if err := db.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM facts)`).Scan(&hasRows); err != nil {
+		return fmt.Errorf("check facts: %w", err)
+	}
+	if hasRows {
+		return errors.New("facts holds rows, and a rollback can delete them; add --force to roll back anyway")
 	}
 	return nil
 }
