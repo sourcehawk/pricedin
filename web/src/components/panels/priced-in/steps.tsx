@@ -35,14 +35,34 @@ export function baselineLabel(ev: Evaluation): string {
 function compareLine(ev: Evaluation) {
   const b = ev.baselines;
   const R = ev.required.growth.value;
-  const values = [b.weighted.value, b.today.value, b.trailing.growth.value];
-  const below = R === null ? 0 : values.filter((v) => v !== null && v < R).length;
-  const count =
-    below === 3
-      ? "All three are below"
-      : below > 0
-        ? `${String(below)} of 3 are below`
-        : "None is below";
+  if (R === null) {
+    return (
+      <>
+        The price&apos;s requirement cannot be computed, so there is nothing to compare the
+        baselines with.
+      </>
+    );
+  }
+  const values = [b.weighted.value, b.today.value, b.trailing.growth.value].filter(
+    (v) => v !== null,
+  );
+  const below = values.filter((v) => v < R).length;
+  let count: string;
+  if (values.length === 0) {
+    count = "The history is too short for any of them to compare with";
+  } else if (below === values.length) {
+    count =
+      values.length === 3
+        ? "All three are below"
+        : `All ${String(values.length)} available are below`;
+  } else if (below > 0) {
+    count = `${String(below)} of ${String(values.length)} available are below`;
+  } else {
+    count =
+      values.length === 3
+        ? "None is below"
+        : `None of the ${String(values.length)} available is below`;
+  }
   return (
     <>
       Weighted <b>{pct(b.weighted.value)}</b>, today <b>{pct(b.today.value)}</b>, trailing{" "}
@@ -85,7 +105,7 @@ function verdictLine(ev: Evaluation, sym: string) {
   }
   return (
     <>
-      {sym} shows {pill(tone, word)}: your baseline ({baselineName(ev)},{" "}
+      {sym} shows {pill(tone, word)}: your baseline ({baselineLabel(ev)},{" "}
       {pct(ev.baselines.growth.value)}) is <b>{pp(gap)}</b> from the {pct(R)} required. {next}
     </>
   );
@@ -158,8 +178,9 @@ export function pricedInSteps({ sym, r, n, price, eps }: StepContext): Walkthrou
         <>
           In dollars: EPS must go from <b>{usd(eps)}</b> today to{" "}
           <b>{usd(ev.required.eps.value)}</b> in {years(n)}. At {times(ev.exitPe.inUse.value?.pe)}{" "}
-          that is a share price of <b>{usd(ev.required.exitPrice.value)}</b>, which turns
-          today&apos;s {usd(price)} into {pct(r)} a year.
+          that is a share price of <b>{usd(ev.required.exitPrice.value)}</b>
+          {ev.required.dividends > 0 ? `, plus ${usd(ev.required.dividends)} in dividends` : ""},
+          which turns today&apos;s {usd(price)} into {pct(r)} a year.
         </>
       )),
     },
@@ -196,14 +217,16 @@ export function pricedInSteps({ sym, r, n, price, eps }: StepContext): Walkthrou
           gap === null
             ? ""
             : ev.verdict.value === "undemanding"
-              ? "The company already grows fast enough."
-              : gap > -0.03
-                ? "It needs only a small step up."
-                : "It needs a clear acceleration, which the record does not show yet.";
+              ? "Your baseline already grows fast enough."
+              : gap >= 0
+                ? "It clears the requirement, but by less than 1.5 pp."
+                : gap > -0.03
+                  ? "It needs only a small step up."
+                  : "It needs a clear acceleration, which your baseline does not show.";
         return (
           <>
-            Your baseline ({baselineName(ev)}, {pct(ev.baselines.growth.value)}) is <b>{pp(gap)}</b>{" "}
-            from the requirement. {note}
+            Your baseline ({baselineLabel(ev)}, {pct(ev.baselines.growth.value)}) is{" "}
+            <b>{pp(gap)}</b> from the requirement. {note}
           </>
         );
       }),

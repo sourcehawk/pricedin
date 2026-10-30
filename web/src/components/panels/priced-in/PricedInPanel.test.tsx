@@ -236,7 +236,7 @@ describe("the walkthrough of the priced-in summary", () => {
       "GRMN must grow EPS 23.9% a year on average for 3 years to give you 15.0% a year.",
       "In dollars: EPS must go from $10.80 today to $20.53 in 3 years. At 20.0× that is a share price of $410.64, which turns today's $270.00 into 15.0% a year.",
       "Weighted 16.0%, today 12.2%, trailing 16.8%. All three are below the 23.9% the price requires.",
-      "Your baseline (weighted trend, 16.0%) is -7.9 pp from the requirement. It needs a clear acceleration, which the record does not show yet.",
+      "Your baseline (weighted trend, 16.0%) is -7.9 pp from the requirement. It needs a clear acceleration, which your baseline does not show.",
       "GRMN shows Demanding: your baseline (weighted trend, 16.0%) is -7.9 pp from the 23.9% required. It would become Tight at about 22.4% growth.",
       "The last four quarters grew +24%, +17%, +13%, +12%. Growth is slowing, so expect the weighted trend to keep drifting down.",
       "Try it: a 18.0× exit would require 28.3%, and a 13.0% target would require 21.7%, against 23.9% now.",
@@ -321,6 +321,35 @@ describe("the walkthrough of the priced-in summary", () => {
     }
     expect(card.querySelector(".t-takeaway")).toHaveTextContent(
       "GRMN in one line: the price requires 23.9% EPS growth a year; your custom growth is 30.0% and the weighted trend 16.0%. Your baseline clears the bar.",
+    );
+  });
+  it("says that nothing can be compared when the requirement is missing", async () => {
+    const { card } = await start({ type: "setStartingPoint", field: "ttmEps", value: -1 });
+    await next(card);
+    await next(card);
+    expect(card.querySelector(".t-you")).toHaveTextContent(
+      "The price's requirement cannot be computed, so there is nothing to compare the baselines with.",
+    );
+  });
+
+  it("counts the dividends in the dollars it takes", async () => {
+    const { card } = await start({ type: "setStartingPoint", field: "dividend", value: 2 });
+    await next(card);
+    expect(card.querySelector(".t-you")).toHaveTextContent(
+      /that is a share price of \$\d[\d,.]*, plus \$6\.00 in dividends, which turns today's \$270\.00 into 15\.0% a year\.$/,
+    );
+  });
+
+  it("reads a positive gap as clearing the requirement, also when the label is Tight", async () => {
+    const { card } = await start(
+      { type: "setBaselineMode", mode: "custom" },
+      { type: "setCustomRate", value: 0.25 },
+    );
+    for (let i = 0; i < 3; i++) {
+      await next(card);
+    }
+    expect(card.querySelector(".t-you")).toHaveTextContent(
+      "Your baseline (custom growth, 25.0%) is +1.1 pp from the requirement. It clears the requirement, but by less than 1.5 pp.",
     );
   });
 });
