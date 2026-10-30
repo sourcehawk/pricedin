@@ -15,7 +15,7 @@ const engineNoApp = {
 };
 
 export default defineConfig([
-  globalIgnores([".next/**", "next-env.d.ts", "coverage/**"]),
+  globalIgnores([".next/**", "next-env.d.ts", "coverage/**", "src/api/schema.d.ts"]),
   ...nextVitals,
   ...nextTypeScript,
   {

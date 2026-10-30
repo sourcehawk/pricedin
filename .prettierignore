@@ -10,6 +10,9 @@ e2e/test-results/
 docs/
 prototype/
 
+# Generated from server/api/openapi.yaml by make generate-api-types
+web/src/api/schema.d.ts
+
 # Verbatim copies of the prototype's code
 tools/engine-oracle/prototype.mjs
 tools/engine-oracle/fixtures.mjs
