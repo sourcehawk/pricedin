@@ -1,4 +1,5 @@
-import { screen, waitFor } from "@testing-library/react";
+import { focusManager } from "@tanstack/react-query";
+import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -44,6 +45,27 @@ describe("StockMain", () => {
       "Financials",
     ]) {
       expect(screen.getByRole("region", { name })).toBeInTheDocument();
+    }
+  });
+
+  it("keeps the panels when a refresh of the profile fails, and says so", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      await renderReady(<StockMain />);
+      apiServer.use(
+        http.get(apiUrl("/api/v1/stocks/:ticker"), () => problem(503, "Service Unavailable")),
+      );
+      vi.setSystemTime(Date.now() + 5 * 60_000 + 1);
+      act(() => {
+        focusManager.setFocused(false);
+        focusManager.setFocused(true);
+      });
+      expect(await screen.findByText(/could not be refreshed/)).toBeInTheDocument();
+      expect(screen.getByRole("region", { name: "Priced in" })).toBeInTheDocument();
+      expect(screen.queryByRole("heading", { name: /could not be read/ })).toBeNull();
+    } finally {
+      vi.useRealTimers();
+      focusManager.setFocused(undefined);
     }
   });
 

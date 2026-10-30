@@ -10,7 +10,7 @@ import {
 import { createContext, useContext, useState, type ReactNode } from "react";
 import { ApiError, createApi, type Api } from "./client";
 import { loginPath } from "./session";
-import type { Profile } from "./types";
+import type { Profile, StockHistory } from "./types";
 
 const ApiContext = createContext<Api | null>(null);
 
@@ -90,11 +90,12 @@ export function useProfile(ticker: string | null) {
  * useHistory reads the history the engine runs on. When ticker is set and
  * freshness changes to a value that is not cached, the history is read
  * again. It is idle while freshness is null, such as before the profile says
- * that the stock is loaded.
+ * that the stock is loaded. When a newer history of the same stock fails to
+ * load, isError is true and data stays the last history read.
  */
 export function useHistory(ticker: string | null, freshness: Profile["freshness"] | null) {
   const api = useApi();
-  return useQuery({
+  const q = useQuery({
     queryKey: [
       ...stockKey(ticker ?? ""),
       "history",
@@ -110,6 +111,12 @@ export function useHistory(ticker: string | null, freshness: Profile["freshness"
     staleTime: Number.POSITIVE_INFINITY,
     gcTime: 60 * 60_000,
   });
+  const [kept, setKept] = useState<StockHistory | undefined>(undefined);
+  if (q.data !== undefined && !q.isPlaceholderData && q.data !== kept) {
+    setKept(q.data);
+  }
+  const data = q.data ?? (kept !== undefined && kept.ticker === ticker ? kept : undefined);
+  return { ...q, data };
 }
 
 /** useSearch searches tickers and names; it is idle for an empty query. */

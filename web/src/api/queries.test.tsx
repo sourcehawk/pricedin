@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { createApi } from "./client";
 import { ApiProvider, newQueryClient, useHistory, useProfile } from "./queries";
 import { historyFixture, profileFixture } from "./testing/fixtures";
-import { apiServer, apiUrl, withApiServer } from "./testing/server";
+import { apiServer, apiUrl, problem, withApiServer } from "./testing/server";
 import type { Profile } from "./types";
 
 withApiServer();
@@ -81,6 +81,33 @@ describe("useHistory", () => {
     release();
     rerender({ ticker: "KO", freshness: after });
     expect(result.current.data).toBeUndefined();
+  });
+
+  it("keeps the last history of the stock when a newer one fails to load", async () => {
+    let reads = 0;
+    apiServer.use(
+      http.get(apiUrl("/api/v1/stocks/GRMN/history"), () => {
+        reads++;
+        return reads === 1 ? HttpResponse.json(historyFixture) : problem(503, "Unavailable");
+      }),
+    );
+    const before: Profile["freshness"] = { latestFiled: "2026-08-01", latestClose: "2026-10-28" };
+    const after: Profile["freshness"] = { latestFiled: "2026-08-01", latestClose: "2026-10-29" };
+    const { result, rerender } = renderHook(
+      ({ freshness }: { freshness: Profile["freshness"] }) => useHistory("GRMN", freshness),
+      { wrapper, initialProps: { freshness: before } },
+    );
+    await waitFor(() => {
+      expect(result.current.isSuccess).toBe(true);
+    });
+    rerender({ freshness: after });
+    await waitFor(() => {
+      expect(reads).toBe(2);
+    });
+    await waitFor(() => {
+      expect(result.current.isError).toBe(true);
+    });
+    expect(result.current.data).toEqual(historyFixture);
   });
 
   it("is idle without the freshness of a loaded stock", () => {
