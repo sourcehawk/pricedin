@@ -123,6 +123,8 @@ make e2e-run ARGS="levers --project=desktop-light"
 make e2e-down                                 # remove the stack and its volumes
 ```
 
+Playwright reads each file filter in `ARGS` as a regular expression and matches it against the full path of each test file. If a filter also matches a part of the checkout's path, for example `price-chart` in a worktree named `price-chart-flows`, it selects every file. Use a filter that only the file name contains, such as `price-chart.spec`. Add `--list` to see which tests a filter selects without running them.
+
 The test that loads ADM fails on a second run against the same stack, because ADM is then loaded. Start a new stack for it.
 
 ## Add a migration

@@ -1,6 +1,6 @@
 import { expect, test } from "./support/fixtures";
 import { fixture } from "./support/stack";
-import { expectPricedInMatchesApi, pricedInPanel } from "./support/stock";
+import { evaluateAsPage, expectPricedInMatchesApi, pricedInPanel } from "./support/stock";
 
 test("a company that is known but not loaded can be loaded from the search and then used", async ({
   page,
@@ -37,4 +37,35 @@ test("a company that is known but not loaded can be loaded from the search and t
   await expect(page.locator("header.top .co b")).toHaveText(before.company.name);
   expect((await api.profile(ticker)).loaded).toBe(true);
   await expectPricedInMatchesApi(page, api);
+
+  // The loaded filings drive the price chart: its share-count markers are the API's events.
+  // The 3Y range reaches the company's buybacks of 2024.
+  const chartPanel = page.locator('[data-panel="price-chart"]');
+  const range = chartPanel
+    .getByRole("group", { name: "Chart range" })
+    .getByRole("button", { name: "3Y", exact: true });
+  await range.click();
+  await expect(range).toHaveAttribute("aria-pressed", "true");
+  const chart = (await evaluateAsPage(page, api)).priceChart.value;
+  expect(chart?.range).toBe("3Y");
+  const events = chart?.shareCountEvents ?? [];
+  expect(events.length, `${ticker} has share-count events in its 3Y chart`).toBeGreaterThan(0);
+  await expect(chartPanel.locator(".pxev")).toHaveCount(events.length);
+  const tones = await page.evaluate(() => {
+    const probe = document.createElement("i");
+    document.body.append(probe);
+    const tone = (token: string) => {
+      probe.style.color = `var(${token})`;
+      return getComputedStyle(probe).color;
+    };
+    const colors = { good: tone("--good"), bad: tone("--bad") };
+    probe.remove();
+    return colors;
+  });
+  for (const e of events) {
+    const marker = chartPanel.locator(`.pxev[aria-label^="${e.label}: ${e.kind},"]`);
+    await expect(marker).toHaveClass(new RegExp(`\\b${e.kind}\\b`));
+    const stroke = await marker.locator("rect").evaluate((r) => getComputedStyle(r).stroke);
+    expect(stroke, `the tone of ${e.label}`).toBe(e.kind === "dilution" ? tones.bad : tones.good);
+  }
 });

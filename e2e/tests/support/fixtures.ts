@@ -11,6 +11,9 @@ export type DataStatus = Schemas["DataStatus"];
 export type SourcedNumber = Schemas["SourcedNumber"];
 export type Source = Schemas["Source"];
 export type SecSource = Schemas["SECSource"];
+export type StockHistory = Schemas["StockHistory"];
+export type HistoryRange = Schemas["HistoryRange"];
+export type Chart = Schemas["Chart"];
 
 const origin = new URL(baseURL).origin;
 
@@ -25,6 +28,12 @@ export class Api {
     const r = await this.request.get(`/api/v1/stocks/${ticker}`);
     expect(r.status(), `GET profile of ${ticker}`).toBe(200);
     return (await r.json()) as Profile;
+  }
+
+  async history(ticker: string, range: HistoryRange): Promise<StockHistory> {
+    const r = await this.request.get(`/api/v1/stocks/${ticker}/history?range=${range}`);
+    expect(r.status(), `GET history of ${ticker}`).toBe(200);
+    return (await r.json()) as StockHistory;
   }
 
   async evaluate(ticker: string, levers: LeversInput): Promise<EvaluationResponse> {
