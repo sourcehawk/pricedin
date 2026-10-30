@@ -99,7 +99,9 @@ export function Tiles({
     const e = t[m];
     const digits = m === "dilutedShares" ? 1 : 0;
     const c = e.change.value;
-    const tone = { value: c === null || showsAsZero(c, digits) ? null : e.tone.value };
+    // A share change is judged against zero; other tones, such as costs against revenue, are not.
+    const neutral = m === "dilutedShares" && c !== null && showsAsZero(c, digits);
+    const tone = { value: neutral ? null : e.tone.value };
     return (
       <Tile
         walk={`tile-${m}`}

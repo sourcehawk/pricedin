@@ -165,6 +165,17 @@ describe("FinancialsPanel metric chart", () => {
     expect(guide(container)).toHaveAttribute("x1", column(container, 6).dataset.x);
   });
 
+  it("leaves the arrow keys to a focused value link instead of moving the chart", async () => {
+    const { container } = await renderPanel();
+    const link = screen.getByRole("link", { name: /^Q3 FY26 Revenue/ });
+    act(() => {
+      link.focus();
+    });
+    fireEvent.keyDown(link, { key: "ArrowLeft" });
+    expect(guide(container)).toHaveAttribute("x1", column(container, 7).dataset.x);
+    expect(screen.getByRole("tooltip")).toHaveTextContent("Q3 FY26 Revenue");
+  });
+
   it("shows the operating margin of a quarter in the operating income tooltip", async () => {
     const { container } = await renderPanel();
     await pick("Op. income");
@@ -232,6 +243,26 @@ describe("FinancialsPanel tiles", () => {
     expect(change).toHaveTextContent(/^0\.0% YoY$/);
     expect(change).toHaveClass("muted");
     expect(change).not.toHaveClass("up");
+  });
+
+  it("keeps the operating-cost warning when costs show 0% but revenue fell", async () => {
+    serveHistory(
+      financialsHistory((qs) =>
+        qs.map((q, i) => {
+          const base = qs.at(-5);
+          if (i !== qs.length - 1 || base?.revenue == null || base.operatingCosts == null) {
+            return q;
+          }
+          const revenue = base.revenue * 0.9;
+          const operatingCosts = base.operatingCosts * 1.003;
+          return { ...q, revenue, operatingCosts, operatingIncome: revenue - operatingCosts };
+        }),
+      ),
+    );
+    await renderPanel();
+    const change = within(tile("Operating costs")).getByText(/YoY/);
+    expect(change).toHaveTextContent(/^0% YoY/);
+    expect(change).toHaveClass("warnc");
   });
 
   it("names dilution in red when the share count rose", async () => {

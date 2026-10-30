@@ -179,7 +179,8 @@ export function useColumns(layout: ColumnsLayout, tipFor: (i: number) => ReactNo
     },
     onKeyDown: (e: KeyboardEvent<SVGSVGElement>) => {
       const step = keySteps[e.key];
-      if (step === undefined || count === 0) {
+      // A focused mark inside the chart, such as a link, keeps its own keys.
+      if (step === undefined || count === 0 || e.target !== e.currentTarget) {
         return;
       }
       e.preventDefault();
