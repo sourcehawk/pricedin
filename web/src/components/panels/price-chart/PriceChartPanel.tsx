@@ -5,7 +5,7 @@ import type { SourcedNumber } from "@/api/types";
 import { coefficient, factor, multiple, signedPct, times, usd } from "@/components/format";
 import { filingLink, Sourced } from "@/components/Sourced";
 import { InfoTip } from "@/components/tip/InfoTip";
-import { leaveDelay } from "@/components/tip/TipProvider";
+import { leaveDelay, useTip } from "@/components/tip/TipProvider";
 import { Walkthrough } from "@/components/walkthrough/Walkthrough";
 import { useWalkthrough } from "@/components/walkthrough/WalkthroughProvider";
 import type { Chart, ChartRange } from "@/engine";
@@ -42,12 +42,19 @@ function toggled(s: ReadonlySet<OverlayKey>, k: OverlayKey): Set<OverlayKey> {
   return next;
 }
 
+/** CaptionHold is how the band caption reports what keeps its band. */
+interface CaptionHold {
+  pointer: (inside: boolean) => void;
+  focus: (inside: boolean) => void;
+}
+
 function BandCaption({
   chart,
   lifted,
   close,
   ttmEps,
-  onHold,
+  hold,
+  captionRef,
 }: {
   chart: Chart;
   lifted: number | null;
@@ -55,8 +62,9 @@ function BandCaption({
   close: SourcedNumber | null;
   /** The last day's TTM EPS with its source, when it has one. */
   ttmEps: SourcedNumber | null;
-  /** Gets true while the caption has the pointer or the focus, so the band stays and its sources stay reachable. */
-  onHold: (held: boolean) => void;
+  /** Reports the pointer and the focus in the caption, so the band stays while the user reaches its sources. */
+  hold: CaptionHold;
+  captionRef: (el: HTMLElement | null) => void;
 }) {
   const bands = chart.bands.value;
   const last = chart.points.at(-1);
@@ -88,18 +96,19 @@ function BandCaption({
       data-testid="band-caption"
       data-walk="bandcap"
       aria-live="polite"
+      ref={captionRef}
       onPointerEnter={() => {
-        onHold(true);
+        hold.pointer(true);
       }}
       onPointerLeave={() => {
-        onHold(false);
+        hold.pointer(false);
       }}
       onFocus={() => {
-        onHold(true);
+        hold.focus(true);
       }}
       onBlur={(e) => {
         if (!(e.relatedTarget instanceof Node && e.currentTarget.contains(e.relatedTarget))) {
-          onHold(false);
+          hold.focus(false);
         }
       }}
     >
@@ -122,8 +131,23 @@ export function PriceChartPanel() {
   const storedSet = useMemo(() => overlaySet(stored), [stored]);
   const shown = touring ? everyOverlay : storedSet;
   const [hoverBand, setHoverBand] = useState<number | null>(null);
-  // The band that the caption keeps while the user reaches for its sources.
+  // The band that the caption keeps while the user reaches for its sources:
+  // while it has the pointer or the focus, or the tooltip of one of its
+  // sources is open, which renders outside the caption.
   const [captionBand, setCaptionBand] = useState<number | null>(null);
+  const [captionEl, setCaptionEl] = useState<HTMLElement | null>(null);
+  const [pointerIn, setPointerIn] = useState(false);
+  const [focusIn, setFocusIn] = useState(false);
+  const tip = useTip();
+  const tipIn = captionEl !== null && tip.owner !== null && captionEl.contains(tip.owner);
+  const held = pointerIn || focusIn || tipIn;
+  if (held && captionBand === null && hoverBand !== null) {
+    setCaptionBand(hoverBand);
+  }
+  if (!held && captionBand !== null) {
+    setCaptionBand(null);
+    setHoverBand(null);
+  }
   const leaving = useRef<ReturnType<typeof setTimeout> | null>(null);
   const stay = useCallback(() => {
     if (leaving.current !== null) {
@@ -148,12 +172,15 @@ export function PriceChartPanel() {
     },
     [stay],
   );
-  const onHold = (held: boolean) => {
-    stay();
-    setCaptionBand(held ? (captionBand ?? hoverBand) : null);
-    if (!held) {
-      setHoverBand(null);
-    }
+  const hold: CaptionHold = {
+    pointer: (inside) => {
+      stay();
+      setPointerIn(inside);
+    },
+    focus: (inside) => {
+      stay();
+      setFocusIn(inside);
+    },
   };
   const [hover] = useState(createHoverStore);
   const { active } = useWalkthrough();
@@ -305,7 +332,8 @@ export function PriceChartPanel() {
           lifted={lifted}
           close={lastClose}
           ttmEps={last === undefined ? null : ttmSourced(last, history.quarters)}
-          onHold={onHold}
+          hold={hold}
+          captionRef={setCaptionEl}
         />
       )}
       <div className={["px", styles.plot, lifted === null ? "" : "band-hover"].join(" ").trim()}>

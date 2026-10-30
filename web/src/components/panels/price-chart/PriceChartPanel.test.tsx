@@ -425,10 +425,45 @@ describe("PriceChartPanel", () => {
       await new Promise((r) => setTimeout(r, 300));
       expect(caption()).toHaveTextContent("25× band:");
       expect(chart().querySelector('[data-bm="25"].bline')).toHaveClass("bh");
-      await userEvent.unhover(caption());
+      const link = within(caption()).getByRole("link", { name: "$10.80" });
+      fireEvent.pointerLeave(link, { pointerType: "mouse" });
+      fireEvent.pointerLeave(caption(), { pointerType: "mouse" });
+
       await waitFor(() => {
         expect(caption()).toHaveTextContent("Hover a dotted line");
       });
+    });
+
+    it("keeps the band while the pointer rests on the tooltip of a caption source", async () => {
+      await withBands();
+      await userEvent.hover(chart().querySelector('[data-bm="25"].bhit') as Element);
+      const link = within(caption()).getByRole("link", { name: "$10.80" });
+      await userEvent.hover(link);
+      // The tooltip sits outside the caption, so the pointer leaves the caption for it.
+      fireEvent.pointerLeave(link, { pointerType: "mouse" });
+      fireEvent.pointerLeave(caption(), { pointerType: "mouse" });
+      fireEvent.pointerEnter(screen.getByRole("tooltip"), { pointerType: "mouse" });
+      await new Promise((r) => setTimeout(r, 300));
+      expect(screen.getByRole("tooltip")).toHaveTextContent("Sum of the last four quarters");
+      expect(caption()).toHaveTextContent("25× band:");
+      fireEvent.pointerLeave(screen.getByRole("tooltip"));
+      await waitFor(() => {
+        expect(caption()).toHaveTextContent("Hover a dotted line");
+      });
+    });
+
+    it("keeps the band while a caption source has the focus, also when the pointer leaves", async () => {
+      await withBands();
+      await userEvent.hover(chart().querySelector('[data-bm="25"].bhit') as Element);
+      const eps = within(caption()).getByRole("link", { name: "$10.80" });
+      await userEvent.hover(eps);
+      act(() => {
+        eps.focus();
+      });
+      fireEvent.pointerLeave(eps, { pointerType: "mouse" });
+      fireEvent.pointerLeave(caption(), { pointerType: "mouse" });
+      await new Promise((r) => setTimeout(r, 300));
+      expect(caption()).toHaveTextContent("25× band:");
     });
 
     it("keeps the band in the caption while the focus moves onto its sources", async () => {
