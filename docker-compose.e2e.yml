@@ -1,0 +1,24 @@
+# The end-to-end stack: the fixture stack plus an owner account and the
+# proxy secret. scripts/e2e.sh uses it on top of docker-compose.yml and
+# docker-compose.fixtures.yml, and exports the variables below.
+#
+# The variables pass through by name, so that Compose does not read the
+# "$" signs of the password hash as variables.
+
+services:
+  server:
+    environment:
+      - PRICEDIN_OWNER_EMAIL
+      - PRICEDIN_OWNER_PASSWORD_HASH
+      - PRICEDIN_PROXY_SECRET
+      # A PRICEDIN_PUBLIC_ORIGIN in the shell is for the stack of `make up`.
+      - PRICEDIN_PUBLIC_ORIGIN=${PRICEDIN_E2E_BASE_URL:?set PRICEDIN_E2E_BASE_URL to the web app of the test stack}
+      # ADM stays out of the seed, so that the tests can load it on demand.
+      - PRICEDIN_UNIVERSE=NVDA,AAPL,KO,GRMN
+
+  web:
+    environment:
+      # With the secret, the web app passes the x-real-ip header of each
+      # request on to the server as the client address. The tests set that
+      # header, so that each login test has a rate limit of its own.
+      - PRICEDIN_PROXY_SECRET

@@ -3,8 +3,8 @@ name: pricedin
 # Local stack: Postgres, the migrations, the API server and the web app. Host
 # ports come from variables, so that two stacks on one machine can avoid each
 # other. Every port binds to 127.0.0.1 only, because the default credentials
-# are public. Every service also reads .env when it exists; values under
-# `environment` win.
+# are public. Every service also reads .env when it exists, or the file that
+# PRICEDIN_ENV_FILE names; values under `environment` win.
 
 services:
   db:
@@ -14,7 +14,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pricedin}
       POSTGRES_DB: ${POSTGRES_DB:-pricedin}
     env_file:
-      - path: .env
+      - path: ${PRICEDIN_ENV_FILE:-.env}
         required: false
     ports:
       - "127.0.0.1:${PRICEDIN_DB_PORT:-5432}:5432"
@@ -46,7 +46,7 @@ services:
       PRICEDIN_DATABASE_NAME: ${POSTGRES_DB:-pricedin}
       PRICEDIN_DATABASE_SSLMODE: disable
     env_file:
-      - path: .env
+      - path: ${PRICEDIN_ENV_FILE:-.env}
         required: false
     depends_on:
       db:
@@ -75,7 +75,7 @@ services:
       # The browser sends this Origin through the web app's /api rewrite.
       PRICEDIN_PUBLIC_ORIGIN: ${PRICEDIN_PUBLIC_ORIGIN:-http://localhost:${PRICEDIN_WEB_PORT:-3000}}
     env_file:
-      - path: .env
+      - path: ${PRICEDIN_ENV_FILE:-.env}
         required: false
     depends_on:
       db:
@@ -118,7 +118,7 @@ services:
       PRICEDIN_BLOB_BACKEND: fs
       PRICEDIN_BLOB_DIR: /data/blob
     env_file:
-      - path: .env
+      - path: ${PRICEDIN_ENV_FILE:-.env}
         required: false
     depends_on:
       db:
@@ -137,7 +137,7 @@ services:
     environment:
       PRICEDIN_API_URL: http://server:8080
     env_file:
-      - path: .env
+      - path: ${PRICEDIN_ENV_FILE:-.env}
         required: false
     depends_on:
       server:
