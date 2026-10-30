@@ -30,6 +30,9 @@ function pathsOf(ev: Evaluation): Paths {
 }
 
 function yearsOut(k: number): string {
+  if (k === 0) {
+    return "today";
+  }
   return `${String(k / 4)} ${k === 4 ? "year" : "years"} out`;
 }
 
@@ -347,15 +350,16 @@ function TrajectoryChart({ paths, years: n }: { paths: Paths; years: number }) {
   const { history: sources } = useEvaluation();
   const known = new Map(sources.quarters.map((q) => [q.periodEnd, q.ttmEpsKnownOn]));
   const F = future.length - 1;
-  const tot = Math.max(1, history.length - 1 + F);
+  // Without reported quarters, the projection still starts at column 0.
+  const today = Math.max(0, history.length - 1);
+  const tot = Math.max(1, today + F);
   const X = (i: number) => x0 + (i / tot) * (x1 - x0);
   const Y = (v: number) => y1 - ((v - scale.min) / (scale.max - scale.min)) * (y1 - y0);
   const pt = (i: number, v: number | null): readonly [number, number] | null =>
     v === null ? null : [X(i), Y(v)];
-  const today = history.length - 1;
 
   const tipFor = (i: number): ReactNode => {
-    if (i <= today) {
+    if (i < history.length) {
       const q = history[i];
       if (q === undefined) {
         return null;

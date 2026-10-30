@@ -1,7 +1,9 @@
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
-import { withApiServer } from "@/api/testing/server";
+import { http, HttpResponse } from "msw";
+import { historyFixture } from "@/api/testing/fixtures";
+import { apiServer, apiUrl, withApiServer } from "@/api/testing/server";
 import { pct, signedPct, usd } from "@/components/format";
 import type { Paths } from "@/engine";
 import { useLeverDispatch } from "@/state/StockProvider";
@@ -271,6 +273,31 @@ describe("EarningsTrajectoryPanel", () => {
     const q = paths.history.at(-2);
     expect(screen.getByRole("status")).toHaveTextContent(
       `${q?.label ?? ""}Reported TTM EPS${usd(q?.ttmEps.value)}`,
+    );
+  });
+
+  it("starts the projection at today when the stock has no reported quarters", async () => {
+    apiServer.use(
+      http.get(apiUrl("/api/v1/stocks/:ticker/history"), () =>
+        HttpResponse.json({
+          ...historyFixture,
+          history: { ...historyFixture.history, quarters: [] },
+          quarters: [],
+        }),
+      ),
+    );
+    const { chart, paths } = await show();
+    expect(paths.history).toHaveLength(0);
+    const cols = columns(chart);
+    expect(cols).toHaveLength(paths.future.length);
+    const first = cols[0];
+    if (first === undefined) {
+      throw new Error("no column");
+    }
+    expect(Number(first.dataset.x)).toBeGreaterThan(0);
+    await userEvent.hover(first);
+    expect(screen.getByRole("tooltip")).toHaveTextContent(
+      `Baseline EPS${usd(paths.future[0]?.baseline.value)}`,
     );
   });
 
