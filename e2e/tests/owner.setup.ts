@@ -1,4 +1,4 @@
-import { expect, test as setup } from "@playwright/test";
+import { expect, test as setup } from "./support/fixtures";
 import { baseURL, newClientIP, owner, ownerState } from "./support/stack";
 
 // One login for the whole run: the tests share the owner's session, so they

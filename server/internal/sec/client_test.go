@@ -826,26 +826,16 @@ func TestClientRejectsAnExtraFileNameWithAPath(t *testing.T) {
 	}
 }
 
-func TestClientDownloadsTheBulkArchives(t *testing.T) {
+func TestClientDownloadsTheCompanyFactsArchive(t *testing.T) {
 	c := fixtureServer(t, sec.Options{Recorder: &recorder{err: errors.New("archives must not be recorded")}})
-	tests := map[string]func(context.Context, *bytes.Buffer) (int64, error){
-		companyFactsZip: func(ctx context.Context, w *bytes.Buffer) (int64, error) {
-			return c.DownloadCompanyFactsArchive(ctx, w)
-		},
-		submissionsZip: func(ctx context.Context, w *bytes.Buffer) (int64, error) { return c.DownloadSubmissionsArchive(ctx, w) },
+	var buf bytes.Buffer
+	n, err := c.DownloadCompanyFactsArchive(t.Context(), &buf)
+	if err != nil {
+		t.Fatalf("DownloadCompanyFactsArchive() error = %v", err)
 	}
-	for path, download := range tests {
-		t.Run(path, func(t *testing.T) {
-			var buf bytes.Buffer
-			n, err := download(t.Context(), &buf)
-			if err != nil {
-				t.Fatalf("download error = %v", err)
-			}
-			want := readFixture(t, path)
-			if n != int64(len(want)) || !bytes.Equal(buf.Bytes(), want) {
-				t.Errorf("downloaded %d bytes that differ from the fixture of %d bytes", n, len(want))
-			}
-		})
+	want := readFixture(t, companyFactsZip)
+	if n != int64(len(want)) || !bytes.Equal(buf.Bytes(), want) {
+		t.Errorf("downloaded %d bytes that differ from the fixture of %d bytes", n, len(want))
 	}
 }
 
@@ -916,7 +906,7 @@ func TestClientDoesNotRetryADownloadWhenTheWriterFails(t *testing.T) {
 		_, _ = w.Write([]byte("PK archive"))
 	}), sec.Options{})
 	writeErr := errors.New("disk full")
-	_, err := c.DownloadSubmissionsArchive(t.Context(), failingWriter{err: writeErr})
+	_, err := c.DownloadCompanyFactsArchive(t.Context(), failingWriter{err: writeErr})
 	if !errors.Is(err, writeErr) {
 		t.Errorf("error = %v, want the writer error", err)
 	}
@@ -933,7 +923,7 @@ func TestClientDoesNotRetryADownloadThatBrokeMidway(t *testing.T) {
 		_, _ = w.Write([]byte("PK partial"))
 	}), sec.Options{})
 	var buf bytes.Buffer
-	if _, err := c.DownloadSubmissionsArchive(t.Context(), &buf); err == nil {
+	if _, err := c.DownloadCompanyFactsArchive(t.Context(), &buf); err == nil {
 		t.Error("error = nil, want an error")
 	}
 	if log.n() != 1 {

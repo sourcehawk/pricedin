@@ -11,9 +11,7 @@ import (
 	"fmt"
 	"log/slog"
 	"math"
-	"regexp"
 	"slices"
-	"strings"
 	"sync"
 	"time"
 	_ "time/tzdata" // the New York zone must load on any host
@@ -57,8 +55,8 @@ type CompanyLoader interface {
 
 // The errors of the service. Every other error is a failure of the store.
 var (
-	// ErrInvalidTicker means that a ticker is not 1 to 10 letters, digits,
-	// dots or dashes, starting with a letter or digit.
+	// ErrInvalidTicker means that a ticker is not a symbol that
+	// domain.ParseSymbol accepts.
 	ErrInvalidTicker = errors.New("stocks: invalid ticker")
 	// ErrUnknownTicker means that no company has the ticker now.
 	ErrUnknownTicker = errors.New("stocks: unknown ticker")
@@ -139,8 +137,6 @@ func New(st Store, opts Options) *Service {
 	return s
 }
 
-var tickerPattern = regexp.MustCompile(`^[A-Z0-9][A-Z0-9.\-]{0,9}$`)
-
 // earliest is the lower bound of a price query without a bound.
 var earliest = domain.NewDate(1900, 1, 1)
 
@@ -175,8 +171,8 @@ type stock struct {
 
 // open reads the ticker, the company and the provider's data.
 func (s *Service) open(ctx context.Context, ticker string) (*stock, error) {
-	ticker = strings.ToUpper(strings.TrimSpace(ticker))
-	if !tickerPattern.MatchString(ticker) {
+	ticker, err := domain.ParseSymbol(ticker)
+	if err != nil {
 		return nil, ErrInvalidTicker
 	}
 	t, err := s.store.GetCurrentTicker(ctx, ticker)

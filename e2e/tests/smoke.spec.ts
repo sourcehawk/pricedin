@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./support/fixtures";
 
 const apiURL = process.env.PRICEDIN_E2E_API_URL ?? "http://localhost:8080";
 

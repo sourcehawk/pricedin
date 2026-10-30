@@ -6,22 +6,27 @@ Each panel has an inline walkthrough. It writes its steps into the panel. It hig
 
 1. Mark the panel as the scope of the walkthrough with `data-walk-scope`. The `Panel` frame in `components/panels/Panel.tsx` does this for you.
 2. Mark each element that a step explains with `data-walk="<key>"`. One element can carry more than one key, separated by spaces: `data-walk="required exit"`. A key uses letters, digits and `_ . : -`.
-3. Put `<Walkthrough>` where the launcher goes, at the end of the panel. While it runs, the step card takes the place of the launcher.
+3. Write the steps in the panel's own `steps.tsx`, as one function that takes a `StepContext` and returns the steps: `pricedInSteps(ctx: StepContext): WalkthroughStep[]`. The `StepContext` (from `steps.ts` in this folder) holds the ticker and the levers that the evaluation was computed from. A line that needs a value of the evaluation reads it from the `ev` that `you` and `takeaway` get.
+4. Put `<Walkthrough>` where the launcher goes, at the end of the panel, and give it `xSteps(useStepContext())`. While it runs, the step card takes the place of the launcher.
 
 ```tsx
-import { Panel } from "@/components/panels/Panel";
-import { Walkthrough, type WalkthroughStep } from "@/components/walkthrough/Walkthrough";
-import { pct } from "@/components/format";
-import { useEvaluation } from "@/state/StockProvider";
+// panels/priced-in/steps.tsx
+import { pct, years } from "@/components/format";
+import type { StepContext } from "@/components/walkthrough/steps";
+import type { WalkthroughStep } from "@/components/walkthrough/Walkthrough";
 
-export function PricedInPanel() {
-  const { evaluation: ev, state } = useEvaluation();
-  const steps: WalkthroughStep[] = [
+export function pricedInSteps({ ticker, levers }: StepContext): WalkthroughStep[] {
+  return [
     {
       title: "The big number",
       body: <p>The average yearly EPS growth that gives you your target return.</p>,
       highlight: ["required"],
-      you: (e) => <>{state.ticker} must grow EPS <b>{pct(e.required.growth.value)}</b> a year.</>,
+      you: (e) => (
+        <>
+          {ticker} must grow EPS <b>{pct(e.required.growth.value)}</b> a year for{" "}
+          {years(levers.holdingYears)}.
+        </>
+      ),
     },
     {
       title: "Move the levers",
@@ -31,6 +36,21 @@ export function PricedInPanel() {
       takeaway: (e) => <><strong>In one line:</strong> the price requires {pct(e.required.growth.value)}.</>,
     },
   ];
+}
+```
+
+```tsx
+// panels/priced-in/PricedInPanel.tsx
+import { Panel } from "@/components/panels/Panel";
+import { useStepContext } from "@/components/walkthrough/steps";
+import { Walkthrough } from "@/components/walkthrough/Walkthrough";
+import { pct } from "@/components/format";
+import { useEvaluation } from "@/state/StockProvider";
+import { pricedInSteps } from "./steps";
+
+export function PricedInPanel() {
+  const { evaluation: ev } = useEvaluation();
+  const steps = pricedInSteps(useStepContext());
   return (
     <Panel id="priced-in" title="Priced in">
       <div data-walk="required">{pct(ev.required.growth.value)}</div>
@@ -46,6 +66,8 @@ export function PricedInPanel() {
   );
 }
 ```
+
+The left panel's walkthrough (`rail/RailWalkthrough.tsx`) keeps its steps in its component. It shows before a stock is ready, when no `StepContext` exists.
 
 ## API
 

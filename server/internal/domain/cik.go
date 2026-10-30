@@ -37,4 +37,4 @@ func ParseCIK(s string) (CIK, error) {
 	return CIK(n), nil
 }
 
-var errZeroCIK = errors.New("cik must be positive")
+var errZeroCIK = errors.New("domain: cik must be positive")

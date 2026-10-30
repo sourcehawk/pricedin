@@ -5,7 +5,8 @@ import { renderReady, WhenReady } from "@/testing/render";
 import { FinancialsPanel } from "./FinancialsPanel";
 
 // Test data for the financials panel: the example history with a filing
-// for every quarterly value. The numbers are invented demo data.
+// for every quarterly value. The numbers are invented demo data. Only the
+// financials tests use it, so it stays here and not in web/src/testing.
 
 /** HistoryQuarter is a quarter of the history as the API sends it. */
 export type HistoryQuarter = StockHistory["history"]["quarters"][number];

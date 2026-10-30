@@ -164,3 +164,7 @@ Never change a migration that is on `main`. Production has applied it.
 | `scripts/` | Shell scripts that the Makefile and the workflows call |
 | `testdata/` | Test data that more than one part reads |
 | `tools/` | Programs that make test data |
+
+### Styles
+
+A style of the prototype goes in `web/src/styles/globals.css`, as a global class with the prototype's name, so the panels share one set of class names. A style that the prototype does not have goes in a CSS module beside the component that uses it, such as a focus ring, a style that the prototype set inline, or a layout that only the port needs. A panel without such styles has no CSS module. Keep the colors as the tokens of `globals.css`, such as `var(--accent)`, in both places.

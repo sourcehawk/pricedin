@@ -31,6 +31,7 @@ import {
 } from "./layout";
 import styles from "./ReturnGrid.module.css";
 import { gridSteps } from "./steps";
+import { useStepContext } from "@/components/walkthrough/steps";
 
 const walkId = "return-grid";
 /** The steps that box one cell: where the example row meets the user's column, and the YOU cell. */
@@ -152,6 +153,7 @@ function Cell({
   text,
   tip,
   focusable,
+  you,
   r,
   c,
 }: {
@@ -162,6 +164,8 @@ function Cell({
   text: string;
   tip: () => ReactNode;
   focusable: boolean;
+  /** The user's own case: the cell gets the YOU badge. */
+  you: boolean;
   r: number;
   c: number;
 }) {
@@ -177,6 +181,15 @@ function Cell({
       tabIndex={focusable ? 0 : -1}
       {...h}
     >
+      {you && (
+        <>
+          {/* The space follows the hidden text, so it starts the line and takes no room. */}
+          <span className="sr-only">Your case:</span>{" "}
+          <span className="youtag" aria-hidden="true">
+            YOU
+          </span>
+        </>
+      )}
       {text}
     </td>
   );
@@ -328,7 +341,7 @@ export function ReturnGridPanel() {
   const n = state.holdingYears;
   const grid = ev.returnGrid.value;
 
-  const steps = gridSteps({ sym, r, n, price: levers.price, eps: levers.ttmEps });
+  const steps = gridSteps(useStepContext());
   const walkthrough = (
     <Walkthrough
       id={walkId}
@@ -569,6 +582,7 @@ function GridTable({
                       text={cellText(c, view)}
                       tip={() => cellTip(ri, ci)}
                       focusable={you === null ? ri === 0 && ci === 0 : isYou}
+                      you={isYou}
                     />
                   );
                 })}

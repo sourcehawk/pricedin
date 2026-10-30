@@ -295,3 +295,16 @@ ci: ## Run everything CI runs, in CI order
 	$(MAKE) build
 	$(MAKE) images
 	$(MAKE) test-e2e
+
+# The workflow's changes job. It reads the changed paths, one per line, on
+# standard input, and writes its decision to $GITHUB_OUTPUT. CI_ALL=true
+# turns on every job and reads nothing.
+.PHONY: ci-changes
+ci-changes: ## Decide which CI test jobs a change needs (changed paths on stdin, or CI_ALL=true)
+	$(if $(filter-out true,$(CI_ALL)),$(error CI_ALL must be true or empty, not '$(CI_ALL)'))
+	scripts/ci-changes.sh $(if $(CI_ALL),all)
+
+# The workflow's ci-ok job. It needs nothing but make and a shell.
+.PHONY: ci-ok
+ci-ok: ## Fail unless every CI job that a change needs passed (CI_RESULTS="job=result[:decision] ...")
+	scripts/ci-ok.sh $(CI_RESULTS)

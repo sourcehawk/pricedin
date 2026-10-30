@@ -1,6 +1,6 @@
 # sec-fixtures
 
-This program downloads the SEC files in `testdata/sec/`, keeps only the parts that the tests use, and writes them at their paths on `www.sec.gov` and `data.sec.gov`. It also builds the two small bulk archives from the trimmed files.
+This program downloads the SEC files in `testdata/sec/`, keeps only the parts that the tests use, and writes them at their paths on `www.sec.gov` and `data.sec.gov`. It also builds a small bulk archive, `companyfacts.zip`, from the trimmed files.
 
 The companies are NVDA, AAPL, KO, GRMN and ADM. ADM has 10-K/A and 10-Q/A filings with XBRL facts.
 

@@ -11,7 +11,8 @@ import { MetricChart } from "./MetricChart";
 import { metricInfo } from "./metrics";
 import { latestFiling, marginSources, metricSources, type LatestFiling } from "./sources";
 import { Tiles } from "./Tiles";
-import { financialsSteps, intro, watchOut } from "./walkthrough";
+import { financialsSteps, intro, watchOut } from "./steps";
+import { useStepContext } from "@/components/walkthrough/steps";
 
 /** Shown is what the chart of the panel shows: one metric, or the compare view. */
 type Shown = Metric | "compare";
@@ -30,7 +31,7 @@ export function FinancialsPanel() {
   const sources = useMemo(() => metricSources(view, history.quarters), [view, history.quarters]);
   const margins = useMemo(() => marginSources(view, history.quarters), [view, history.quarters]);
   const filing = useMemo(() => latestFiling(view, history.quarters), [view, history.quarters]);
-  const steps = useMemo(() => financialsSteps(ticker), [ticker]);
+  const steps = financialsSteps(useStepContext());
 
   const latest = {} as Record<Metric, (typeof sources)[Metric][number]>;
   for (const m of allMetrics()) {

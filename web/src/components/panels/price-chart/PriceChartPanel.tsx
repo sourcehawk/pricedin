@@ -25,6 +25,7 @@ import { PricePlot, type Marker } from "./PricePlot";
 import styles from "./PriceChart.module.css";
 import { closeSourced, ttmSourced } from "./sources";
 import { bandsStep, priceSteps } from "./steps";
+import { useStepContext } from "@/components/walkthrough/steps";
 
 const ranges: readonly ChartRange[] = ["6M", "1Y", "3Y"];
 const walkthroughId = "price-chart";
@@ -124,7 +125,7 @@ function BandCaption({
  */
 export function PriceChartPanel() {
   const { evaluation: ev, history, profile, dispatch } = useEvaluation();
-  const ticker = history.ticker;
+  const ticker = profile.ticker.symbol;
   const [stored, setStored] = useView<readonly string[]>(overlaysView, defaultOverlays);
   // The walkthrough shows every overlay without changing the user's choice.
   const [touring, setTouring] = useState(false);
@@ -190,7 +191,7 @@ export function PriceChartPanel() {
     (date: string, close: number) => closeSourced(date, close, feed, latest),
     [feed, latest],
   );
-  const steps = useMemo(() => priceSteps(ticker, sourceOf), [ticker, sourceOf]);
+  const steps = priceSteps(useStepContext());
   const chart = ev.priceChart.value;
 
   const markers = useMemo(

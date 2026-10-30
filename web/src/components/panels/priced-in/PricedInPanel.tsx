@@ -13,6 +13,7 @@ import { Panel } from "../Panel";
 import { GrowthRuler } from "./GrowthRuler";
 import styles from "./PricedIn.module.css";
 import { pricedInSteps } from "./steps";
+import { useStepContext } from "@/components/walkthrough/steps";
 
 /** verdictTone is the pill class of a verdict. */
 export const verdictTone: Record<Verdict, "good" | "warn" | "bad"> = {
@@ -90,6 +91,7 @@ function Row({
 /** PricedInPanel renders only in the page's ready state: useEvaluation throws before an evaluation exists. */
 export function PricedInPanel() {
   const { evaluation: ev, state, levers, history, provenance } = useEvaluation();
+  const stepContext = useStepContext();
   const r = state.targetReturn;
   const n = state.holdingYears;
   const sym = state.ticker ?? "The stock";
@@ -319,7 +321,7 @@ export function PricedInPanel() {
         launcher="Walk me through the priced-in summary with my numbers"
         intro="This panel answers one question: how fast must the company grow its earnings for you to get the return you want, and has it grown that fast before?"
         watchOut="EPS can jump for reasons that do not repeat, such as a tax benefit, an asset sale or large share buybacks. Before you trust a growth rate, check in Financials that revenue and operating income grew too."
-        steps={pricedInSteps({ sym, r, n, price: levers.price, eps: levers.ttmEps })}
+        steps={pricedInSteps(stepContext)}
       />
     </Panel>
   );

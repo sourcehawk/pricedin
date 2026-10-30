@@ -86,7 +86,7 @@ type generator struct {
 	out   string
 	since string
 	f     *fetcher
-	// files holds the trimmed bodies by output path, for the bulk archives.
+	// files holds the trimmed bodies by output path, for the bulk archive.
 	files map[string][]byte
 }
 
@@ -112,7 +112,7 @@ func (g *generator) run(ctx context.Context, day time.Time, emptyCIK string) err
 	if err := g.dailyIndex(ctx, day, keep); err != nil {
 		return err
 	}
-	return g.archives(ciks, emptyCIK)
+	return g.archive(ciks, emptyCIK)
 }
 
 func (g *generator) write(path string, body []byte) error {
@@ -335,37 +335,17 @@ func (g *generator) dailyIndex(ctx context.Context, day time.Time, fixtureCIKs m
 	return g.write(path, []byte(out.String()))
 }
 
-// archives writes two small archives in the format of the SEC bulk files,
-// built from the trimmed fixtures: companyfacts.zip with KO, GRMN and one
-// company whose entry is {} (as in the real archive, stored without
-// compression), and submissions.zip with KO and NVDA and their extra files.
-func (g *generator) archives(ciks map[string]int64, emptyCIK string) error {
-	factsEntries := make([]zipEntry, 0, 3)
+// archive writes a small companyfacts.zip in the format of the SEC bulk
+// file, built from the trimmed fixtures: KO, GRMN and one company whose
+// entry is {} (as in the real archive, stored without compression).
+func (g *generator) archive(ciks map[string]int64, emptyCIK string) error {
+	entries := make([]zipEntry, 0, 3)
 	for _, t := range []string{"KO", "GRMN"} {
 		name := fmt.Sprintf("CIK%010d.json", ciks[t])
-		factsEntries = append(factsEntries, zipEntry{name, g.files["data.sec.gov/api/xbrl/companyfacts/"+name], zip.Deflate})
+		entries = append(entries, zipEntry{name, g.files["data.sec.gov/api/xbrl/companyfacts/"+name], zip.Deflate})
 	}
-	factsEntries = append(factsEntries, zipEntry{"CIK" + emptyCIK + ".json", []byte("{}"), zip.Store})
-	if err := g.writeZip("www.sec.gov/Archives/edgar/daily-index/xbrl/companyfacts.zip", factsEntries); err != nil {
-		return err
-	}
-	var subEntries []zipEntry
-	for _, t := range []string{"KO", "NVDA"} {
-		prefix := fmt.Sprintf("data.sec.gov/submissions/CIK%010d", ciks[t])
-		var names []string
-		for path := range g.files {
-			if strings.HasPrefix(path, prefix) {
-				names = append(names, path)
-			}
-		}
-		// Sorted names put each extra file before its main file. The real
-		// archive has no fixed order, so the reader must not rely on one.
-		slices.Sort(names)
-		for _, path := range names {
-			subEntries = append(subEntries, zipEntry{filepath.Base(path), g.files[path], zip.Deflate})
-		}
-	}
-	return g.writeZip("www.sec.gov/Archives/edgar/daily-index/bulkdata/submissions.zip", subEntries)
+	entries = append(entries, zipEntry{"CIK" + emptyCIK + ".json", []byte("{}"), zip.Store})
+	return g.writeZip("www.sec.gov/Archives/edgar/daily-index/xbrl/companyfacts.zip", entries)
 }
 
 type zipEntry struct {
