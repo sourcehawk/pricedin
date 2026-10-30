@@ -1,0 +1,55 @@
+.swatch {
+  display: inline-block;
+  width: 11px;
+  height: 11px;
+  border-radius: 3px;
+  margin: 0 4px 0 2px;
+  vertical-align: -1px;
+  background: color-mix(in srgb, var(--c) 35%, transparent);
+  box-shadow: inset 0 0 0 1.5px var(--c);
+}
+
+.range {
+  min-width: 170px;
+}
+
+.priceChip {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 4px 4px 0;
+  border-radius: 6px;
+}
+
+.priceChip:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.plot {
+  touch-action: pan-y;
+}
+
+.plot svg:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.plot :global(.blab):focus-visible,
+.plot :global(.pxev):focus-visible {
+  outline: 2px solid var(--accent);
+}
+
+.plot :global(.pxev) {
+  cursor: pointer;
+}
+
+.link {
+  white-space: nowrap;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
