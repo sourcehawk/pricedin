@@ -1,13 +1,17 @@
 "use client";
 
-import type { ReactNode } from "react";
+import type { FocusEvent, ReactNode } from "react";
 import { useTip } from "@/components/tip/TipProvider";
+import styles from "./Financials.module.css";
+import { cls } from "./metrics";
 
 /**
  * HoverColumns are the hit areas of a chart's quarters, one full-height
  * column each, so the tooltip snaps to the quarter under the pointer.
  * onHover gets the hovered quarter's index, or null when the pointer
- * leaves, so the chart can draw its guide line.
+ * leaves, so the chart can draw its guide line. With label, each column
+ * is also a focusable target named label(i), which shows the same tooltip
+ * on keyboard focus.
  */
 export function HoverColumns({
   count,
@@ -16,6 +20,7 @@ export function HoverColumns({
   top,
   height,
   tip,
+  label,
   onHover,
 }: {
   count: number;
@@ -25,6 +30,7 @@ export function HoverColumns({
   top: number;
   height: number;
   tip: (i: number) => ReactNode;
+  label?: (i: number) => string;
   onHover: (i: number | null) => void;
 }) {
   const t = useTip();
@@ -33,7 +39,22 @@ export function HoverColumns({
       {Array.from({ length: count }, (_, i) => (
         <rect
           key={i}
-          className="cmpcol"
+          className={cls("cmpcol", label !== undefined && styles.focusCol)}
+          {...(label === undefined
+            ? {}
+            : {
+                tabIndex: 0,
+                role: "img",
+                "aria-label": label(i),
+                onFocus: (e: FocusEvent<SVGRectElement>) => {
+                  onHover(i);
+                  t.show(e.currentTarget, tip(i));
+                },
+                onBlur: (e: FocusEvent<SVGRectElement>) => {
+                  onHover(null);
+                  t.hide(e.currentTarget);
+                },
+              })}
           x={left(i)}
           y={top}
           width={width}

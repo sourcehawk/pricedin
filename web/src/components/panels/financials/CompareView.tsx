@@ -120,6 +120,14 @@ export function CompareView({ ticker, view }: { ticker: string; view: Financials
     ticks.push(v);
   }
 
+  const quarterLabel = (i: number): string =>
+    `${quarters[i]?.label ?? ""}: ${selected
+      .map(
+        (m) =>
+          `${metricInfo[m].lower} ${signedPct(values(m)[i], 0)} (${metricValue(m, view.metrics[m].values[i] ?? null, 2)})`,
+      )
+      .join(", ")}`;
+
   const tip = (i: number): ReactNode => (
     <>
       <b>{quarters[i]?.label}</b>
@@ -156,7 +164,7 @@ export function CompareView({ ticker, view }: { ticker: string; view: Financials
       </p>
       <svg
         viewBox={`0 0 ${String(W)} ${String(H)}`}
-        role="img"
+        role="group"
         aria-label={`Financial metrics compared by quarter for ${ticker}: ${selected
           .map((m) => `${metricInfo[m].lower} ${signedPct(values(m).at(-1), 0)}`)
           .join(", ")} ${since ? `since ${first}` : "in the latest quarter"}`}
@@ -182,6 +190,7 @@ export function CompareView({ ticker, view }: { ticker: string; view: Financials
           top={y0}
           height={y1 - y0}
           tip={tip}
+          label={quarterLabel}
           onHover={setHover}
         />
         {hover !== null && (

@@ -36,7 +36,7 @@ describe("CompareView", () => {
     expect(chip("Free cash flow")).toHaveAttribute("aria-pressed", "false");
     expect(chip("Diluted shares")).toHaveAttribute("aria-pressed", "true");
     expect(
-      screen.getByRole("img", { name: /Financial metrics compared by quarter for GRMN/ }),
+      screen.getByRole("group", { name: /Financial metrics compared by quarter for GRMN/ }),
     ).toBeInTheDocument();
   });
 
@@ -55,6 +55,25 @@ describe("CompareView", () => {
     expect(tip).toHaveTextContent("Diluted EPS+12%$2.75");
     expect(tip).toHaveTextContent("Total change since Q4 FY24");
     expect(container.querySelector("line.col-guide")).toBeInTheDocument();
+  });
+
+  it("lets the keyboard reach each quarter's values", async () => {
+    const { container } = await openCompare();
+    const chart = screen.getByRole("group", {
+      name: /Financial metrics compared by quarter for GRMN/,
+    });
+    const quarter = within(chart).getByRole("img", {
+      name: "Q3 FY26: revenue +9% ($1.99B), operating income +18% ($612M), diluted EPS +12% ($2.75), diluted shares -2% (192.0M)",
+    });
+    act(() => {
+      quarter.focus();
+    });
+    expect(screen.getByRole("tooltip")).toHaveTextContent("Diluted EPS+12%$2.75");
+    expect(container.querySelector("line.col-guide")).toBeInTheDocument();
+    act(() => {
+      quarter.blur();
+    });
+    expect(container.querySelector("line.col-guide")).not.toBeInTheDocument();
   });
 
   it("switches to the change from the quarter before", async () => {
