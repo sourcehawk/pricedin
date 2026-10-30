@@ -210,6 +210,23 @@ describe("FinancialsPanel tiles", () => {
     expect(within(tile("Diluted shares")).getByText("(estimate)")).toBeInTheDocument();
   });
 
+  it("shows a share change that rounds to zero as neutral, with no dilution or buybacks", async () => {
+    serveHistory(
+      financialsHistory((qs) =>
+        qs.map((q, i) =>
+          i === qs.length - 1
+            ? { ...q, dilutedShares: Math.round((qs.at(-5)?.dilutedShares ?? 0) * 1.0003) }
+            : q,
+        ),
+      ),
+    );
+    await renderPanel();
+    const change = within(tile("Diluted shares")).getByText(/YoY/);
+    expect(change).toHaveTextContent(/^0\.0% YoY$/);
+    expect(change).toHaveClass("muted");
+    expect(change).not.toHaveClass("up");
+  });
+
   it("names dilution in red when the share count rose", async () => {
     serveHistory(financialsHistory(lastQuarter({ dilutedShares: 200_000_000 })));
     await renderPanel();

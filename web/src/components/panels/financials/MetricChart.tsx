@@ -9,7 +9,7 @@ import { TipRow } from "@/components/tip/TipRow";
 import { useTipHandlers } from "@/components/tip/TipProvider";
 import type { FinancialsView, Metric, Range } from "@/engine";
 import styles from "./Financials.module.css";
-import { cls, metricInfo, metricValue, toneClass } from "./metrics";
+import { cls, metricInfo, metricValue, showsAsZero, toneClass } from "./metrics";
 
 const W = 760;
 const H = 210;
@@ -112,7 +112,7 @@ function MetricPlot({
     );
     if (shares) {
       const c = series.qoq[i]?.value ?? null;
-      const tone = signedPct(c) === signedPct(0) ? null : (series.qoqTone[i]?.value ?? null);
+      const tone = c === null || showsAsZero(c, 1) ? null : (series.qoqTone[i]?.value ?? null);
       if (c !== null) {
         marks.push(
           <text

@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { Swatch } from "@/components/Swatch";
-import { money, shareCount, usd } from "@/components/format";
+import { money, shareCount, signedPct, usd } from "@/components/format";
 import type { Metric, Missing, Tone } from "@/engine";
 
 /** cls joins class names, leaving out the missing ones. */
@@ -84,6 +84,11 @@ export const metricInfo: Record<Metric, MetricInfo> = {
 
 export const marginTip =
   "Operating income divided by revenue: how many cents of profit each dollar of sales brings. The change is in percentage points (pp).";
+
+/** showsAsZero reports whether a change shows as zero with digits decimals; such a change is neutral, with no tone and no word for its direction. */
+export function showsAsZero(change: number, digits: number): boolean {
+  return signedPct(change, digits) === signedPct(0, digits);
+}
 
 /** toneClass is the text class of a tone: good is green, bad red, warn amber, neutral muted. */
 export function toneClass(t: Tone | null): string {

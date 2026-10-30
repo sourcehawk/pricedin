@@ -7,7 +7,15 @@ import { EstimateTag, Sourced } from "@/components/Sourced";
 import { InfoTip } from "@/components/tip/InfoTip";
 import type { FinancialsView, MaybeNumber, Metric, Tile as EngineTile, Tone } from "@/engine";
 import styles from "./Financials.module.css";
-import { cls, marginTip, metricInfo, metricValue, missingText, toneClass } from "./metrics";
+import {
+  cls,
+  marginTip,
+  metricInfo,
+  metricValue,
+  missingText,
+  showsAsZero,
+  toneClass,
+} from "./metrics";
 
 function Tile({
   walk,
@@ -90,6 +98,8 @@ export function Tiles({
   ) => {
     const e = t[m];
     const digits = m === "dilutedShares" ? 1 : 0;
+    const c = e.change.value;
+    const tone = { value: c === null || showsAsZero(c, digits) ? null : e.tone.value };
     return (
       <Tile
         walk={`tile-${m}`}
@@ -98,7 +108,7 @@ export function Tiles({
         tip={metricInfo[m].tip}
         value={metricValue(m, e.latest.value, 2)}
         sourced={latest[m]}
-        change={changeLine(e.change, e.tone, (c) => `${signedPct(c, digits)} YoY${more(c, e)}`)}
+        change={changeLine(e.change, tone, (c) => `${signedPct(c, digits)} YoY${more(c, e)}`)}
       />
     );
   };
@@ -130,7 +140,7 @@ export function Tiles({
       {tile("eps", "Diluted EPS")}
       {tile("freeCashFlow", "Free cash flow")}
       {tile("dilutedShares", "Diluted shares", (c) =>
-        c > 0 ? " (dilution)" : c < 0 ? " (buybacks)" : "",
+        showsAsZero(c, 1) ? "" : c > 0 ? " (dilution)" : " (buybacks)",
       )}
     </div>
   );
