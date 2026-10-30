@@ -32,6 +32,8 @@ export const NOTES = {
   zeroWidth: "v1: a scale with a zero-width domain widens to a visible range.",
   g12: "v1: 12-month EPS growth compares the TTM EPS known on a day with the TTM EPS known 365 days earlier; the prototype uses the TTM of four quarters earlier, which is the same value without a reporting lag.",
   dailyPe: "v1: the daily P/E is null when TTM EPS is not positive; the prototype divides anyway.",
+  ttmQuarters:
+    "v1: each day names the quarters that its TTM EPS adds up, from the newest quarter that the input names; the prototype does not name them.",
   medianRequired:
     "v1: the typical required growth over the period is the conventional median, like the typical P/E.",
   demandingCount:
@@ -764,9 +766,18 @@ export function correlation({ xs, ys }) {
   return val({ correlation: c, class: LINK[P.corrWord(c)] });
 }
 
+// The labels of the quarters that a day's TTM EPS adds up, oldest first:
+// the four up to the quarter that the day names. None without a TTM EPS
+// or when the day names no quarter of the history.
+function ttmQuarters(d, quarters, index) {
+  const k = d.ttmEps == null || d.ttmQuarter == null ? undefined : index.get(d.ttmQuarter);
+  return k === undefined ? [] : quarters.slice(Math.max(0, k - 3), k + 1).map((q) => q.label);
+}
+
 // The daily points with their 12-month changes and P/E (lines 992-995),
-// with the v1 rules for g12 and the P/E.
-function enrichDaily(daily) {
+// with the v1 rules for g12 and the P/E, and the v1 TTM quarters.
+function enrichDaily(daily, quarters) {
+  const index = new Map(quarters.map((q, i) => [q.label, i]));
   const a = daily.map((d) => ({ t: toMs(d.date), p: d.close, e: d.ttmEps, q: -1 }));
   P.enrich(a, []);
   let j = 0;
@@ -790,6 +801,7 @@ function enrichDaily(daily) {
       date: daily[i].date,
       close: d.p,
       ttmEps: d.e,
+      ttmQuarters: ttmQuarters(daily[i], quarters, index),
       pe,
       priceChange12m: r12,
       epsGrowth12m: g12,
@@ -896,12 +908,13 @@ export function peBands({ points }) {
 
 export function priceChart({ daily, quarters, range: px }) {
   if (!daily.length) return none("insufficient_history");
-  const all = enrichDaily(daily);
+  const all = enrichDaily(daily, quarters);
   const { D, end } = P.rangePoints(all, px);
   const points = D.map((d) => ({
     date: d.date,
     close: d.close,
     ttmEps: d.ttmEps,
+    ttmQuarters: d.ttmQuarters,
     pe: d.pe,
     priceChange12m: d.priceChange12m,
     epsGrowth12m: d.epsGrowth12m,

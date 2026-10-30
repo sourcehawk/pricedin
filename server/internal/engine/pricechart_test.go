@@ -212,3 +212,29 @@ func TestPEBandsAtTheLowestValidPE(t *testing.T) {
 		t.Errorf("%d bands, want about 5", n)
 	}
 }
+
+func TestPriceChartNamesTheQuartersOfEachDaysTTMEPS(t *testing.T) {
+	labels := []string{"Q1 FY24", "Q2 FY24", "Q3 FY24", "Q4 FY24", "Q1 FY25", "Q2 FY25"}
+	quarters := make([]Quarter, len(labels))
+	for i, l := range labels {
+		quarters[i] = Quarter{Label: l, PeriodEnd: domain.NewDate(2024, 3, 31).AddDays(91 * i)}
+	}
+	daily := days(domain.NewDate(2025, 6, 1), 4, func(int) (float64, *float64) { return 100, ptr(5.0) })
+	daily[0].TTMEPS = nil
+	daily[1].TTMQuarter = ptr("Q4 FY24")
+	daily[2].TTMQuarter = ptr("Q2 FY25")
+	daily[3].TTMQuarter = ptr("Q9 FY99")
+
+	c := wantSome(t, "chart", PriceChart(daily, quarters, Range3Y))
+	want := [][]string{
+		{},
+		{"Q1 FY24", "Q2 FY24", "Q3 FY24", "Q4 FY24"},
+		{"Q3 FY24", "Q4 FY24", "Q1 FY25", "Q2 FY25"},
+		{},
+	}
+	for i, p := range c.Points {
+		if diff := cmp.Diff(want[i], p.TTMQuarters); diff != "" {
+			t.Errorf("day %d TTM quarters (-want +got):\n%s", i, diff)
+		}
+	}
+}

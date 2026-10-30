@@ -24,10 +24,13 @@ type Quarter struct {
 }
 
 // PricePoint is one daily close with the TTM EPS that was known on that day.
+// TTMQuarter is the label of the newest of the four quarters that the TTM
+// EPS adds up; nil when the day has no TTM EPS or the source does not say.
 type PricePoint struct {
-	Date   domain.Date `json:"date"`
-	Close  float64     `json:"close"`
-	TTMEPS *float64    `json:"ttmEps"`
+	Date       domain.Date `json:"date"`
+	Close      float64     `json:"close"`
+	TTMEPS     *float64    `json:"ttmEps"`
+	TTMQuarter *string     `json:"ttmQuarter"`
 }
 
 // History is everything the engine knows about a stock. Quarters are

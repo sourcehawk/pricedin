@@ -168,7 +168,7 @@ func TestHistorySplitAdjustsNVIDIAClosesAndEPS(t *testing.T) {
 	}
 }
 
-func TestHistoryDailyTTMEPSIsTheOneKnownOnEachDay(t *testing.T) {
+func TestHistoryDailyTTMEPSIsTheOneKnownOnEachDayWithItsNewestQuarter(t *testing.T) {
 	st := stockstest.Fixture(t)
 	svc := newService(t, st, nil)
 	today := date(t, "2026-10-30")
@@ -185,9 +185,12 @@ func TestHistoryDailyTTMEPSIsTheOneKnownOnEachDay(t *testing.T) {
 			t.Fatal(err)
 		}
 		for _, d := range h.History.Daily {
-			_, v, ok := fundamentals.TTMKnownOn(series, fundamentals.EPSDiluted, d.Date)
+			k, v, ok := fundamentals.TTMKnownOn(series, fundamentals.EPSDiluted, d.Date)
 			if ok != (d.TTMEPS != nil) || (ok && !near(*d.TTMEPS, v.V)) {
 				t.Fatalf("%s ttmEps on %s = %v, want %v (known %v)", c.ticker, d.Date, d.TTMEPS, v.V, ok)
+			}
+			if ok != (d.TTMQuarter != nil) || (ok && *d.TTMQuarter != series.Quarters[k].Label) {
+				t.Fatalf("%s ttmQuarter on %s = %v, want %s", c.ticker, d.Date, d.TTMQuarter, series.Quarters[k].Label)
 			}
 		}
 	}

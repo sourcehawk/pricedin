@@ -805,13 +805,13 @@ for (const r of ["3Y", "1Y", "6M"])
     `price chart over ${r}`,
     "priceChart",
     { daily: GRMN.history.daily, quarters: gq, range: r },
-    [N.g12, N.dailyPe],
+    [N.g12, N.dailyPe, N.ttmQuarters],
   );
 add(
   "price chart of a slowing company",
   "priceChart",
   { daily: NKE.history.daily, quarters: NKE.history.quarters, range: "3Y" },
-  [N.g12, N.dailyPe],
+  [N.g12, N.dailyPe, N.ttmQuarters],
 );
 add(
   "price chart with gaps in the EPS",
@@ -821,7 +821,23 @@ add(
     quarters: gq,
     range: "1Y",
   },
-  [N.g12, N.dailyPe, N.nullData],
+  [N.g12, N.dailyPe, N.ttmQuarters, N.nullData],
+);
+add(
+  "price chart with days that name no quarter of the history",
+  "priceChart",
+  {
+    daily: GRMN.history.daily.map((d, i) =>
+      i % 13 === 5
+        ? { ...d, ttmQuarter: "Q1 FY99" }
+        : i % 13 === 7
+          ? { ...d, ttmQuarter: null }
+          : d,
+    ),
+    quarters: gq,
+    range: "6M",
+  },
+  [N.g12, N.dailyPe, N.ttmQuarters],
 );
 add("price chart without daily data", "priceChart", { daily: [], quarters: gq, range: "3Y" });
 const days = (n, f) =>
@@ -834,7 +850,7 @@ add(
     quarters: [],
     range: "1Y",
   },
-  [N.g12, N.dailyPe, N.peChangeNeedsEps],
+  [N.g12, N.dailyPe, N.ttmQuarters, N.peChangeNeedsEps],
 );
 add(
   "price chart when EPS turned negative",
@@ -844,7 +860,7 @@ add(
     quarters: [],
     range: "6M",
   },
-  [N.g12, N.dailyPe, N.peChangeNeedsEps],
+  [N.g12, N.dailyPe, N.ttmQuarters, N.peChangeNeedsEps],
 );
 
 // ------------------------------------------------------------- financials
@@ -886,6 +902,7 @@ const evalNotes = [
   N.scaleEveryPoint,
   N.g12,
   N.dailyPe,
+  N.ttmQuarters,
   N.medianRequired,
   N.demandingCount,
   N.pairwise,
