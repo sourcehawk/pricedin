@@ -791,7 +791,7 @@ func TestANextURLWithoutALeadingSlashIsRejected(t *testing.T) {
 			var calls atomic.Int32
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				calls.Add(1)
-				serveJSON(`{"status":"OK","results":[],"next_url":"` + next + `"}`)(w, r)
+				serveJSON(`{"status":"OK","results":[],"next_url":"`+next+`"}`)(w, r)
 			}))
 			defer srv.Close()
 
