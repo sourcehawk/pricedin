@@ -2,11 +2,18 @@ import type { Page } from "@playwright/test";
 import { expect, isPhone, test } from "./support/fixtures";
 import { pickStock } from "./support/stock";
 
-// Each small chart, and what opens it on the page.
-const charts: { name: string; panel: string; open?: (page: Page) => Promise<void> }[] = [
+// Each small chart, what opens it on the page, and the height in its column
+// to point at: the bar chart's value labels are links, so a tap there would
+// open a filing.
+const charts: {
+  name: string;
+  panel: string;
+  open?: (page: Page) => Promise<void>;
+  y?: number;
+}[] = [
   { name: "earnings trajectory", panel: "earnings-trajectory" },
   { name: "how demanding", panel: "how-demanding" },
-  { name: "financials bar", panel: "financials" },
+  { name: "financials bar", panel: "financials", y: 0.97 },
   {
     name: "financials compare",
     panel: "financials",
@@ -43,7 +50,7 @@ for (const c of charts) {
       throw new Error("the column has a box");
     }
     // Off the column's center: the guide still snaps to the center.
-    const at = { x: box.width * 0.8, y: box.height / 3 };
+    const at = { x: box.width * 0.8, y: box.height * (c.y ?? 1 / 3) };
     if (isPhone(page)) {
       await column.tap({ position: at });
     } else {
