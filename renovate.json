@@ -25,6 +25,7 @@
     {
       "description": "Patch updates of the npm development tools share one pull request, which merges on its own. A grouped pull request merges on its own only when each update in it can, so minor updates get a group of their own. The named groups below take their packages out of both.",
       "groupName": "npm development tools (patch)",
+      "groupSlug": "npm-development-tools-patch",
       "matchManagers": ["npm"],
       "matchDepTypes": ["devDependencies"],
       "matchUpdateTypes": ["patch"]
@@ -32,6 +33,7 @@
     {
       "description": "Minor updates of the npm development tools share one pull request.",
       "groupName": "npm development tools (minor)",
+      "groupSlug": "npm-development-tools-minor",
       "matchManagers": ["npm"],
       "matchDepTypes": ["devDependencies"],
       "matchUpdateTypes": ["minor"]
