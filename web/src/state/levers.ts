@@ -19,7 +19,21 @@ import {
 
 /** LeverKey names a lever of the left panel; walkthrough steps ring levers by these keys. */
 export type LeverKey =
-  "price" | "ttmEps" | "dividend" | "targetReturn" | "holdingYears" | "exitPe" | "baseline";
+  | "price"
+  | "ttmEps"
+  | "dividend"
+  | "targetReturn"
+  | "holdingYears"
+  | "exitPe"
+  /** The look-back of the typical P/E, inside the exit P/E lever. */
+  | "typicalPeMonths"
+  | "baseline"
+  /** The look-back of trailing growth, inside the growth baseline lever. */
+  | "trailingMonths"
+  /** The flat custom growth rate; shown only for the custom baseline, same each year. */
+  | "customGrowth"
+  /** The custom rates year by year; shown only for the custom baseline, year by year. */
+  | "yearRates";
 
 /** YearRatesSource says where the custom year-by-year rates came from. */
 export type YearRatesSource = "trajectory" | "user";

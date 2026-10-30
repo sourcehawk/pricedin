@@ -70,7 +70,7 @@ A `WalkthroughStep`:
 | `body` | The explanation. Define each term at first use. Do not name colors in text: show a color sample. |
 | `you` | Optional. `(ev: Evaluation) => ReactNode`: one line with the user's own numbers. It shows only when an evaluation exists. If it throws, the line is left out. |
 | `highlight` | Optional. The `data-walk` keys of the elements that the step explains. Without a key that matches, nothing fades. |
-| `levers` | Optional. The `LeverKey`s to ring: `price`, `ttmEps`, `dividend`, `targetReturn`, `holdingYears`, `exitPe`, `baseline`. |
+| `levers` | Optional. The `LeverKey`s to ring: `price`, `ttmEps`, `dividend`, `targetReturn`, `holdingYears`, `exitPe`, `typicalPeMonths` (the typical P/E look-back), `baseline`, `trailingMonths` (the trailing growth look-back), `customGrowth` (the flat custom rate) and `yearRates` (the custom rates year by year). The last two exist only while the custom baseline shows them; a key with no element rings nothing. |
 | `takeaway` | Optional. A node, or `(ev) => ReactNode`. Give it on the last step: the one-line take-away. |
 
 `useWalkthrough()` returns `{ active, start(id), go(step), end() }` for a control outside the component.

@@ -241,7 +241,7 @@ export function ExitPeLever() {
           {max}×
         </span>
       </div>
-      <div className="trlrow">
+      <div className="trlrow" data-lever="typicalPeMonths">
         <span className="muted">Typical P/E</span>
         <b className="refv">
           {typical === null ? "n/a" : `${(Math.round(typical * 2) / 2).toFixed(1)}×`}
@@ -335,7 +335,7 @@ export function BaselineLever() {
           dispatch({ type: "setBaselineMode", mode });
         }}
       />
-      <div className="trlrow">
+      <div className="trlrow" data-lever="trailingMonths">
         <span className="muted">Trailing growth</span>
         <b className="refv">{pct(ev?.baselines.trailing.growth.value)}</b>
         <label htmlFor={monthsId} className="muted">
@@ -375,7 +375,7 @@ export function BaselineLever() {
             }}
           />
           {!b.yearly ? (
-            <div className="lever">
+            <div className="lever" data-lever="customGrowth">
               <input
                 type="range"
                 min={-10}
@@ -394,7 +394,7 @@ export function BaselineLever() {
               </div>
             </div>
           ) : (
-            <div>
+            <div data-lever="yearRates">
               <div className="yeargrid">
                 {shownRates.map((r, i) => (
                   <label key={i}>

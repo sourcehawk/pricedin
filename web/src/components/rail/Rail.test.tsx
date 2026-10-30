@@ -147,3 +147,34 @@ describe("Reset inputs", () => {
     expect(field("Share price ($)")).toHaveValue(270);
   });
 });
+
+describe("lever keys for the walkthrough rings", () => {
+  const lever = (key: string) => document.querySelector(`[data-lever="${key}"]`);
+
+  it("mark every lever and both look-backs", async () => {
+    await renderReady(<Rail />);
+    for (const key of [
+      "price",
+      "ttmEps",
+      "dividend",
+      "targetReturn",
+      "holdingYears",
+      "exitPe",
+      "typicalPeMonths",
+      "baseline",
+      "trailingMonths",
+    ]) {
+      expect(lever(key)).not.toBeNull();
+    }
+    expect(lever("typicalPeMonths")).toHaveTextContent("Typical P/E");
+    expect(lever("trailingMonths")).toHaveTextContent("Trailing growth");
+  });
+
+  it("mark the flat custom rate and the year-by-year rates when they show", async () => {
+    await renderReady(<Rail />);
+    await replace(field(/^Growth baseline, percent a year/), "9");
+    expect(lever("customGrowth")).toContainElement(slider("Custom EPS growth"));
+    await userEvent.click(screen.getByRole("button", { name: "Year by year" }));
+    expect(lever("yearRates")).toContainElement(field("EPS growth in year 1, percent"));
+  });
+});

@@ -791,7 +791,9 @@ table.corr {
   transition: box-shadow 0.2s;
 }
 .rail .lever[data-tside],
-.rail .field[data-tside] {
+.rail .field[data-tside],
+.rail .trlrow[data-tside],
+.rail [data-lever="yearRates"][data-tside] {
   padding: 8px;
   margin: -8px;
 }

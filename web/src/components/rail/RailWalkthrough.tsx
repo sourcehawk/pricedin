@@ -102,7 +102,7 @@ export function RailWalkthrough() {
     },
     {
       title: "Exit P/E: what to pick",
-      levers: ["exitPe"],
+      levers: ["exitPe", "typicalPeMonths"],
       body: (
         <p>
           As growth slows, the P/E usually falls. That is why the Estimated setting lowers
