@@ -635,6 +635,86 @@ func TestReprocessLoadsAnArchiveOlderThanACompanyOfIt(t *testing.T) {
 	if n := db.count(t, `SELECT count(*) FROM companies WHERE cik = 21344`); n != 1 {
 		t.Error("the submissions of the later day did not load")
 	}
+
+	// The company did not exist on the day of the archive, also on a
+	// second run, after the first run stored it.
+	before := tableRows(t, pool, map[string][]string{"facts": {"id"}, "quarterly_fundamentals": {"built_at"}})
+	res, err = r.Reprocess(context.Background(), ingest.ReprocessOptions{})
+	if err != nil || res.Facts != 0 || res.Fundamentals.Companies != 0 {
+		t.Errorf("second Reprocess() = %+v, %v; want no fact and no rebuild", res, err)
+	}
+	if diff := cmp.Diff(before, tableRows(t, pool, map[string][]string{"facts": {"id"}, "quarterly_fundamentals": {"built_at"}})); diff != "" {
+		t.Errorf("second reprocess changed the facts (-before +after):\n%s", diff)
+	}
+}
+
+// koArchive returns a company facts archive with one fact of KO.
+func koArchive(t *testing.T) string {
+	t.Helper()
+	facts := `{"cik":21344,"facts":{"us-gaap":{"EarningsPerShareDiluted":{"units":{"USD/shares":[` +
+		`{"start":"2025-01-01","end":"2025-03-31","val":0.5,"accn":"0000021344-25-000001","fy":2025,"fp":"Q1","form":"10-Q","filed":"2025-04-25"}]}}}}}`
+	var zipped bytes.Buffer
+	zw := zip.NewWriter(&zipped)
+	w, err := zw.Create("CIK0000021344.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.Write([]byte(facts)); err != nil {
+		t.Fatal(err)
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return zipped.String()
+}
+
+// An archive that repeats the one of the day before still loads the
+// companies that exist only from its own day.
+func TestReprocessLoadsARepeatedArchiveForACompanyOfItsDay(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, envOptions{})
+	bs := newBlob(t)
+	record(t, bs, "2026-10-28T12:00:00Z", "sec/archives/companyfacts.zip", koArchive(t))
+	record(t, bs, "2026-10-29T12:00:00Z", "sec/archives/companyfacts.zip", koArchive(t))
+	record(t, bs, "2026-10-29T12:00:00Z", "sec/submissions/CIK0000021344.json", `{"cik":"21344","name":"KO","filings":{"recent":{}}}`)
+	r, pool := offlineRunner(t, e, bs)
+	must(r.Reprocess(context.Background(), ingest.ReprocessOptions{}))(t)
+	db := &env{pool: pool}
+	if n := db.count(t, `SELECT count(*) FROM facts WHERE cik = 21344`); n != 1 {
+		t.Errorf("facts of KO = %d, want the 1 fact of the archive of its day", n)
+	}
+	res := must(r.Reprocess(context.Background(), ingest.ReprocessOptions{}))(t)
+	if res.Facts != 0 || res.Fundamentals.Companies != 0 {
+		t.Errorf("second Reprocess() = %+v, want no fact and no rebuild", res)
+	}
+}
+
+// A request whose pages, or whose splits and dividends, were recorded on
+// both sides of midnight UTC is one response.
+func TestReprocessJoinsAResponseRecordedAcrossMidnight(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, envOptions{})
+	bs := newBlob(t)
+	before, after := "2026-10-28T23:59:59Z", "2026-10-29T00:00:01Z"
+	record(t, bs, before, "prices/massive/splits/KO/page-1.json", `{"status":"OK","results":[]}`)
+	record(t, bs, after, "prices/massive/dividends/KO/page-1.json",
+		`{"status":"OK","results":[{"id":"d1","ticker":"KO","ex_dividend_date":"2026-09-15","cash_amount":0.51}]}`)
+	const grouped = "prices/massive/grouped/2025-10-29/"
+	record(t, bs, before, grouped+"page-1.json",
+		`{"status":"OK","results":[{"T":"KO","t":1761710400000,"c":70}],"next_url":"https://api.massive.com/v2/aggs?cursor=p2"}`)
+	record(t, bs, after, grouped+"page-2.json", `{"status":"OK","results":[{"T":"KOF","t":1761710400000,"c":80}]}`)
+	r, pool := offlineRunner(t, e, bs)
+	res, err := r.Reprocess(context.Background(), ingest.ReprocessOptions{})
+	if err != nil || res.Incomplete != 0 {
+		t.Fatalf("Reprocess() = %+v, %v; want nothing incomplete", res, err)
+	}
+	db := &env{pool: pool}
+	if n := db.count(t, `SELECT count(*) FROM dividends WHERE provider_id = 'd1'`); n != 1 {
+		t.Error("the dividend recorded after midnight did not load with the splits")
+	}
+	if n := db.count(t, `SELECT count(*) FROM price_grouped_loads WHERE date = '2025-10-29' AND bars = 2`); n != 1 {
+		t.Error("the grouped day is not marked loaded with the 2 bars of both pages")
+	}
 }
 
 // A version that does not parse fails alone: the other versions of its

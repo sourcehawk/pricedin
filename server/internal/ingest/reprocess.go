@@ -254,8 +254,18 @@ type rawIndex struct {
 	// oldest first.
 	extras     map[string][]rawFile
 	extraNames map[domain.CIK][]string
-	// submitted holds the companies with a stored submissions file.
-	submitted map[domain.CIK]bool
+	// firstSubmitted holds the retrieval day of the oldest submissions file
+	// of each company, and tickerMaps the SEC ticker map files, oldest
+	// first, also those that Since or CIK leave out.
+	firstSubmitted map[domain.CIK]domain.Date
+	tickerMaps     []rawFile
+	// archiveCompanies caches the companies of an archive by its day.
+	archiveCompanies map[domain.Date]map[domain.CIK]bool
+	// nextDay maps a fetch to the fetch of its source on the day after.
+	nextDay map[*rawFetch]*rawFetch
+	// consumed holds the keys of the files that a fetch of the day before
+	// already loaded.
+	consumed map[string]bool
 	// priceSymbols holds the SEC symbols with stored splits, dividends or
 	// bars of their own.
 	priceSymbols map[string]bool
@@ -378,7 +388,9 @@ func (r *Runner) groupedKeep(ctx context.Context, idx *rawIndex, cikSymbols map[
 func (r *Runner) indexRaw(ctx context.Context, opts ReprocessOptions, cikSymbols, seen map[string]bool, res *ReprocessResult, fails *failures) (*rawIndex, int, error) {
 	idx := &rawIndex{
 		keys: map[string]bool{}, extras: map[string][]rawFile{}, extraNames: map[domain.CIK][]string{},
-		submitted: map[domain.CIK]bool{}, priceSymbols: map[string]bool{},
+		firstSubmitted: map[domain.CIK]domain.Date{}, priceSymbols: map[string]bool{},
+		archiveCompanies: map[domain.Date]map[domain.CIK]bool{}, nextDay: map[*rawFetch]*rawFetch{},
+		consumed: map[string]bool{},
 	}
 	var prefixes []string
 	if opts.Prefix != ReprocessPrices {
@@ -454,8 +466,12 @@ func (r *Runner) indexRaw(ctx context.Context, opts ReprocessOptions, cikSymbols
 		if bySource[f.source] == nil {
 			sources = append(sources, f.source)
 		}
+		if all := bySource[f.source]; len(all) > 0 && all[len(all)-1].day.AddDays(1) == f.day {
+			idx.nextDay[all[len(all)-1]] = f
+		}
 		bySource[f.source] = append(bySource[f.source], f)
 	}
+	slices.SortFunc(idx.tickerMaps, compareRawFiles)
 	isNew := func(files []rawFile) int64 {
 		var n int64
 		for i := range files {
@@ -479,7 +495,9 @@ func (r *Runner) indexRaw(ctx context.Context, opts ReprocessOptions, cikSymbols
 			// wins over the bars of another source between the repeats.
 			keepsLast := source.kind == rawSECTickers || source.kind == rawProviderTickers ||
 				source.kind == rawGrouped || source.kind == rawBars
-			if repeats && (!keepsLast || !endsRun) {
+			// An archive loads the companies that exist on its day, so a
+			// repeat can load more than the archive before it.
+			if repeats && source.kind != rawArchive && (!keepsLast || !endsRun) {
 				res.Unchanged += isNew(f.files)
 				continue
 			}
@@ -492,6 +510,8 @@ func (r *Runner) indexRaw(ctx context.Context, opts ReprocessOptions, cikSymbols
 			case rawSubmissions:
 				day = kept[0].day
 			case rawGrouped, rawBars:
+				// A bar that only an older version of a source gives can win
+				// over a newer value of another source.
 				day = r.lastDayWithBars(ctx, kept)
 			default:
 				day = kept[len(kept)-1].day
@@ -568,7 +588,11 @@ func (r *Runner) classify(key string, idx *rawIndex) (rawFile, rawSource, error)
 			idx.extras[extra] = append(idx.extras[extra], file)
 			return file, rawSource{kind: rawExtra, cik: cik}, nil
 		case kind == rawSubmissions:
-			idx.submitted[cik] = true
+			if first, ok := idx.firstSubmitted[cik]; !ok || day.Before(first) {
+				idx.firstSubmitted[cik] = day
+			}
+		case kind == rawSECTickers:
+			idx.tickerMaps = append(idx.tickerMaps, file)
 		}
 		return file, rawSource{kind: kind, cik: cik}, nil
 	}
@@ -707,7 +731,7 @@ func (r *Runner) loadUnit(ctx context.Context, idx *rawIndex, u *rawUnit, opts R
 	case rawSubmissions:
 		return r.reprocessSubmissions(ctx, idx, u, res, fails)
 	case rawReference, rawGrouped, rawBars:
-		return r.reprocessPriceUnit(ctx, u, opts, keep, res, fails)
+		return r.reprocessPriceUnit(ctx, idx, u, opts, keep, res, fails)
 	default:
 		var out unitOutcome
 		err := r.reprocessFetch(ctx, idx, u.fetches[0], opts, res, &out, fails)
@@ -760,35 +784,29 @@ func (r *Runner) reprocessFetch(ctx context.Context, idx *rawIndex, f *rawFetch,
 			res.Facts += n
 		}
 	case rawArchive:
-		// sec-bulk stores the archive facts of the covered companies before
-		// it asks for their submissions, so a company can have facts and no
-		// stored submissions.
-		members, err := r.covered(ctx)
-		if err != nil && !errors.Is(err, ErrEmptyUniverse) {
-			return err
-		}
-		covered := map[domain.CIK]bool{}
-		for _, c := range companiesOf(members) {
-			covered[c] = true
-		}
-		// idx.submitted holds companies of later days too, whose rows do
-		// not exist yet.
-		stored, err := r.store.ListCompanyCIKs(ctx)
+		companies, err := r.archiveCompanies(ctx, idx, f.day)
 		if err != nil {
 			return err
 		}
+		failedCompany := func(cik domain.CIK, err error) error {
+			if ctx.Err() != nil {
+				return err
+			}
+			fails.add(cik.String(), err)
+			r.logger.WarnContext(ctx, "ingest: reprocess failed to load the archive facts of a company", "cik", cik, "error", err.Error())
+			return nil
+		}
 		for i := range f.files {
 			if err := r.reprocessArchive(ctx, f.files[i], func(cik domain.CIK) bool {
-				_, exists := slices.BinarySearch(stored, cik)
-				return exists && (idx.submitted[cik] || covered[cik]) && (opts.CIK == 0 || cik == opts.CIK)
-			}, res); err != nil {
+				return companies[cik] && (opts.CIK == 0 || cik == opts.CIK)
+			}, failedCompany, res); err != nil {
 				if err := r.fileFailed(ctx, &f.files[i], err, out, fails); err != nil {
 					return err
 				}
 			}
 		}
 	case rawProviderTickers:
-		return r.reprocessProviderTickers(ctx, f, res, out, fails)
+		return r.reprocessProviderTickers(ctx, idx, f, res, out, fails)
 	default:
 		return fmt.Errorf("ingest: reprocess: unknown source %s", f.source)
 	}
@@ -828,36 +846,55 @@ func (r *Runner) reprocessSubmissions(ctx context.Context, idx *rawIndex, u *raw
 // Each version of a list of one page is a list of its own. The versions
 // of a list of more pages cannot be told apart, so such a day loads only
 // when it has one version of each page.
-func (r *Runner) reprocessProviderTickers(ctx context.Context, f *rawFetch, res *ReprocessResult, out *unitOutcome, fails *failures) error {
-	if err := r.checkSyncDay(ctx, r.stored.Name(), f.day); err != nil {
-		return err
-	}
-	lists := [][]rawFile{f.files}
+func (r *Runner) reprocessProviderTickers(ctx context.Context, idx *rawIndex, f *rawFetch, res *ReprocessResult, out *unitOutcome, fails *failures) error {
+	files := idx.unconsumed(f.files)
 	pages := map[int]int{}
-	for i := range f.files {
-		pages[f.files[i].req.Page]++
-	}
-	switch {
-	case len(pages) == 1 && pages[1] > 1:
-		lists = nil
-		for i := range f.files {
-			lists = append(lists, f.files[i:i+1])
-		}
-	case len(f.files) > len(pages):
-		return fmt.Errorf("%w: a page of the ticker list has two versions on one day", errIncomplete)
+	for i := range files {
+		pages[files[i].req.Page]++
 	}
 	failed := func(file *rawFile, err error) error { return r.fileFailed(ctx, file, err, out, fails) }
-	for _, list := range lists {
-		got, bad, err := r.readPages(ctx, list, failed)
-		if errors.Is(err, errIncomplete) {
-			out.skipped += int64(len(list)) - bad
-			r.logger.InfoContext(ctx, "ingest: reprocess skipped an incomplete response", "source", f.String(), "error", err.Error())
+	type list struct {
+		files []rawFile
+		day   domain.Date
+		got   map[prices.StoredKind]prices.StoredPage
+		bad   int64
+		err   error
+	}
+	var lists []list
+	switch {
+	case len(files) == 0:
+		return nil
+	case len(pages) == 1 && pages[1] > 1:
+		for i := range files {
+			got, bad, err := r.readPages(ctx, files[i:i+1], failed)
+			lists = append(lists, list{files[i : i+1], f.day, got, bad, err})
+		}
+	case len(files) > len(pages):
+		return fmt.Errorf("%w: a page of the ticker list has two versions on one day", errIncomplete)
+	default:
+		got, used, bad, err := r.readFetch(ctx, idx, f, nil, failed)
+		// The job syncs the list as of the day when the last page arrived.
+		day := f.day
+		for i := range used {
+			if used[i].day.After(day) {
+				day = used[i].day
+			}
+		}
+		lists = append(lists, list{used, day, got, bad, err})
+	}
+	for _, l := range lists {
+		if errors.Is(l.err, errIncomplete) {
+			out.skipped += int64(len(l.files)) - l.bad
+			r.logger.InfoContext(ctx, "ingest: reprocess skipped an incomplete response", "source", f.String(), "error", l.err.Error())
 			continue
 		}
-		if err != nil {
+		if l.err != nil {
+			return l.err
+		}
+		if err := r.checkSyncDay(ctx, r.stored.Name(), l.day); err != nil {
 			return err
 		}
-		changes, err := r.storeProviderTickers(ctx, r.stored.Name(), f.day, got[prices.StoredTickers].Tickers)
+		changes, err := r.storeProviderTickers(ctx, r.stored.Name(), l.day, l.got[prices.StoredTickers].Tickers)
 		res.TickersOpened += changes.Opened
 		res.TickersClosed += changes.Closed
 		if err != nil {
@@ -871,7 +908,7 @@ func (r *Runner) reprocessProviderTickers(ctx context.Context, f *rawFetch, res 
 // one step, and skips the versions that lack a page, or, for a symbol's
 // splits, the dividends of the same day. In the one batch, the newest
 // version of each value wins.
-func (r *Runner) reprocessPriceUnit(ctx context.Context, u *rawUnit, opts ReprocessOptions, keep map[string]bool, res *ReprocessResult, fails *failures) (unitOutcome, error) {
+func (r *Runner) reprocessPriceUnit(ctx context.Context, idx *rawIndex, u *rawUnit, opts ReprocessOptions, keep map[string]bool, res *ReprocessResult, fails *failures) (unitOutcome, error) {
 	var out unitOutcome
 	var splits []domain.Split
 	var dividends []domain.Dividend
@@ -882,19 +919,19 @@ func (r *Runner) reprocessPriceUnit(ctx context.Context, u *rawUnit, opts Reproc
 	returned := 0
 	complete := 0
 	failed := func(file *rawFile, err error) error { return r.fileFailed(ctx, file, err, &out, fails) }
+	var want []prices.StoredKind
+	if u.source.kind == rawReference {
+		want = []prices.StoredKind{prices.StoredSplits, prices.StoredDividends}
+	}
 	for _, f := range u.fetches {
-		pages, bad, err := r.readPages(ctx, f.files, failed)
-		if err == nil && u.source.kind == rawReference {
-			_, okS := pages[prices.StoredSplits]
-			_, okD := pages[prices.StoredDividends]
-			if !okS || !okD {
-				err = fmt.Errorf("%w: the job stores splits and dividends together, and one of them is missing", errIncomplete)
-			}
-		}
+		pages, files, bad, err := r.readFetch(ctx, idx, f, want, failed)
 		if err != nil {
-			if err := r.versionFailed(ctx, f, int64(len(f.files))-bad, err, &out, fails); err != nil {
+			if err := r.versionFailed(ctx, f, int64(len(files))-bad, err, &out, fails); err != nil {
 				return out, err
 			}
+			continue
+		}
+		if len(files) == 0 {
 			continue
 		}
 		complete++
@@ -944,6 +981,116 @@ func (r *Runner) checkSyncDay(ctx context.Context, source string, day domain.Dat
 	default:
 		return nil
 	}
+}
+
+// archiveCompanies returns the companies whose facts an archive of day
+// loads: those with a submissions file from day or before, and the
+// universe of the newest SEC ticker map from day or before. sec-bulk
+// reads the archive for the covered companies and asks for their
+// submissions after it, so a company can have archive facts and no
+// stored submissions. The blob store alone decides, so every run loads
+// the same facts.
+func (r *Runner) archiveCompanies(ctx context.Context, idx *rawIndex, day domain.Date) (map[domain.CIK]bool, error) {
+	if got, ok := idx.archiveCompanies[day]; ok {
+		return got, nil
+	}
+	out := map[domain.CIK]bool{}
+	for cik, first := range idx.firstSubmitted {
+		if !first.After(day) {
+			out[cik] = true
+		}
+	}
+	var newest *rawFile
+	for i := range idx.tickerMaps {
+		if !idx.tickerMaps[i].day.After(day) {
+			newest = &idx.tickerMaps[i]
+		}
+	}
+	if newest != nil {
+		body, err := r.readRaw(ctx, newest.key)
+		if err != nil {
+			return nil, err
+		}
+		entries, err := sec.ParseTickers(body, newest.day)
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", newest.key, err)
+		}
+		tickers := make([]domain.Ticker, len(entries))
+		for i := range entries {
+			tickers[i] = entries[i].Ticker
+		}
+		for _, cik := range companiesOf(SelectUniverse(tickers, r.narrow)) {
+			out[cik] = true
+		}
+	}
+	idx.archiveCompanies[day] = out
+	return out, nil
+}
+
+// readFetch reads the files of f that no fetch of the day before loaded,
+// as readPages does, and requires the kinds of want. A request can go on
+// past midnight UTC, so when the files lack a part, it adds the files of
+// the next day of the same source whose kind and page f lacks, if they
+// complete the request. It returns the files that it read, which it marks
+// consumed.
+func (r *Runner) readFetch(ctx context.Context, idx *rawIndex, f *rawFetch, want []prices.StoredKind, failed func(*rawFile, error) error) (map[prices.StoredKind]prices.StoredPage, []rawFile, int64, error) {
+	files := idx.unconsumed(f.files)
+	if len(files) == 0 {
+		return nil, nil, 0, nil
+	}
+	ignore := func(*rawFile, error) error { return nil }
+	if _, _, err := r.readPagesOf(ctx, files, want, ignore); errors.Is(err, errIncomplete) {
+		if next := idx.nextDay[f]; next != nil {
+			have := map[string]bool{}
+			for i := range files {
+				have[fmt.Sprint(files[i].req.Kind, files[i].req.Page)] = true
+			}
+			var borrowed []rawFile
+			rest := idx.unconsumed(next.files)
+			for i := range rest {
+				if !have[fmt.Sprint(rest[i].req.Kind, rest[i].req.Page)] {
+					borrowed = append(borrowed, rest[i])
+				}
+			}
+			if len(borrowed) > 0 {
+				joined := append(slices.Clone(files), borrowed...)
+				if _, _, err := r.readPagesOf(ctx, joined, want, ignore); err == nil {
+					files = joined
+				}
+			}
+		}
+	}
+	for i := range files {
+		idx.consumed[files[i].key] = true
+	}
+	pages, bad, err := r.readPagesOf(ctx, files, want, failed)
+	return pages, files, bad, err
+}
+
+// readPagesOf is readPages that also returns errIncomplete when a kind of
+// want has no page.
+func (r *Runner) readPagesOf(ctx context.Context, files []rawFile, want []prices.StoredKind, failed func(*rawFile, error) error) (map[prices.StoredKind]prices.StoredPage, int64, error) {
+	pages, bad, err := r.readPages(ctx, files, failed)
+	if err != nil {
+		return pages, bad, err
+	}
+	for _, kind := range want {
+		if _, ok := pages[kind]; !ok {
+			return nil, bad, fmt.Errorf("%w: the job stores splits and dividends together, and %s is missing", errIncomplete, kind)
+		}
+	}
+	return pages, bad, nil
+}
+
+// unconsumed returns the files that no fetch of the day before loaded.
+func (idx *rawIndex) unconsumed(files []rawFile) []rawFile {
+	out := make([]rawFile, 0, len(files))
+	for i := range files {
+		if !idx.consumed[files[i].key] {
+			out = append(out, files[i])
+		}
+	}
+	return out
 }
 
 // readPages decodes the price files of one fetch and joins the pages of
@@ -1058,7 +1205,7 @@ func nearestVersion(versions []rawFile, day domain.Date) (rawFile, bool) {
 
 // reprocessArchive stores the facts of the companies that want accepts
 // from a stored company facts archive.
-func (r *Runner) reprocessArchive(ctx context.Context, file rawFile, want func(domain.CIK) bool, res *ReprocessResult) error {
+func (r *Runner) reprocessArchive(ctx context.Context, file rawFile, want func(domain.CIK) bool, failed func(domain.CIK, error) error, res *ReprocessResult) error {
 	rc, err := r.blob.Get(ctx, file.key)
 	if err != nil {
 		return fmt.Errorf("ingest: reprocess: %w", err)
@@ -1082,7 +1229,10 @@ func (r *Runner) reprocessArchive(ctx context.Context, file rawFile, want func(d
 		}
 		n, err := r.storeFacts(ctx, cik, facts)
 		res.Facts += n
-		return err
+		if err != nil {
+			return failed(cik, err)
+		}
+		return nil
 	})
 	if err != nil {
 		return fmt.Errorf("ingest: %w", err)
