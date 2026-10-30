@@ -13,7 +13,8 @@ import (
 // records the pricedin_http_requests_total counter and the
 // pricedin_http_request_duration_seconds histogram on reg. Both are labeled
 // with the route pattern of the http.ServeMux that served the request, or
-// "unmatched", never with the raw path. Observe panics if reg already holds
+// "unmatched", never with the raw path. The log line has the request ID
+// of RequestID when Observe runs inside it. Observe panics if reg already holds
 // these metrics, so call it once per registry.
 func Observe(logger *slog.Logger, reg prometheus.Registerer) func(http.Handler) http.Handler {
 	requests := prometheus.NewCounterVec(prometheus.CounterOpts{
@@ -49,6 +50,7 @@ func Observe(logger *slog.Logger, reg prometheus.Registerer) func(http.Handler) 
 				slog.Int("status", rec.status),
 				slog.Int64("bytes", rec.bytes),
 				slog.Duration("duration", elapsed),
+				slog.String("request_id", RequestIDFrom(r.Context())),
 			)
 		})
 	}
