@@ -238,7 +238,7 @@ func TestSyncTickersOfOneSourceRunOneAfterTheOther(t *testing.T) {
 			_, err := s.SyncTickers(ctx, store.TickerSourceSEC, day, []domain.Ticker{{Symbol: "GBX", CIK: globex.CIK}})
 			second <- err
 		}()
-		waitForBlockedQuery(t, pool)
+		waitForBlockedQuery(ctx, t, pool)
 		return nil
 	})
 	if err != nil {

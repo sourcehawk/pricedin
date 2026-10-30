@@ -73,12 +73,12 @@ var (
 // or a short time has passed. A test that runs a second writer calls it
 // before it commits the first, so that the second writer is already
 // running when the first commits.
-func waitForBlockedQuery(t *testing.T, pool *pgxpool.Pool) {
+func waitForBlockedQuery(ctx context.Context, t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
 	deadline := time.Now().Add(3 * time.Second)
 	for time.Now().Before(deadline) {
 		var blocked bool
-		if err := pool.QueryRow(context.Background(),
+		if err := pool.QueryRow(ctx,
 			`SELECT EXISTS (SELECT 1 FROM pg_stat_activity
 			                WHERE datname = current_database() AND wait_event_type = 'Lock')`).Scan(&blocked); err != nil {
 			t.Fatalf("read pg_stat_activity: %v", err)

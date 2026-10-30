@@ -128,7 +128,7 @@ func TestReplaceQuarterlyFundamentalsOfOneCompanyRunOneAfterTheOther(t *testing.
 			return err
 		}
 		go func() { second <- s.ReplaceQuarterlyFundamentals(ctx, acme.CIK, []store.QuarterlyValue{value(2)}) }()
-		waitForBlockedQuery(t, pool)
+		waitForBlockedQuery(ctx, t, pool)
 		return nil
 	})
 	if err != nil {
