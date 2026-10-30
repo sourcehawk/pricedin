@@ -19,15 +19,18 @@ type Session struct {
 	LastSeenAt time.Time
 	UserAgent  string
 	IP         string
+	// OwnerFingerprint identifies the owner credentials that started the
+	// session; empty for a session from before the column existed.
+	OwnerFingerprint []byte
 }
 
 // InsertSession stores sess. It returns ErrConflict when a session with the
 // same hash exists.
 func (s *Store) InsertSession(ctx context.Context, sess Session) error {
 	_, err := s.db.Exec(ctx, `
-		INSERT INTO sessions (token_hash, created_at, expires_at, last_seen_at, user_agent, ip)
-		VALUES ($1, $2, $3, $4, $5, $6)`,
-		sess.TokenHash, sess.CreatedAt, sess.ExpiresAt, sess.LastSeenAt, sess.UserAgent, sess.IP)
+		INSERT INTO sessions (token_hash, created_at, expires_at, last_seen_at, user_agent, ip, owner_fingerprint)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+		sess.TokenHash, sess.CreatedAt, sess.ExpiresAt, sess.LastSeenAt, sess.UserAgent, sess.IP, nonNil(sess.OwnerFingerprint))
 	if isUniqueViolation(err) {
 		return fmt.Errorf("insert session: %w", ErrConflict)
 	}
@@ -42,9 +45,9 @@ func (s *Store) InsertSession(ctx context.Context, sess Session) error {
 func (s *Store) GetSession(ctx context.Context, tokenHash []byte) (Session, error) {
 	var sess Session
 	err := s.db.QueryRow(ctx, `
-		SELECT token_hash, created_at, expires_at, last_seen_at, user_agent, ip
+		SELECT token_hash, created_at, expires_at, last_seen_at, user_agent, ip, owner_fingerprint
 		FROM sessions WHERE token_hash = $1`, tokenHash).
-		Scan(&sess.TokenHash, &sess.CreatedAt, &sess.ExpiresAt, &sess.LastSeenAt, &sess.UserAgent, &sess.IP)
+		Scan(&sess.TokenHash, &sess.CreatedAt, &sess.ExpiresAt, &sess.LastSeenAt, &sess.UserAgent, &sess.IP, &sess.OwnerFingerprint)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Session{}, notFound("get session")
 	}
@@ -74,6 +77,15 @@ func (s *Store) DeleteSession(ctx context.Context, tokenHash []byte) error {
 		return fmt.Errorf("delete session: %w", err)
 	}
 	return nil
+}
+
+// DeleteAllSessions removes every session and returns how many it removed.
+func (s *Store) DeleteAllSessions(ctx context.Context) (int64, error) {
+	tag, err := s.db.Exec(ctx, `DELETE FROM sessions`)
+	if err != nil {
+		return 0, fmt.Errorf("delete all sessions: %w", err)
+	}
+	return tag.RowsAffected(), nil
 }
 
 // DeleteExpiredSessions removes the sessions that expired at or before now
@@ -174,4 +186,13 @@ func (s *Store) UpdateAPITokenLastUsed(ctx context.Context, id int64, at time.Ti
 		return notFound("update api token %d", id)
 	}
 	return nil
+}
+
+// nonNil returns b, or an empty slice for nil, because the column is NOT
+// NULL.
+func nonNil(b []byte) []byte {
+	if b == nil {
+		return []byte{}
+	}
+	return b
 }

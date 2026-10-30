@@ -307,6 +307,10 @@ const (
 	secRetryAttempts = 6
 )
 
+// SECRetryAttempts is the number of failed SEC loads of a company after
+// which the jobs stop trying it.
+const SECRetryAttempts = secRetryAttempts
+
 // Bulk modes of sec-bulk.
 const (
 	BulkAuto    = "auto"

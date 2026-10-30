@@ -173,15 +173,32 @@ func buildRunner(ctx context.Context, getenv func(string) string, logOut io.Writ
 	if err != nil {
 		return nil, cfg, nil, nil, fmt.Errorf("database pool: %w", err)
 	}
-	bs, err := blob.New(ctx, cfg.Blob)
+	opts, err := ingestOptions(ctx, cfg, logger, pool, withSEC, withPrices)
 	if err != nil {
 		pool.Close()
 		return nil, cfg, nil, nil, err
 	}
+	opts.WaitForLocks = wait
+	r, err := ingest.New(ctx, opts)
+	if err != nil {
+		pool.Close()
+		return nil, cfg, nil, nil, err
+	}
+	return r, cfg, logger, func() { r.Close(); pool.Close() }, nil
+}
+
+// ingestOptions builds the runner options over pool: the blob store, and
+// the SEC client and the price provider when asked for, all recording
+// their responses in the blob store.
+func ingestOptions(ctx context.Context, cfg config.Config, logger *slog.Logger, pool *pgxpool.Pool, withSEC, withPrices bool) (ingest.Options, error) {
+	bs, err := blob.New(ctx, cfg.Blob)
+	if err != nil {
+		return ingest.Options{}, err
+	}
 	rec := ingest.NewRecorder(bs, time.Now)
 	opts := ingest.Options{
 		Pool: pool, LockURL: cfg.Database.LockURL, Blob: bs, Universe: cfg.Ingest.Universe,
-		PricesBackfillDays: cfg.Ingest.PricesBackfillDays, WaitForLocks: wait, Logger: logger,
+		PricesBackfillDays: cfg.Ingest.PricesBackfillDays, Logger: logger,
 	}
 	if withSEC {
 		// One client for the process: its rate limit holds per client.
@@ -189,8 +206,7 @@ func buildRunner(ctx context.Context, getenv func(string) string, logOut io.Writ
 			UserAgent: cfg.SEC.UserAgent, BaseURL: cfg.SEC.BaseURL, DataBaseURL: cfg.SEC.DataBaseURL,
 			Recorder: rec, Logger: logger,
 		}); err != nil {
-			pool.Close()
-			return nil, cfg, nil, nil, err
+			return ingest.Options{}, err
 		}
 	}
 	if withPrices {
@@ -199,17 +215,11 @@ func buildRunner(ctx context.Context, getenv func(string) string, logOut io.Writ
 			Recorder: rec, Logger: logger,
 		})
 		if err != nil {
-			pool.Close()
-			return nil, cfg, nil, nil, err
+			return ingest.Options{}, err
 		}
 		opts.Prices = mc
 	}
-	r, err := ingest.New(ctx, opts)
-	if err != nil {
-		pool.Close()
-		return nil, cfg, nil, nil, err
-	}
-	return r, cfg, logger, func() { r.Close(); pool.Close() }, nil
+	return opts, nil
 }
 
 func listJobs(ctx context.Context, getenv func(string) string, out io.Writer) error {

@@ -28,6 +28,7 @@ func TestLoadDefaults(t *testing.T) {
 		Massive: config.Massive{BaseURL: "https://api.massive.com", RateLimit: 20},
 		Blob:    config.Blob{Backend: config.BlobBackendFS},
 		Ingest:  config.Ingest{PricesBackfillDays: 1260, DailyAt: 90 * time.Minute},
+		Auth:    config.Auth{SessionTTL: 30 * 24 * time.Hour, CookieSecure: true, TrustedProxyHops: 1},
 	}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("Load() mismatch (-want +got):\n%s", diff)
@@ -73,6 +74,7 @@ func TestLoadReadsEveryVariable(t *testing.T) {
 			Universe: []string{"NVDA", "BRK-B"}, PricesBackfillDays: 15,
 			DailyAt: 23*time.Hour + 5*time.Minute,
 		},
+		Auth: config.Auth{SessionTTL: 30 * 24 * time.Hour, CookieSecure: true, TrustedProxyHops: 1},
 	}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("Load() mismatch (-want +got):\n%s", diff)

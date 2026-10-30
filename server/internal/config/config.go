@@ -22,6 +22,7 @@ type Config struct {
 	Blob     Blob
 	Massive  Massive
 	Ingest   Ingest
+	Auth     Auth
 }
 
 // Load reads the configuration through getenv, which is os.Getenv outside
@@ -37,11 +38,12 @@ func Load(getenv func(string) string) (Config, error) {
 	blob, blobErrs := loadBlob(getenv)
 	massive, massiveErrs := loadMassive(getenv)
 	ingest, ingestErrs := loadIngest(getenv)
+	auth, authErrs := loadAuth(getenv)
 
-	if errs := concat(httpErrs, dbErrs, logErrs, secErrs, blobErrs, massiveErrs, ingestErrs); len(errs) > 0 {
+	if errs := concat(httpErrs, dbErrs, logErrs, secErrs, blobErrs, massiveErrs, ingestErrs, authErrs); len(errs) > 0 {
 		return Config{}, errors.Join(errs...)
 	}
-	return Config{HTTP: httpCfg, Database: db, Log: logCfg, SEC: secCfg, Blob: blob, Massive: massive, Ingest: ingest}, nil
+	return Config{HTTP: httpCfg, Database: db, Log: logCfg, SEC: secCfg, Blob: blob, Massive: massive, Ingest: ingest, Auth: auth}, nil
 }
 
 // VarError reports an environment variable that is missing or invalid.

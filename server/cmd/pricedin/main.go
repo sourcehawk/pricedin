@@ -43,6 +43,7 @@ func newRootCmd(getenv func(string) string, stdout io.Writer) *cobra.Command {
 		newJobsCmd(getenv, stdout),
 		newIngestCmd(getenv, stdout),
 		newSchedulerCmd(getenv, stdout),
+		newAuthCmd(getenv),
 	)
 	return root
 }
