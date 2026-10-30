@@ -230,12 +230,16 @@ var dividendStage = stage{
 }
 
 // UpsertDividends stores the provider's cash dividends, identified by
-// ProviderID. A stored dividend changes only when the provider's values
-// differ. It returns the number of dividends added or changed.
+// ProviderID, which must not be empty. A stored dividend changes only when
+// the provider's values differ. It returns the number of dividends added or
+// changed.
 func (s *Store) UpsertDividends(ctx context.Context, dividends []domain.Dividend) (int64, error) {
 	rows := make([][]any, len(dividends))
 	for i := range dividends {
 		d := &dividends[i]
+		if d.ProviderID == "" {
+			return 0, fmt.Errorf("upsert dividends: dividend of %s on %s has no provider ID", d.Symbol, d.ExDate)
+		}
 		rows[i] = []any{
 			i, d.ProviderID, d.Symbol, pgDate(d.ExDate), pgDatePtr(d.PayDate), pgDatePtr(d.DeclarationDate),
 			d.CashAmount, d.Currency, d.Frequency, d.Type, d.Source,

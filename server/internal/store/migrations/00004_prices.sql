@@ -31,7 +31,7 @@ CREATE TABLE price_splits (
 );
 
 CREATE TABLE dividends (
-    provider_id      text PRIMARY KEY,
+    provider_id      text PRIMARY KEY CHECK (provider_id <> ''),
     symbol           text NOT NULL,
     ex_dividend_date date NOT NULL,
     pay_date         date,

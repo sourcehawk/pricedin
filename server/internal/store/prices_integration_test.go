@@ -296,3 +296,23 @@ func TestListAdjustedPriceBarsIgnoresASplitUntilABarOnOrAfterItExists(t *testing
 		t.Errorf("SplitFactor after the split day has a bar = %v, want 10", f)
 	}
 }
+
+func TestUpsertDividendsRejectsAnEmptyProviderID(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	s, pool := newStore(t)
+	dividends := []domain.Dividend{
+		{Symbol: "KO", ExDate: date(t, "2026-03-13"), CashAmount: 0.51, Source: "massive", ProviderID: "D1"},
+		{Symbol: "PEP", ExDate: date(t, "2026-03-01"), CashAmount: 1.3, Source: "massive"},
+	}
+	if _, err := s.UpsertDividends(ctx, dividends); err == nil {
+		t.Fatal("UpsertDividends() with an empty provider ID error = nil, want an error")
+	}
+	if n := countRows(t, pool, "dividends"); n != 0 {
+		t.Errorf("dividends rows = %d, want 0", n)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO dividends (provider_id, symbol, ex_dividend_date, cash_amount, source)
+		VALUES ('', 'PEP', '2026-03-01', 1.3, 'massive')`); err == nil {
+		t.Error("INSERT of an empty provider_id error = nil, want a check violation")
+	}
+}
