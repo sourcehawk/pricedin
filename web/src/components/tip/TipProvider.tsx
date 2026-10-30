@@ -47,11 +47,11 @@ const leaveDelay = 150;
 export function TipProvider({ children }: { children: ReactNode }) {
   const [tip, setTip] = useState<TipState | null>(null);
   const el = useRef<HTMLDivElement>(null);
-  const leaving = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const leaving = useRef<{ owner: Element; timer: ReturnType<typeof setTimeout> } | null>(null);
 
   const stay = useCallback(() => {
     if (leaving.current !== null) {
-      clearTimeout(leaving.current);
+      clearTimeout(leaving.current.timer);
       leaving.current = null;
     }
   }, []);
@@ -70,7 +70,10 @@ export function TipProvider({ children }: { children: ReactNode }) {
   }, []);
   const hide = useCallback(
     (owner?: Element) => {
-      stay();
+      // Another owner's hide must not keep a leaving tooltip open.
+      if (owner === undefined || leaving.current?.owner === owner) {
+        stay();
+      }
       setTip((t) => (t === null || owner === undefined || t.owner === owner ? null : t));
     },
     [stay],
@@ -78,10 +81,11 @@ export function TipProvider({ children }: { children: ReactNode }) {
   const leave = useCallback(
     (owner: Element) => {
       stay();
-      leaving.current = setTimeout(() => {
+      const timer = setTimeout(() => {
         leaving.current = null;
         setTip((t) => (t !== null && t.owner === owner ? null : t));
       }, leaveDelay);
+      leaving.current = { owner, timer };
     },
     [stay],
   );

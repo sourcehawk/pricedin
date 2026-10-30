@@ -34,3 +34,16 @@ export function signedPct(x: number, decimals: number): string {
   const t = (x * 100).toFixed(decimals);
   return Number(t) === 0 ? `${(0).toFixed(decimals)}%` : `${x > 0 ? "+" : ""}${t}%`;
 }
+
+/** times shows a multiple such as a P/E with one decimal: "25.0×". */
+export function times(x: Value): string {
+  return usable(x) ? `${x.toFixed(1)}×` : "n/a";
+}
+
+const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/** day shows a YYYY-MM-DD date as "30 Sep 2026". */
+export function day(date: string): string {
+  const d = new Date(`${date}T00:00:00Z`);
+  return `${String(d.getUTCDate())} ${months[d.getUTCMonth()] ?? ""} ${String(d.getUTCFullYear())}`;
+}

@@ -1,7 +1,22 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { InfoTip } from "./InfoTip";
-import { TipProvider } from "./TipProvider";
+import { TipProvider, useTip } from "./TipProvider";
+
+/** Elsewhere is another element with a tooltip of its own, which a click hides. */
+function Elsewhere() {
+  const tip = useTip();
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        tip.hide(e.currentTarget);
+      }}
+    >
+      Elsewhere
+    </button>
+  );
+}
 
 function tap(el: HTMLElement) {
   fireEvent.pointerDown(el, { pointerType: "touch" });
@@ -86,6 +101,22 @@ describe("InfoTip", () => {
     const button = screen.getByRole("button", { name: "About P/E" });
     fireEvent.pointerEnter(button, { pointerType: "mouse", clientX: 10, clientY: 10 });
     fireEvent.pointerLeave(button, { pointerType: "mouse" });
+    await waitFor(() => {
+      expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+    });
+  });
+
+  it("closes after the pointer leaves, also when another element hides its own tooltip meanwhile", async () => {
+    render(
+      <TipProvider>
+        <InfoTip label="About P/E">Share price divided by TTM EPS.</InfoTip>
+        <Elsewhere />
+      </TipProvider>,
+    );
+    const button = screen.getByRole("button", { name: "About P/E" });
+    fireEvent.pointerEnter(button, { pointerType: "mouse", clientX: 10, clientY: 10 });
+    fireEvent.pointerLeave(button, { pointerType: "mouse" });
+    fireEvent.click(screen.getByRole("button", { name: "Elsewhere" }));
     await waitFor(() => {
       expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
     });
