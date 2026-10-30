@@ -94,7 +94,7 @@ func checkHostPort(addr string) error {
 // _PASSWORD, _NAME and _SSLMODE parts, which need no URL encoding. Setting
 // both forms is an error.
 type Database struct {
-	// URL is a postgres:// or postgresql:// connection URL, also when it was
+	// URL is a URL with the scheme postgres or postgresql, also when it was
 	// built from the parts. Empty when neither form is set.
 	URL string
 }

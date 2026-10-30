@@ -1,11 +1,10 @@
 #!/usr/bin/env bash
-# Start a Compose stack from the images that `make images` built, run the
-# Playwright suite against it, and remove the stack with its volumes, also
-# when a step fails. On a failure, the stack's logs go to e2e/compose.log.
+# The stack uses the images that `make images` built. On a failure, the
+# stack's logs go to e2e/compose.log.
 #
-# The stack runs as the Compose project PRICEDIN_E2E_PROJECT. The host ports
-# come from PRICEDIN_WEB_PORT, PRICEDIN_API_PORT, PRICEDIN_METRICS_PORT and
-# PRICEDIN_DB_PORT; the Makefile sets them apart from the ports of `make up`.
+# The host ports come from PRICEDIN_WEB_PORT, PRICEDIN_API_PORT,
+# PRICEDIN_METRICS_PORT and PRICEDIN_DB_PORT; the Makefile sets them apart
+# from the ports of `make up`.
 set -euo pipefail
 
 project=${PRICEDIN_E2E_PROJECT:?set PRICEDIN_E2E_PROJECT to the Compose project of the test stack}
