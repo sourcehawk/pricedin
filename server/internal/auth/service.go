@@ -28,6 +28,7 @@ type Store interface {
 	UpdateSessionLastSeen(ctx context.Context, tokenHash []byte, at time.Time) error
 	DeleteSession(ctx context.Context, tokenHash []byte) error
 	DeleteExpiredSessions(ctx context.Context, now time.Time) (int64, error)
+	DeleteAllSessions(ctx context.Context) (int64, error)
 	InsertAPIToken(ctx context.Context, name string, tokenHash []byte, createdAt time.Time) (store.APIToken, error)
 	GetActiveAPIToken(ctx context.Context, tokenHash []byte) (store.APIToken, error)
 	ListAPITokens(ctx context.Context) ([]store.APIToken, error)
@@ -106,6 +107,9 @@ type Service struct {
 	store      Store
 	ownerEmail string
 	owner      *Hash
+	// fingerprint identifies the owner's email and password hash. A
+	// session records it, so new owner credentials end older sessions.
+	fingerprint []byte
 	// decoy has the owner hash's parameters. A login with an unknown email
 	// verifies against it, so it takes as long as one with a wrong
 	// password.
@@ -135,6 +139,8 @@ func New(st Store, opts Options) (*Service, error) {
 		return nil, err
 	}
 	s.ownerEmail, s.owner = email, &h
+	sum := sha256.Sum256([]byte("pricedin session owner\x00" + email + "\x00" + opts.OwnerPasswordHash))
+	s.fingerprint = sum[:]
 	s.decoy = Hash{Params: h.Params, salt: make([]byte, len(h.salt)), key: make([]byte, len(h.key))}
 	if _, err := io.ReadFull(rand.Reader, s.decoy.key); err != nil {
 		return nil, fmt.Errorf("auth: decoy hash: %w", err)
@@ -186,7 +192,7 @@ func (s *Service) Login(ctx context.Context, email, password string, c Client) (
 	}
 	sess := store.Session{
 		TokenHash: hashed, CreatedAt: now, ExpiresAt: now.Add(s.ttl), LastSeenAt: now,
-		UserAgent: truncate(c.UserAgent, 512), IP: truncate(c.IP, 64),
+		UserAgent: truncate(c.UserAgent, 512), IP: truncate(c.IP, 64), OwnerFingerprint: s.fingerprint,
 	}
 	if err := s.store.InsertSession(ctx, sess); err != nil {
 		return "", Session{}, fmt.Errorf("auth: login: %w", err)
@@ -195,8 +201,9 @@ func (s *Service) Login(ctx context.Context, email, password string, c Client) (
 }
 
 // Session returns the session of token. It gives ErrUnauthenticated for a
-// token that is unknown or expired, and for any token while no owner is
-// configured. It deletes an expired session.
+// token that is unknown or expired, for a session that other owner
+// credentials started, and for any token while no owner is configured. It
+// deletes an expired session and a session of other credentials.
 func (s *Service) Session(ctx context.Context, token string) (Session, error) {
 	if s.owner == nil || token == "" {
 		return Session{}, ErrUnauthenticated
@@ -210,7 +217,7 @@ func (s *Service) Session(ctx context.Context, token string) (Session, error) {
 		return Session{}, fmt.Errorf("auth: session: %w", err)
 	}
 	now := s.now()
-	if !now.Before(sess.ExpiresAt) {
+	if !now.Before(sess.ExpiresAt) || subtle.ConstantTimeCompare(sess.OwnerFingerprint, s.fingerprint) != 1 {
 		if err := s.store.DeleteSession(ctx, hashed); err != nil {
 			return Session{}, fmt.Errorf("auth: session: %w", err)
 		}
@@ -226,6 +233,15 @@ func (s *Service) Session(ctx context.Context, token string) (Session, error) {
 		}
 	}
 	return s.view(sess), nil
+}
+
+// RevokeAllSessions ends every session and returns how many it ended.
+func (s *Service) RevokeAllSessions(ctx context.Context) (int64, error) {
+	n, err := s.store.DeleteAllSessions(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("auth: revoke all sessions: %w", err)
+	}
+	return n, nil
 }
 
 // Logout ends the session of token. Ending a session that does not exist

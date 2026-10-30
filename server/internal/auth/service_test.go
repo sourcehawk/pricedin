@@ -26,6 +26,7 @@ type fixture struct {
 	clock *authtest.Clock
 	// verifications counts the Argon2id verifications that Login ran.
 	verifications *int
+	ownerHash     string
 }
 
 func newFixture(t *testing.T) fixture {
@@ -34,7 +35,9 @@ func newFixture(t *testing.T) fixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return newFixtureWith(t, auth.Options{OwnerEmail: ownerEmail, OwnerPasswordHash: phc})
+	f := newFixtureWith(t, auth.Options{OwnerEmail: ownerEmail, OwnerPasswordHash: phc})
+	f.ownerHash = phc
+	return f
 }
 
 func newFixtureWith(t *testing.T, opts auth.Options) fixture {
@@ -306,5 +309,61 @@ func TestLoginStoresAValidUserAgent(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestNewOwnerCredentialsEndTheOldSessions(t *testing.T) {
+	newHash, err := auth.HashPassword("a brand new password", fastParams)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, opts := range map[string]auth.Options{
+		"new password": {OwnerEmail: ownerEmail, OwnerPasswordHash: newHash},
+		"new email":    {OwnerEmail: "new@example.com"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			f := newFixture(t)
+			token := login(t, f)
+			if opts.OwnerPasswordHash == "" {
+				opts.OwnerPasswordHash = f.ownerHash
+			}
+			opts.SessionTTL, opts.Now = ttl, f.clock.Now
+			rotated, err := auth.New(f.store, opts)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := rotated.Session(context.Background(), token); !errors.Is(err, auth.ErrUnauthenticated) {
+				t.Errorf("Session() after the change error = %v, want ErrUnauthenticated", err)
+			}
+			if len(f.store.Sessions) != 0 {
+				t.Error("the old session is still stored")
+			}
+		})
+	}
+}
+
+func TestASessionWithoutAnOwnerFingerprintIsRejected(t *testing.T) {
+	f := newFixture(t)
+	token := login(t, f)
+	for k, s := range f.store.Sessions {
+		s.OwnerFingerprint = nil
+		f.store.Sessions[k] = s
+	}
+	if _, err := f.svc.Session(context.Background(), token); !errors.Is(err, auth.ErrUnauthenticated) {
+		t.Errorf("Session() error = %v, want ErrUnauthenticated", err)
+	}
+}
+
+func TestRevokeAllSessions(t *testing.T) {
+	f := newFixture(t)
+	a, b := login(t, f), login(t, f)
+	n, err := f.svc.RevokeAllSessions(context.Background())
+	if err != nil || n != 2 {
+		t.Fatalf("RevokeAllSessions() = %d, %v; want 2, nil", n, err)
+	}
+	for _, token := range []string{a, b} {
+		if _, err := f.svc.Session(context.Background(), token); !errors.Is(err, auth.ErrUnauthenticated) {
+			t.Errorf("Session() after revoke-all error = %v, want ErrUnauthenticated", err)
+		}
 	}
 }

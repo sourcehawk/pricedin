@@ -77,6 +77,15 @@ func (m *Store) DeleteSession(_ context.Context, hash []byte) error {
 	return nil
 }
 
+// DeleteAllSessions removes every session.
+func (m *Store) DeleteAllSessions(context.Context) (int64, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	n := int64(len(m.Sessions))
+	m.Sessions = map[string]store.Session{}
+	return n, nil
+}
+
 // DeleteExpiredSessions removes the sessions that expired at or before now.
 func (m *Store) DeleteExpiredSessions(_ context.Context, now time.Time) (int64, error) {
 	m.mu.Lock()

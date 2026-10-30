@@ -112,7 +112,31 @@ func newAuthCmd(getenv func(string) string) *cobra.Command {
 		},
 	)
 
-	cmd.AddCommand(hash, token)
+	sessions := &cobra.Command{
+		Use:   "sessions",
+		Short: "End login sessions",
+		Args:  cobra.NoArgs,
+		RunE: func(*cobra.Command, []string) error {
+			return errors.New("auth sessions: want a subcommand: revoke-all")
+		},
+	}
+	sessions.AddCommand(&cobra.Command{
+		Use:   "revoke-all",
+		Short: "End every login session; the owner must log in again",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return withAuth(cmd.Context(), getenv, func(svc *auth.Service) error {
+				n, err := svc.RevokeAllSessions(cmd.Context())
+				if err != nil {
+					return err
+				}
+				_, err = fmt.Fprintf(cmd.OutOrStdout(), "ended %d sessions\n", n)
+				return err
+			})
+		},
+	})
+
+	cmd.AddCommand(hash, token, sessions)
 	return cmd
 }
 

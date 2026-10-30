@@ -122,7 +122,7 @@ func TestSessions(t *testing.T) {
 	now := time.Date(2026, 10, 30, 12, 0, 0, 0, time.UTC)
 	sess := store.Session{
 		TokenHash: hash("token-1"), CreatedAt: now, ExpiresAt: now.Add(24 * time.Hour), LastSeenAt: now,
-		UserAgent: "Firefox", IP: "192.0.2.10",
+		UserAgent: "Firefox", IP: "192.0.2.10", OwnerFingerprint: hash("owner"),
 	}
 	expired := store.Session{TokenHash: hash("token-2"), CreatedAt: now.Add(-48 * time.Hour), ExpiresAt: now.Add(-time.Hour), LastSeenAt: now.Add(-48 * time.Hour)}
 
@@ -169,6 +169,24 @@ func TestSessions(t *testing.T) {
 	if err := s.DeleteSession(ctx, sess.TokenHash); err != nil {
 		t.Errorf("second DeleteSession() error = %v, want nil", err)
 	}
+}
+
+func TestDeleteAllSessions(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	s, _ := newStore(t)
+	now := time.Date(2026, 10, 30, 12, 0, 0, 0, time.UTC)
+	for _, token := range []string{"a", "b"} {
+		if err := s.InsertSession(ctx, store.Session{TokenHash: hash(token), CreatedAt: now, ExpiresAt: now.Add(time.Hour), LastSeenAt: now}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	n, err := s.DeleteAllSessions(ctx)
+	if err != nil || n != 2 {
+		t.Errorf("DeleteAllSessions() = %d, %v; want 2, nil", n, err)
+	}
+	_, err = s.GetSession(ctx, hash("a"))
+	wantNotFound(t, "GetSession() after DeleteAllSessions()", err)
 }
 
 func TestAPITokens(t *testing.T) {
