@@ -1,0 +1,103 @@
+# Fly.io app of the PricedIn server: the API (process group app) and the
+# daily ingestion job (process group scheduler), from one image. Deploy it
+# from the root of the repository:
+#
+#   flyctl deploy server --config "$PWD/deploy/fly/server.toml" --ha=false
+#
+# flyctl changes into the folder server before it reads --config, so a
+# relative config path would point into server.
+#
+# Apply the migrations first, as the owner role, from your machine or the
+# deploy workflow. The app has no release command, so that the owner's
+# credentials never reach Fly. docs/runbook.md lists the secrets to set
+# first. Nothing in this file is a secret.
+
+# The name of your Fly app. `flyctl deploy --app <name>` overrides it.
+app = "pricedin-api"
+# The region of the machines. Choose the Fly region nearest to the
+# database: every page load makes several queries.
+primary_region = "iad"
+
+[build]
+  # Relative to this file. The build context is the folder that the deploy
+  # command names (server).
+  dockerfile = "../../server/Dockerfile"
+
+# The entrypoint of the image is /pricedin, so each command is a subcommand.
+[processes]
+  app = "serve"
+  # One machine runs the daily job at PRICEDIN_SCHEDULE_DAILY. A Postgres
+  # advisory lock keeps a second copy from running the same job.
+  scheduler = "scheduler"
+
+[env]
+  PRICEDIN_HTTP_ADDR = ":8080"
+  PRICEDIN_METRICS_ADDR = ":9090"
+  PRICEDIN_LOG_LEVEL = "info"
+  PRICEDIN_LOG_FORMAT = "json"
+  PRICEDIN_COOKIE_SECURE = "true"
+  # The browser reaches the API through the /api rewrite of the web app on
+  # Vercel. Vercel writes the client address into X-Forwarded-For, and the
+  # Fly proxy appends the address of Vercel, so the client is the second
+  # entry from the right. Confirm it after the first deploy (runbook).
+  PRICEDIN_TRUSTED_PROXY_HEADER = "X-Forwarded-For"
+  PRICEDIN_TRUSTED_PROXY_HOPS = "2"
+  # Raw downloads go to a Tigris bucket. The bucket name and its keys are
+  # secrets.
+  PRICEDIN_BLOB_BACKEND = "s3"
+  PRICEDIN_BLOB_S3_ENDPOINT = "https://fly.storage.tigris.dev"
+  PRICEDIN_BLOB_S3_REGION = "auto"
+  # UTC; after the US close in summer and in winter.
+  PRICEDIN_SCHEDULE_DAILY = "01:30"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  # The machine stays on. A stopped machine makes the first page after a
+  # pause wait for a cold start, and an on-demand company load must not be
+  # cut short. One small machine costs a few dollars a month.
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ["app"]
+
+  # The proxy sends requests only to a machine whose database answers.
+  [[http_service.checks]]
+    method = "GET"
+    path = "/readyz"
+    interval = "15s"
+    timeout = "5s"
+    grace_period = "10s"
+
+# The process serves HTTP. This check does not touch the database, so a
+# database outage does not look like a dead process.
+[checks.alive]
+  type = "http"
+  port = 8080
+  method = "GET"
+  path = "/healthz"
+  interval = "30s"
+  timeout = "5s"
+  grace_period = "10s"
+  processes = ["app"]
+
+[[metrics]]
+  port = 9090
+  path = "/metrics"
+  processes = ["app"]
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
+  processes = ["app"]
+
+# The daily job reads the company facts of each company that filed, which
+# can be tens of megabytes of JSON for one company.
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "1gb"
+  processes = ["scheduler"]
+
+[[restart]]
+  policy = "always"
+  processes = ["app", "scheduler"]
