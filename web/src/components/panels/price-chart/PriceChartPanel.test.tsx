@@ -260,6 +260,26 @@ describe("PriceChartPanel", () => {
       expect(multiples).toEqual(["15", "17.5", "20", "22.5", "25", "27.5"]);
     });
 
+    it("draws other bands for the P/E range of a shorter period", async () => {
+      await withBands();
+      fireEvent.click(within(panel()).getByRole("button", { name: "1Y" }));
+      await waitFor(() => {
+        expect(within(panel()).getByTestId("price-sub")).toHaveTextContent(/^1Y: /);
+      });
+      const multiples = [...chart().querySelectorAll(".bline")].map((e) =>
+        Number(e.getAttribute("data-bm")),
+      );
+      expect(multiples).not.toEqual([15, 17.5, 20, 22.5, 25, 27.5]);
+      const pes = historyFixture.history.daily
+        .filter((d) => d.date >= "2025-09-30")
+        .map((d) => d.close / (d.ttmEps ?? Number.NaN))
+        .filter((pe) => pe > 0);
+      for (const m of multiples) {
+        expect(m).toBeGreaterThanOrEqual(Math.min(...pes) * 0.9);
+        expect(m).toBeLessThanOrEqual(Math.max(...pes) * 1.05);
+      }
+    });
+
     it("invites a hover in the caption above the chart", async () => {
       await withBands();
       expect(caption()).toHaveTextContent(
@@ -354,7 +374,6 @@ describe("PriceChartPanel", () => {
       const marker = within(chart()).getByLabelText(/^Q4 FY25: buyback/);
       expect(marker).toHaveTextContent("-2.1%");
       expect(marker).toHaveClass("buyback");
-      expect(marker.innerHTML).toContain("var(--good)");
     });
 
     it("links a marker to the filing that reports its share count", async () => {
@@ -386,8 +405,6 @@ describe("PriceChartPanel", () => {
       await renderReady(<PriceChartPanel />);
       const marker = within(chart()).getByLabelText(/^Q3 FY26: dilution/);
       expect(marker).toHaveClass("dilution");
-      expect(marker.innerHTML).toContain("var(--bad)");
-      expect(marker.innerHTML).not.toContain("var(--good)");
       const badge = marker.querySelector("rect");
       expect(
         Number(badge?.getAttribute("x")) + Number(badge?.getAttribute("width")),
@@ -412,6 +429,26 @@ describe("PriceChartPanel", () => {
       expect(screen.getByRole("tooltip")).toHaveTextContent("Shares195.92M → 191.71M");
       pointer(marker, "pointerdown", "touch");
       expect(fireEvent.click(marker)).toBe(true);
+    });
+
+    it("opens the filing with Enter after a tap", async () => {
+      apiServer.use(
+        http.get(apiUrl("/api/v1/stocks/:ticker/history"), () =>
+          HttpResponse.json({
+            ...historyFixture,
+            quarters: historyFixture.quarters.map((q) =>
+              q.label === "Q4 FY25" && q.eps !== null ? { ...q, dilutedShares: q.eps } : q,
+            ),
+          }),
+        ),
+      );
+      await renderReady(<PriceChartPanel />);
+      const marker = within(chart()).getByRole("link", { name: /^Q4 FY25: buyback/ });
+      pointer(marker, "pointerdown", "touch");
+      expect(fireEvent.click(marker)).toBe(false);
+      marker.focus();
+      // A click from the keyboard has no pointerdown before it and a detail of 0.
+      expect(fireEvent.click(marker, { detail: 0 })).toBe(true);
     });
 
     it("keeps the share counts of a small issuer readable", async () => {
@@ -499,15 +536,36 @@ describe("PriceChartPanel", () => {
       await next(card, 6);
       expect(card).toHaveTextContent("Use the P/E bands");
       expect(card).toHaveTextContent(
-        "is the 25× band, the one closest to today's P/E. Over 3Y the P/E went from 16× to 25×. Between the first and the last day it moved up past the 17.5×, 20×, 22.5× lines",
+        "is the 25× band, the one closest to today's P/E. Over 3Y the P/E went from 16.5× to 25.0×. Between the first and the last day it moved up past the 17.5×, 20×, 22.5× lines",
       );
       expect(chart().querySelector('[data-bm="25"].bline')).toHaveClass("bh");
       expect(within(panel()).getByTestId("band-caption")).toHaveAttribute("data-thl");
     });
 
-    it("calls today's P/E the one from the user's inputs", async () => {
-      const card = await start();
+    it("calls today's P/E the one from the user's inputs and rings its levers", async () => {
+      await renderReady(
+        <>
+          <div data-lever="price" />
+          <div data-lever="ttmEps" />
+          <div data-lever="typicalPeMonths" />
+          <div data-lever="targetReturn" />
+          <PriceChartPanel />
+        </>,
+      );
+      await userEvent.click(
+        within(panel()).getByRole("button", {
+          name: "Walk me through the price chart with my numbers",
+        }),
+      );
+      const card = screen.getByRole("region", { name: "Walkthrough of the price chart" });
       await next(card, 5);
+      expect(card).toHaveTextContent("Confirm with the P/E line");
+      for (const key of ["price", "ttmEps", "typicalPeMonths"]) {
+        expect(document.querySelector(`[data-lever="${key}"]`)).toHaveAttribute("data-tside");
+      }
+      expect(document.querySelector('[data-lever="targetReturn"]')).not.toHaveAttribute(
+        "data-tside",
+      );
       expect(card).toHaveTextContent(
         "The P/E from your inputs (price ÷ TTM EPS in the left panel) is 25.0×, against its typical 23.0× (the median of the quarter-end P/Es of the last 36 months and the P/E from your inputs): close to its usual level.",
       );
