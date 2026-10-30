@@ -169,7 +169,8 @@ export function PriceChartPanel() {
     active?.id === walkthroughId && active.step === bandsStep
       ? (chart.bands.value?.nearest.value ?? null)
       : null;
-  const lifted = bandsOn ? (hoverBand ?? tourBand) : null;
+  // The bands step explains the nearest band, so a hover does not replace it.
+  const lifted = bandsOn ? (tourBand ?? hoverBand) : null;
   const last = chart.points.at(-1);
   const link = chart.link.value;
   const close = profile.latestClose;

@@ -214,6 +214,37 @@ describe("PriceChartPanel", () => {
     expect(screen.getByTestId("price-guide")).toHaveAttribute("visibility", "hidden");
   });
 
+  it("lets a user scroll of the plot drop the day when End could not scroll it", async () => {
+    await renderReady(<PriceChartPanel />);
+    const svg = chart();
+    const box = svg.parentElement as HTMLElement;
+    let scroll = 700;
+    Object.defineProperty(box, "scrollWidth", { value: 1000 });
+    Object.defineProperty(box, "clientWidth", { value: 300 });
+    Object.defineProperty(box, "scrollLeft", {
+      get: () => scroll,
+      set: (v: number) => {
+        scroll = Math.min(700, Math.max(0, v));
+      },
+    });
+    svg.getBoundingClientRect = () => ({
+      x: -700,
+      y: 0,
+      left: -700,
+      top: 0,
+      right: 300,
+      bottom: 421,
+      width: 1000,
+      height: 421,
+      toJSON: () => ({}),
+    });
+    svg.focus();
+    await userEvent.keyboard("{End}");
+    expect(screen.getByTestId("price-guide")).toHaveAttribute("visibility", "visible");
+    fireEvent.scroll(box);
+    expect(screen.getByTestId("price-guide")).toHaveAttribute("visibility", "hidden");
+  });
+
   it("drops the hovered day when the range changes", async () => {
     await renderReady(<PriceChartPanel />);
     pointer(sizeChart(), "pointermove", "mouse", { clientX: 50, clientY: 100 });
@@ -431,6 +462,28 @@ describe("PriceChartPanel", () => {
       expect(fireEvent.click(marker)).toBe(true);
     });
 
+    it("closes its tooltip on a tap elsewhere, so the next tap is a first tap again", async () => {
+      apiServer.use(
+        http.get(apiUrl("/api/v1/stocks/:ticker/history"), () =>
+          HttpResponse.json({
+            ...historyFixture,
+            quarters: historyFixture.quarters.map((q) =>
+              q.label === "Q4 FY25" && q.eps !== null ? { ...q, dilutedShares: q.eps } : q,
+            ),
+          }),
+        ),
+      );
+      await renderReady(<PriceChartPanel />);
+      const marker = within(chart()).getByRole("link", { name: /^Q4 FY25: buyback/ });
+      pointer(marker, "pointerdown", "touch");
+      fireEvent.click(marker);
+      expect(screen.getByRole("tooltip")).toHaveTextContent("Q4 FY25: buyback");
+      pointer(chart(), "pointerdown", "touch", { clientX: 50, clientY: 100 });
+      expect(screen.queryByRole("tooltip")).toBeNull();
+      pointer(marker, "pointerdown", "touch");
+      expect(fireEvent.click(marker)).toBe(false);
+    });
+
     it("opens the filing with Enter after a tap", async () => {
       apiServer.use(
         http.get(apiUrl("/api/v1/stocks/:ticker/history"), () =>
@@ -569,6 +622,16 @@ describe("PriceChartPanel", () => {
       expect(card).toHaveTextContent(
         "The P/E from your inputs (price ÷ TTM EPS in the left panel) is 25.0×, against its typical 23.0× (the median of the quarter-end P/Es of the last 36 months and the P/E from your inputs): close to its usual level.",
       );
+    });
+
+    it("keeps the nearest band lifted on the bands step when another band is hovered", async () => {
+      const card = await start();
+      await next(card, 6);
+      const other = chart().querySelector('[data-bm="20"].bhit') as Element;
+      fireEvent.pointerOver(other, { pointerType: "mouse" });
+      expect(chart().querySelector('[data-bm="25"].bline')).toHaveClass("bh");
+      expect(chart().querySelector('[data-bm="20"].bline')).not.toHaveClass("bh");
+      expect(within(panel()).getByTestId("band-caption")).toHaveTextContent("25× band:");
     });
 
     it("names the share-count events of the range", async () => {

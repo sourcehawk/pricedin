@@ -343,6 +343,23 @@ function MarkerMark({ m, x }: { m: Marker; x: number }) {
   const [node, setNode] = useState<Element | null>(null);
   // A tap on a link opens it at once, so the first tap only shows the tip.
   const tapOpen = useRef<boolean | null>(null);
+  const hideTip = tip.hide;
+  const open = node !== null && tip.owner === node;
+  // A tip that a tap opened stays until a tap elsewhere, also inside the chart.
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    const onDown = (ev: PointerEvent) => {
+      if (!(ev.target instanceof Node) || !node.contains(ev.target)) {
+        hideTip(node);
+      }
+    };
+    document.addEventListener("pointerdown", onDown, true);
+    return () => {
+      document.removeEventListener("pointerdown", onDown, true);
+    };
+  }, [open, node, hideTip]);
   const handlers = useTipHandlers(() => (
     <>
       <b>
@@ -379,12 +396,20 @@ function MarkerMark({ m, x }: { m: Marker; x: number }) {
         strokeDasharray="2 3"
         pointerEvents="none"
       />
-      <rect x={bx - 26} y={bottom - 22} width={52} height={17} rx={8.5} fill={color} />
+      {/* Ink on a light tint of the tone keeps the small text readable in both themes. */}
+      <rect
+        x={bx - 26}
+        y={bottom - 22}
+        width={52}
+        height={17}
+        rx={8.5}
+        style={{ fill: `color-mix(in srgb, ${color} 22%, var(--surface))`, stroke: color }}
+      />
       <text
         x={bx}
         y={bottom - 10}
         textAnchor="middle"
-        style={{ fill: "var(--surface)", fontWeight: 600, fontSize: 10.5 }}
+        style={{ fill: "var(--ink)", fontWeight: 600, fontSize: 10.5 }}
       >
         {change}
       </text>
@@ -623,8 +648,10 @@ export function PricePlot({
     if (box !== null && box.scrollWidth > box.clientWidth) {
       const at = (cx / width) * e.currentTarget.getBoundingClientRect().width;
       if (at < box.scrollLeft + 20 || at > box.scrollLeft + box.clientWidth - 20) {
-        revealing.current = true;
+        const before = box.scrollLeft;
         box.scrollLeft = Math.max(0, at - box.clientWidth / 2);
+        // An unchanged position fires no scroll event to reset the flag.
+        revealing.current = box.scrollLeft !== before;
       }
     }
     const b = e.currentTarget.getBoundingClientRect();
