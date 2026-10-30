@@ -6,6 +6,12 @@
 #
 # `make up-fixtures` runs that, and `make seed` then loads the fixture
 # companies. `make test-e2e` uses the same files.
+#
+# The stack is its own Compose project, so its database and blob volumes
+# never mix synthetic data into the stack of `make up`. It uses the same
+# host ports, so stop one stack before you start the other. A
+# --project-name on the command line, as `make test-e2e` passes, wins.
+name: ${PRICEDIN_FIXTURES_PROJECT:-pricedin-fixtures}
 
 x-fixture-upstreams: &fixture-upstreams
   PRICEDIN_SEC_USER_AGENT: "PricedIn fixtures@example.com"
