@@ -117,12 +117,12 @@ func (g *generator) run(ctx context.Context, day time.Time, emptyCIK string) err
 
 func (g *generator) write(path string, body []byte) error {
 	full := filepath.Join(g.out, filepath.FromSlash(path))
-	if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
 		return err
 	}
 	g.files[path] = body
 	log.Printf("write %s (%d bytes)", path, len(body))
-	return os.WriteFile(full, body, 0o644)
+	return os.WriteFile(full, body, 0o600)
 }
 
 // tickers keeps the rows of the fixture companies, otherTickers, and the
@@ -340,7 +340,7 @@ func (g *generator) dailyIndex(ctx context.Context, day time.Time, fixtureCIKs m
 // company whose entry is {} (as in the real archive, stored without
 // compression), and submissions.zip with KO and NVDA and their extra files.
 func (g *generator) archives(ciks map[string]int64, emptyCIK string) error {
-	factsEntries := []zipEntry{}
+	factsEntries := make([]zipEntry, 0, 3)
 	for _, t := range []string{"KO", "GRMN"} {
 		name := fmt.Sprintf("CIK%010d.json", ciks[t])
 		factsEntries = append(factsEntries, zipEntry{name, g.files["data.sec.gov/api/xbrl/companyfacts/"+name], zip.Deflate})

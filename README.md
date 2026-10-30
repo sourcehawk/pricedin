@@ -52,3 +52,5 @@ If one of these ports is in use, change it in `.env` (`PRICEDIN_WEB_PORT`, `PRIC
 | `prototype/` | The prototype, the reference for behavior, calculations, copy and layout |
 | `docs/` | The design, the plan and later the architecture and runbooks |
 | `scripts/` | Shell scripts that the Makefile calls |
+| `testdata/` | Test data that more than one part reads, such as the SEC fixtures in `testdata/sec/` |
+| `tools/` | Programs that make test data, such as `tools/sec-fixtures/` |
