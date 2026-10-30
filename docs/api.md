@@ -225,3 +225,5 @@ Each error is an RFC 9457 problem document with the content type `application/pr
 | 501 | `load-unavailable` | The server cannot load companies, because it has no SEC user agent or no Massive key |
 | 502 | `load-failed` | A load failed at SEC or Massive |
 | 503 | `login-disabled` | No owner is configured |
+
+<!-- CI filter probe: this line is never merged. -->
