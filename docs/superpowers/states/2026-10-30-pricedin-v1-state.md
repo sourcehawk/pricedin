@@ -28,14 +28,14 @@ status: consumer-wave
 | --- | --- | --- | --- | --- |
 | planning | docs/pricedin-v1-plan | (main checkout) | #18 → main | self-merged |
 | #2 | chore/project-foundation | (removed) | #19 → main | self-merged |
-| #3 | feat/go-engine | .claude/worktrees/go-engine | #21 → main | ready |
+| #3 | feat/go-engine | (removed) | #21 → main | self-merged |
 | #4 | feat/database-store | (removed) | #23 → main | self-merged |
 | #5 | feat/sec-client | (removed) | #20 → main | self-merged |
 | #6 | feat/massive-prices | (removed) | #22 → main | self-merged |
-| #7 | feat/ts-engine | .claude/worktrees/ts-engine | → main | not-started |
-| #8 | feat/quarter-derivation | .claude/worktrees/quarter-derivation | → main | in-progress |
-| #9 | feat/ingestion-jobs | .claude/worktrees/ingestion-jobs | → main | not-started |
-| #10 | feat/http-api | .claude/worktrees/http-api | → main | not-started |
+| #7 | feat/ts-engine | .claude/worktrees/ts-engine | #25 → main | ready |
+| #8 | feat/quarter-derivation | (removed) | #24 → main | self-merged |
+| #9 | feat/ingestion-jobs | .claude/worktrees/ingestion-jobs | → main | in-progress |
+| #10 | feat/http-api | .claude/worktrees/http-api | → main | in-progress |
 | #11 | feat/web-shell | .claude/worktrees/web-shell | → main | not-started |
 | #12 | chore/deploy-and-docs | .claude/worktrees/deploy-and-docs | → main | not-started |
 | #13 | feat/priced-in-panel | .claude/worktrees/priced-in-panel | → main | not-started |
@@ -49,17 +49,18 @@ status: consumer-wave
 | Name | Realization | Realized in | Status |
 | --- | --- | --- | --- |
 | `domain-types` | pre-merge stub (inside #2) | #19 | locked |
-| `engine-io` | data-only (cases file) | #3 | pending |
-| `engine-cases` | data-only | #3 | pending |
+| `engine-io` | data-only (cases file) | #21 | locked |
+| `engine-cases` | data-only | #21 | locked |
 | `raw-recorder` | data-only | #20, #22 | locked |
 | `price-provider` | data-only (sequential) | #22 | locked |
-| `fundamentals-series` | data-only (sequential) | #8 | pending |
+| `fundamentals-series` | data-only (sequential) | #24 | locked |
 | `openapi` | data-only (sequential) | #10 | pending |
 | `walkthrough-api` | data-only (sequential) | #11 | pending |
 | `fixture-server-paths` | data-only | #9 | pending |
 
 ## Bubble-up log
 
+- 2026-10-30: #21 (engine) and #24 (fundamentals) merged. Independent reviews caught real defects: Inf in JSON, Go/oracle drift on non-positive exit P/E, NVDA Q4 FY23 EPS on mixed split bases, mis-scaled share counts. The Copilot loop on #21 kept finding new edges; after the cap the orchestrator merged on green CI with the last finding fixed. #9 and #10 dispatched in parallel; their shared contract is the `CompanyLoader` interface.
 - 2026-10-30: #20, #22 and #23 merged after Copilot loops and independent reviews. Decisions: SEC calls run sequentially per process; the SEC bulk job fetches submissions through the API instead of submissions.zip (255 MB central directory); price fixtures shrank to 28 files (grouped window plus aggs) and get SEC-anchored prices in #9; `prices verify` prints no provider values; prices_daily stores raw closes only; production runs as a non-owner Postgres role (#12). Session notes for later PRs live in the scratchpad file notes-for-later.md.
 - 2026-10-30: #19 merged (946668d). A `main` ruleset now requires the `ci-ok` check, blocks force-pushes and deletion, and runs Copilot code review on every push, so the review loop waits for the push-triggered review instead of re-requesting.
 - 2026-10-30: Wave 2 (#3-#6) started before #19 merged, from foundation head 140abf3. Each agent waits for #19 on main, then runs `git rebase --onto origin/main 140abf3` before opening its PR.
@@ -69,8 +70,10 @@ status: consumer-wave
 
 ## Pending snapshot
 
-2. Fan out wave 2 (#3, #4, #5, #6) with subagents in worktrees. Dispatch briefs are drafted in the session scratchpad (common-brief.md, brief-3..6.md); if they are lost, rebuild them from the plan.
-3. The orchestrator keeps this file on branch `chore/orchestration-state` in the main checkout and lands it on main through a PR at wave checkpoints.
+1. #7 (PR #25): independent differential review running; merge when clean.
+2. #9 (ingestion) and #10 (API) in progress in `.claude/worktrees/ingestion-jobs` and `.claude/worktrees/http-api`. Whichever merges second wires the real `CompanyLoader` into `pricedin serve`. #9 adds the migration for richer `quarterly_fundamentals` columns and a conflicts table.
+3. Then #11 (web shell; brief drafted in the scratchpad) and #12 (deploy and docs), then #13-#16 panels in parallel, then #17 e2e.
+4. Dispatch briefs and cross-PR notes live in the session scratchpad (`brief-*.md`, `common-brief.md`, `notes-for-later.md`, `review-loop-brief.md`, `reviewer-brief.md`). If the scratchpad is gone, rebuild briefs from the plan and the merged code.
 
 ## Resume checklist
 
