@@ -16,6 +16,15 @@ func TestJobsRunRejectsAnUnknownJob(t *testing.T) {
 	}
 }
 
+// The flags after the job name go to the job, so a job can take flags of
+// its own.
+func TestJobsRunPassesTheFlagsAfterTheJobToTheJob(t *testing.T) {
+	err := execute(t, nil, "jobs", "run", "reprocess", "--prefix", "stooq")
+	if err == nil || !strings.Contains(err.Error(), "--prefix") || strings.Contains(err.Error(), "unknown flag") {
+		t.Errorf("jobs run reprocess --prefix stooq error = %v, want the job to reject the prefix", err)
+	}
+}
+
 // Each command checks the settings of the services it calls before it
 // connects to anything.
 func TestCommandsRequireTheSettingsOfTheServicesTheyCall(t *testing.T) {
@@ -31,6 +40,7 @@ func TestCommandsRequireTheSettingsOfTheServicesTheyCall(t *testing.T) {
 		{[]string{"ingest", "company", "NVDA"}, db, []string{"PRICEDIN_SEC_USER_AGENT", "PRICEDIN_MASSIVE_API_KEY"}},
 		{[]string{"scheduler"}, db, []string{"PRICEDIN_SEC_USER_AGENT", "PRICEDIN_MASSIVE_API_KEY"}},
 		{[]string{"jobs", "run", "universe"}, nil, []string{"PRICEDIN_DATABASE_URL"}},
+		{[]string{"jobs", "run", "reprocess"}, nil, []string{"PRICEDIN_DATABASE_URL"}},
 	}
 	for _, tt := range tests {
 		t.Run(strings.Join(tt.args, " "), func(t *testing.T) {
@@ -57,7 +67,7 @@ func TestJobsListWithoutADatabaseListsEveryJob(t *testing.T) {
 	}
 	for _, job := range []string{
 		"sec-tickers", "sec-bulk", "sec-company", "sec-daily", "price-reference",
-		"prices-backfill", "prices-daily", "fundamentals-rebuild", "company", "daily", "universe",
+		"prices-backfill", "prices-daily", "fundamentals-rebuild", "company", "daily", "universe", "reprocess",
 	} {
 		if !strings.Contains(out.String(), job) {
 			t.Errorf("jobs list does not list %s:\n%s", job, out.String())
