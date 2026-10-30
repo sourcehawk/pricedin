@@ -11,7 +11,7 @@ import { cls } from "./metrics";
  * onHover gets the hovered quarter's index, or null when the pointer
  * leaves, so the chart can draw its guide line. With label, each column
  * is also a focusable target named label(i), which shows the same tooltip
- * on keyboard focus. A tap shows the tooltip and the next tap hides it.
+ * on keyboard focus.
  */
 export function HoverColumns({
   count,
