@@ -1,0 +1,13 @@
+/* The custom baseline's tag: the user's own rate, in the color of the YOU cell. */
+.custom {
+  border: 1px solid var(--s4);
+  color: var(--s4);
+}
+
+.views {
+  min-width: 270px;
+}
+
+.views button {
+  white-space: nowrap;
+}
