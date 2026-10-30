@@ -112,6 +112,36 @@ describe("the return grid", () => {
     expect(mark()).toHaveClass("on");
   });
 
+  it("keeps a row outlined while its tag keeps the focus after the pointer leaves", async () => {
+    const panel = await renderPanel();
+    const mark = () => panel.querySelector('.rowmark[data-row-tag="required"]');
+    const tag = within(row(panel, "25.0%")).getByText("Req");
+    act(() => {
+      tag.focus();
+    });
+    await userEvent.hover(tag);
+    await userEvent.unhover(tag);
+    expect(mark()).toHaveClass("on");
+    act(() => {
+      tag.blur();
+    });
+    expect(mark()).not.toHaveClass("on");
+  });
+
+  it("keeps a row outlined while its tag stays hovered after it loses the focus", async () => {
+    const panel = await renderPanel();
+    const mark = () => panel.querySelector('.rowmark[data-row-tag="required"]');
+    const tag = within(row(panel, "25.0%")).getByText("Req");
+    await userEvent.hover(tag);
+    act(() => {
+      tag.focus();
+    });
+    act(() => {
+      tag.blur();
+    });
+    expect(mark()).toHaveClass("on");
+  });
+
   it("outlines a tagged row while its legend entry is hovered", async () => {
     const panel = await renderPanel();
     await userEvent.hover(within(panel).getByText("weighted trend"));
@@ -349,6 +379,16 @@ describe("the walkthrough of the return grid", () => {
       "aria-pressed",
       "true",
     );
+  });
+
+  it("locks the view switch while the walkthrough runs", async () => {
+    const panel = await renderPanel();
+    await userEvent.click(
+      within(panel).getByRole("button", { name: "Walk me through this grid with my numbers" }),
+    );
+    expect(within(panel).getByRole("button", { name: "Future price" })).toBeDisabled();
+    await userEvent.click(screen.getByRole("button", { name: "End the walkthrough" }));
+    expect(within(panel).getByRole("button", { name: "Future price" })).toBeEnabled();
   });
 
   it("counts the dividends in the return where the rows meet", async () => {

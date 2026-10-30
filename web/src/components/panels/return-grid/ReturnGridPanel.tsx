@@ -81,29 +81,32 @@ function useOutline(
   tip: () => ReactNode,
 ) {
   const h = useTipHandlers(tip);
-  const on = () => {
-    setOutlined(tag);
-  };
-  const off = () => {
-    setOutlined(null);
+  const hovered = useRef(false);
+  const focused = useRef(false);
+  const sync = () => {
+    setOutlined(hovered.current || focused.current ? tag : null);
   };
   return {
     ...h,
     tabIndex: 0,
     onPointerEnter: (e: React.PointerEvent) => {
-      on();
+      hovered.current = true;
+      sync();
       h.onPointerEnter(e);
     },
     onPointerLeave: (e: React.PointerEvent) => {
-      off();
+      hovered.current = false;
+      sync();
       h.onPointerLeave(e);
     },
     onFocus: (e: React.FocusEvent) => {
-      on();
+      focused.current = true;
+      sync();
       h.onFocus(e);
     },
     onBlur: (e: React.FocusEvent) => {
-      off();
+      focused.current = false;
+      sync();
       h.onBlur(e);
     },
   };
@@ -314,12 +317,7 @@ function tagTip(ev: Evaluation, grid: Grid, tag: GridTag, r: number): ReactNode 
   }
 }
 
-/**
- * ReturnGridPanel is the return grid: the yearly return for each EPS growth
- * rate (rows) and exit P/E (columns), toned against the target return. The
- * owner's own case is the YOU cell; the rows of the requirement and the
- * baselines carry tags that outline their row on hover.
- */
+/** ReturnGridPanel renders only in the page's ready state, inside a WalkthroughProvider: useEvaluation and useWalkthrough throw otherwise. */
 export function ReturnGridPanel() {
   const { evaluation: ev, state, levers } = useEvaluation();
   const [view, setView] = useView<GridView>("grid.view", "cagr");
@@ -338,7 +336,7 @@ export function ReturnGridPanel() {
       launcher="Walk me through this grid with my numbers"
       intro="The grid shows what you would earn under many combinations of earnings growth and the P/E you sell at, so you can see how much each one matters."
       onStart={() => {
-        // The steps explain yearly returns, so the cells show them while the walkthrough runs.
+        // The steps explain yearly returns, so the cells show them, and the view switch is locked, while the walkthrough runs.
         const before = view;
         setView("cagr");
         return () => {
@@ -367,13 +365,15 @@ export function ReturnGridPanel() {
         </>
       }
       actions={
-        <Seg
-          label="What the cells show"
-          options={views}
-          value={view}
-          onChange={setView}
-          className={`seg ${styles.views ?? ""}`}
-        />
+        <fieldset className={styles.viewSet} disabled={walk.active?.id === walkId}>
+          <Seg
+            label="What the cells show"
+            options={views}
+            value={view}
+            onChange={setView}
+            className={`seg ${styles.views ?? ""}`}
+          />
+        </fieldset>
       }
     >
       {grid === null ? (
