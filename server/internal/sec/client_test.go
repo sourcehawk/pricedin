@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -22,13 +23,11 @@ import (
 const testUserAgent = "PricedIn test test@example.com"
 
 // fakeClock jumps to the wake time when a caller sleeps, so tests run
-// without waiting. It records every wake time that a caller asks for, and
-// every sleep that moved the clock.
+// without waiting. It records every sleep that moved the clock.
 type fakeClock struct {
 	mu     sync.Mutex
 	now    time.Time
 	sleeps []time.Duration
-	wakes  []time.Time
 }
 
 func newFakeClock() *fakeClock {
@@ -47,7 +46,6 @@ func (c *fakeClock) SleepUntil(ctx context.Context, t time.Time) error {
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.wakes = append(c.wakes, t)
 	if t.After(c.now) {
 		c.sleeps = append(c.sleeps, t.Sub(c.now))
 		c.now = t
@@ -239,33 +237,132 @@ func TestClientNeverSendsMoreThanTenRequestsInOneSecond(t *testing.T) {
 	}
 }
 
-func TestClientSharesTheLimitAcrossGoroutines(t *testing.T) {
-	clock := newFakeClock()
-	start := clock.Now()
-	c := newClient(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte("-----\n"))
-	}), sec.Options{Clock: clock})
+// manualClock moves only when the test sets it. Setting it wakes every
+// sleeper whose wake time has come, all at the same moment, as a busy
+// machine does with goroutines that it schedules late.
+type manualClock struct {
+	mu       sync.Mutex
+	now      time.Time
+	sleepers []manualSleeper
+}
 
-	var wg sync.WaitGroup
-	for range 30 {
-		wg.Go(func() {
-			if _, err := c.DailyIndex(t.Context(), date(t, "2026-08-26")); err != nil {
-				t.Errorf("DailyIndex() error = %v", err)
+type manualSleeper struct {
+	at   time.Time
+	wake chan struct{}
+}
+
+func (c *manualClock) Now() time.Time {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.now
+}
+
+func (c *manualClock) SleepUntil(ctx context.Context, t time.Time) error {
+	c.mu.Lock()
+	if !t.After(c.now) {
+		c.mu.Unlock()
+		return ctx.Err()
+	}
+	wake := make(chan struct{})
+	c.sleepers = append(c.sleepers, manualSleeper{at: t, wake: wake})
+	c.mu.Unlock()
+	select {
+	case <-wake:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+// sleeping returns the number of sleepers and the earliest wake time.
+func (c *manualClock) sleeping() (int, time.Time) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	var first time.Time
+	for _, s := range c.sleepers {
+		if first.IsZero() || s.at.Before(first) {
+			first = s.at
+		}
+	}
+	return len(c.sleepers), first
+}
+
+func (c *manualClock) set(t time.Time) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.now = t
+	kept := c.sleepers[:0]
+	for _, s := range c.sleepers {
+		if s.at.After(t) {
+			kept = append(kept, s)
+			continue
+		}
+		close(s.wake)
+	}
+	c.sleepers = kept
+}
+
+func TestClientKeepsTheLimitAcrossGoroutines(t *testing.T) {
+	tests := map[string]time.Duration{
+		"waiters wake on time": 0,
+		// All waiters wake 1.5 s late and at once, which a busy machine can
+		// do. Without a new check after the wake, they all send together.
+		"waiters wake late": 1500 * time.Millisecond,
+	}
+	for name, lateBy := range tests {
+		t.Run(name, func(t *testing.T) {
+			const callers = 30
+			clock := &manualClock{now: time.Date(2026, 10, 30, 12, 0, 0, 0, time.UTC)}
+			var mu sync.Mutex
+			var sent []time.Time
+			c := newClient(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				mu.Lock()
+				sent = append(sent, clock.Now())
+				mu.Unlock()
+				_, _ = w.Write([]byte("-----\n"))
+			}), sec.Options{Clock: clock})
+
+			var done sync.WaitGroup
+			var finished atomic.Int64
+			for range callers {
+				done.Go(func() {
+					defer finished.Add(1)
+					if _, err := c.DailyIndex(t.Context(), date(t, "2026-08-26")); err != nil {
+						t.Errorf("DailyIndex() error = %v", err)
+					}
+				})
+			}
+			// Move the clock only when every caller sleeps or has finished,
+			// so that each request reaches the server at the time it was let
+			// through.
+			late := lateBy > 0
+			for {
+				n, first := clock.sleeping()
+				if int(finished.Load()) == callers {
+					break
+				}
+				if n+int(finished.Load()) < callers {
+					time.Sleep(time.Millisecond)
+					continue
+				}
+				if late {
+					first = first.Add(lateBy)
+					late = false
+				}
+				clock.set(first)
+			}
+			done.Wait()
+
+			if len(sent) != callers {
+				t.Fatalf("requests = %d, want %d", len(sent), callers)
+			}
+			slices.SortFunc(sent, func(a, b time.Time) int { return a.Compare(b) })
+			for i := 10; i < len(sent); i++ {
+				if window := sent[i].Sub(sent[i-10]); window < time.Second {
+					t.Fatalf("requests %d to %d sent within %v, want at most 10 in any second", i-10, i, window)
+				}
 			}
 		})
-	}
-	wg.Wait()
-
-	// One request goes at once. Each other one waits for its own slot,
-	// 100 ms after the slot before it.
-	wakes := slices.Clone(clock.wakes)
-	slices.SortFunc(wakes, func(a, b time.Time) int { return a.Compare(b) })
-	want := make([]time.Time, 0, 29)
-	for i := 1; i < 30; i++ {
-		want = append(want, start.Add(time.Duration(i)*100*time.Millisecond))
-	}
-	if diff := cmp.Diff(want, wakes); diff != "" {
-		t.Errorf("wake times mismatch (-want +got):\n%s", diff)
 	}
 }
 
