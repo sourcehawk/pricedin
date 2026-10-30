@@ -48,6 +48,28 @@ func (s *Store) UpsertCompanies(ctx context.Context, companies []domain.Company)
 	return n, nil
 }
 
+// AddCompanies inserts the companies that are not stored yet and returns
+// how many it inserted. A stored company keeps every field, so a list with
+// names only, such as the SEC ticker map, never clears the details that a
+// company's submissions gave. When a batch holds a CIK twice, the later
+// copy wins.
+func (s *Store) AddCompanies(ctx context.Context, companies []domain.Company) (int64, error) {
+	rows := make([][]any, len(companies))
+	for i, c := range companies {
+		rows[i] = []any{i, int64(c.CIK), c.Name, c.SIC, c.SICDescription, c.FiscalYearEnd, c.StateOfIncorporation}
+	}
+	n, err := s.copyInsert(ctx, companyStage, rows, `
+		INSERT INTO companies (cik, name, sic, sic_description, fiscal_year_end, state_of_incorporation)
+		SELECT DISTINCT ON (cik) cik, name, sic, sic_description, fiscal_year_end, state_of_incorporation
+		FROM stage_companies
+		ORDER BY cik, ord DESC
+		ON CONFLICT (cik) DO NOTHING`)
+	if err != nil {
+		return 0, fmt.Errorf("add companies: %w", err)
+	}
+	return n, nil
+}
+
 const companyColumns = `c.cik, c.name, c.sic, c.sic_description, c.fiscal_year_end, c.state_of_incorporation`
 
 func scanCompany(row pgx.Row) (domain.Company, error) {
