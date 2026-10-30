@@ -284,9 +284,11 @@ func Fixture(t testing.TB) *Store {
 			t.Fatal(err)
 		}
 		m.Dividends = append(m.Dividends, divs.Items...)
-		// The store's loaded_at is the time of the load, so Seed and the
-		// fixtures agree.
-		m.DividendsLoadedAt[sym] = time.Now()
+		// As in the store, only stored dividends have a load time, which is
+		// the time of the load, so Seed and the fixtures agree.
+		if len(divs.Items) > 0 {
+			m.DividendsLoadedAt[sym] = time.Now()
+		}
 	}
 	return m
 }
