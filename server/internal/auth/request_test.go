@@ -6,10 +6,11 @@ import (
 	"time"
 
 	"github.com/sourcehawk/pricedin/server/internal/auth"
+	"github.com/sourcehawk/pricedin/server/internal/auth/authtest"
 )
 
 func TestLimiterAllowsTheBurstThenAsksToWait(t *testing.T) {
-	c := &clock{now: time.Date(2026, 10, 30, 12, 0, 0, 0, time.UTC)}
+	c := authtest.NewClock(time.Date(2026, 10, 30, 12, 0, 0, 0, time.UTC))
 	l := auth.NewLimiter(5, time.Minute, c.Now)
 	for i := range 5 {
 		if ok, _ := l.Allow("192.0.2.1"); !ok {
@@ -33,7 +34,7 @@ func TestLimiterAllowsTheBurstThenAsksToWait(t *testing.T) {
 }
 
 func TestLimiterRefusedAttemptsDoNotExtendTheWait(t *testing.T) {
-	c := &clock{now: time.Date(2026, 10, 30, 12, 0, 0, 0, time.UTC)}
+	c := authtest.NewClock(time.Date(2026, 10, 30, 12, 0, 0, 0, time.UTC))
 	l := auth.NewLimiter(5, time.Minute, c.Now)
 	for range 5 {
 		l.Allow("a")
@@ -46,7 +47,7 @@ func TestLimiterRefusedAttemptsDoNotExtendTheWait(t *testing.T) {
 }
 
 func TestLimiterForgetsIdleAddresses(t *testing.T) {
-	c := &clock{now: time.Date(2026, 10, 30, 12, 0, 0, 0, time.UTC)}
+	c := authtest.NewClock(time.Date(2026, 10, 30, 12, 0, 0, 0, time.UTC))
 	l := auth.NewLimiter(5, time.Minute, c.Now)
 	l.Allow("a")
 	c.Advance(2 * time.Minute)

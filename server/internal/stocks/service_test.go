@@ -14,12 +14,13 @@ import (
 	"github.com/sourcehawk/pricedin/server/internal/engine"
 	"github.com/sourcehawk/pricedin/server/internal/fundamentals"
 	"github.com/sourcehawk/pricedin/server/internal/stocks"
+	"github.com/sourcehawk/pricedin/server/internal/stocks/stockstest"
 	"github.com/sourcehawk/pricedin/server/internal/store"
 )
 
-func newService(t *testing.T, st *memStore, loader stocks.CompanyLoader) *stocks.Service {
+func newService(t *testing.T, st *stockstest.Store, loader stocks.CompanyLoader) *stocks.Service {
 	t.Helper()
-	return stocks.New(st, stocks.Options{Now: func() time.Time { return now }, Loader: loader})
+	return stocks.New(st, stocks.Options{Now: func() time.Time { return stockstest.Now }, Loader: loader})
 }
 
 func near(a, b float64) bool {
@@ -27,7 +28,7 @@ func near(a, b float64) bool {
 }
 
 func TestProfileOfALoadedStock(t *testing.T) {
-	svc := newService(t, fixtureStore(t), nil)
+	svc := newService(t, stockstest.Fixture(t), nil)
 	p, err := svc.Profile(context.Background(), "nvda")
 	if err != nil {
 		t.Fatalf("Profile() error = %v", err)
@@ -61,7 +62,7 @@ func TestProfileOfALoadedStock(t *testing.T) {
 }
 
 func TestProfileTTMEPSListsTheFilingsOfItsQuarters(t *testing.T) {
-	svc := newService(t, fixtureStore(t), nil)
+	svc := newService(t, stockstest.Fixture(t), nil)
 	p, err := svc.Profile(context.Background(), "NVDA")
 	if err != nil {
 		t.Fatal(err)
@@ -85,7 +86,7 @@ func TestProfileTTMEPSListsTheFilingsOfItsQuarters(t *testing.T) {
 }
 
 func TestProfileOfAStockWithoutData(t *testing.T) {
-	svc := newService(t, fixtureStore(t), nil)
+	svc := newService(t, stockstest.Fixture(t), nil)
 	p, err := svc.Profile(context.Background(), "MSFT")
 	if err != nil {
 		t.Fatalf("Profile() error = %v", err)
@@ -99,7 +100,7 @@ func TestProfileOfAStockWithoutData(t *testing.T) {
 }
 
 func TestUnknownAndInvalidTickers(t *testing.T) {
-	svc := newService(t, fixtureStore(t), nil)
+	svc := newService(t, stockstest.Fixture(t), nil)
 	ctx := context.Background()
 	if _, err := svc.Profile(ctx, "ZZZZ"); !errors.Is(err, stocks.ErrUnknownTicker) {
 		t.Errorf("Profile(ZZZZ) error = %v, want ErrUnknownTicker", err)
@@ -112,7 +113,7 @@ func TestUnknownAndInvalidTickers(t *testing.T) {
 }
 
 func TestHistorySplitAdjustsNVIDIAClosesAndEPS(t *testing.T) {
-	st := fixtureStore(t)
+	st := stockstest.Fixture(t)
 	svc := newService(t, st, nil)
 	h, err := svc.History(context.Background(), "NVDA", stocks.RangeMax)
 	if err != nil {
@@ -156,7 +157,7 @@ func TestHistorySplitAdjustsNVIDIAClosesAndEPS(t *testing.T) {
 }
 
 func TestHistoryDailyTTMEPSIsTheOneKnownOnEachDay(t *testing.T) {
-	st := fixtureStore(t)
+	st := stockstest.Fixture(t)
 	svc := newService(t, st, nil)
 	h, err := svc.History(context.Background(), "NVDA", stocks.RangeMax)
 	if err != nil {
@@ -175,7 +176,7 @@ func TestHistoryDailyTTMEPSIsTheOneKnownOnEachDay(t *testing.T) {
 }
 
 func TestHistoryRangeCutsTheDailyClosesWithAYearBefore(t *testing.T) {
-	svc := newService(t, fixtureStore(t), nil)
+	svc := newService(t, stockstest.Fixture(t), nil)
 	tests := map[stocks.HistoryRange]string{
 		stocks.Range6M: "2025-04-29",
 		stocks.Range1Y: "2024-10-29",
@@ -194,7 +195,7 @@ func TestHistoryRangeCutsTheDailyClosesWithAYearBefore(t *testing.T) {
 }
 
 func TestHistoryOfAStockWithoutDataIsNotLoaded(t *testing.T) {
-	svc := newService(t, fixtureStore(t), nil)
+	svc := newService(t, stockstest.Fixture(t), nil)
 	if _, err := svc.History(context.Background(), "MSFT", stocks.Range3Y); !errors.Is(err, stocks.ErrNotLoaded) {
 		t.Errorf("History(MSFT) error = %v, want ErrNotLoaded", err)
 	}
@@ -208,12 +209,12 @@ func TestHistoryOfAStockWithoutDataIsNotLoaded(t *testing.T) {
 
 // reusedSymbolStore has the symbol ACME, which belonged to company 1 until
 // 2026-03-02 and to company 2 from then on.
-func reusedSymbolStore(t *testing.T) *memStore {
+func reusedSymbolStore(t *testing.T) *stockstest.Store {
 	t.Helper()
 	until := date(t, "2026-03-02")
-	m := fixtureStore(t)
-	m.companies = append(m.companies, domain.Company{CIK: 1, Name: "Old Acme"}, domain.Company{CIK: 2, Name: "New Acme"})
-	m.tickers = append(m.tickers,
+	m := stockstest.Fixture(t)
+	m.Companies = append(m.Companies, domain.Company{CIK: 1, Name: "Old Acme"}, domain.Company{CIK: 2, Name: "New Acme"})
+	m.Tickers = append(m.Tickers,
 		store.TickerRecord{Ticker: domain.Ticker{Symbol: "ACME", CIK: 1, ValidFrom: date(t, "2020-01-01"), ValidTo: &until}, Source: store.TickerSourceSEC},
 		store.TickerRecord{Ticker: domain.Ticker{Symbol: "ACME", CIK: 2, ValidFrom: until}, Source: store.TickerSourceSEC},
 	)
@@ -221,10 +222,10 @@ func reusedSymbolStore(t *testing.T) *memStore {
 		day   string
 		close float64
 	}{{"2026-02-27", 500}, {"2026-03-02", 20}, {"2026-03-03", 21}} {
-		m.bars = append(m.bars, domain.PriceBar{Symbol: "ACME", Date: date(t, b.day), Close: b.close, Source: "massive"})
+		m.Bars = append(m.Bars, domain.PriceBar{Symbol: "ACME", Date: date(t, b.day), Close: b.close, Source: "massive"})
 	}
-	m.splits = append(m.splits, domain.Split{Symbol: "ACME", Date: date(t, "2025-06-02"), From: 1, To: 2, Source: "massive"})
-	m.dividends = append(m.dividends, domain.Dividend{Symbol: "ACME", ExDate: date(t, "2026-01-15"), CashAmount: 9, Type: "recurring", Source: "massive", ProviderID: "x"})
+	m.Splits = append(m.Splits, domain.Split{Symbol: "ACME", Date: date(t, "2025-06-02"), From: 1, To: 2, Source: "massive"})
+	m.Dividends = append(m.Dividends, domain.Dividend{Symbol: "ACME", ExDate: date(t, "2026-01-15"), CashAmount: 9, Type: "recurring", Source: "massive", ProviderID: "x"})
 	return m
 }
 
@@ -244,8 +245,8 @@ func TestProfileUsesOnlyTheBarsAndDividendsOfTheCurrentIssuer(t *testing.T) {
 
 func TestBarsOfTheOldIssuerAreNotInTheHistory(t *testing.T) {
 	m := reusedSymbolStore(t)
-	m.loaded[2] = true
-	m.facts = append(m.facts, nvdaFactsAs(t, m, 2)...)
+	m.Loaded[2] = true
+	m.Facts = append(m.Facts, nvdaFactsAs(t, m, 2)...)
 	svc := newService(t, m, nil)
 	h, err := svc.History(context.Background(), "ACME", stocks.RangeMax)
 	if err != nil {
@@ -257,11 +258,11 @@ func TestBarsOfTheOldIssuerAreNotInTheHistory(t *testing.T) {
 }
 
 // nvdaFactsAs copies NVIDIA's facts to another CIK.
-func nvdaFactsAs(t *testing.T, m *memStore, cik domain.CIK) []domain.Fact {
+func nvdaFactsAs(t *testing.T, m *stockstest.Store, cik domain.CIK) []domain.Fact {
 	t.Helper()
 	var out []domain.Fact
-	for _, f := range m.facts {
-		if f.CIK == cikNVDA {
+	for _, f := range m.Facts {
+		if f.CIK == stockstest.CIKNVDA {
 			f.CIK = cik
 			out = append(out, f)
 		}
@@ -270,7 +271,7 @@ func nvdaFactsAs(t *testing.T, m *memStore, cik domain.CIK) []domain.Fact {
 }
 
 func TestTTMDividendCountsRecurringDividendsOfTheLastTwelveMonths(t *testing.T) {
-	svc := newService(t, fixtureStore(t), nil)
+	svc := newService(t, stockstest.Fixture(t), nil)
 	p, err := svc.Profile(context.Background(), "KO")
 	if err != nil {
 		t.Fatal(err)
@@ -292,13 +293,13 @@ func TestTTMDividendCountsRecurringDividendsOfTheLastTwelveMonths(t *testing.T) 
 }
 
 func TestTTMDividendLeavesOutSpecialDividendsAndAdjustsForSplits(t *testing.T) {
-	m := fixtureStore(t)
-	m.dividends = []domain.Dividend{
+	m := stockstest.Fixture(t)
+	m.Dividends = []domain.Dividend{
 		{Symbol: "KO", ExDate: date(t, "2026-01-15"), CashAmount: 1, Type: "recurring", Source: "massive", ProviderID: "a"},
 		{Symbol: "KO", ExDate: date(t, "2026-02-15"), CashAmount: 5, Type: "special", Source: "massive", ProviderID: "b"},
 		{Symbol: "KO", ExDate: date(t, "2026-05-15"), CashAmount: 0.5, Type: "recurring", Source: "massive", ProviderID: "c"},
 	}
-	m.splits = append(m.splits, domain.Split{Symbol: "KO", Date: date(t, "2026-04-01"), From: 1, To: 2, Source: "massive"})
+	m.Splits = append(m.Splits, domain.Split{Symbol: "KO", Date: date(t, "2026-04-01"), From: 1, To: 2, Source: "massive"})
 	svc := newService(t, m, nil)
 	p, err := svc.Profile(context.Background(), "KO")
 	if err != nil {
@@ -310,7 +311,7 @@ func TestTTMDividendLeavesOutSpecialDividendsAndAdjustsForSplits(t *testing.T) {
 }
 
 func TestEvaluateWithDefaultsMatchesTheEngine(t *testing.T) {
-	svc := newService(t, fixtureStore(t), nil)
+	svc := newService(t, stockstest.Fixture(t), nil)
 	ctx := context.Background()
 	got, err := svc.Evaluate(ctx, "KO", stocks.LeversInput{})
 	if err != nil {
@@ -358,7 +359,7 @@ func TestEvaluateWithDefaultsMatchesTheEngine(t *testing.T) {
 }
 
 func TestEvaluateMarksTypedValuesAsTheUsers(t *testing.T) {
-	svc := newService(t, fixtureStore(t), nil)
+	svc := newService(t, stockstest.Fixture(t), nil)
 	price, eps, div, target, years := 100.0, 4.0, 1.0, 0.1, 5
 	got, err := svc.Evaluate(context.Background(), "KO", stocks.LeversInput{
 		Price: &price, TTMEPS: &eps, Dividend: &div, TargetReturn: &target, HoldingYears: &years,
@@ -381,7 +382,7 @@ func TestEvaluateMarksTypedValuesAsTheUsers(t *testing.T) {
 }
 
 func TestEvaluateRejectsInvalidLevers(t *testing.T) {
-	svc := newService(t, fixtureStore(t), nil)
+	svc := newService(t, stockstest.Fixture(t), nil)
 	target := 2.0
 	_, err := svc.Evaluate(context.Background(), "KO", stocks.LeversInput{TargetReturn: &target})
 	if !errors.Is(err, engine.ErrInvalidInput) {
@@ -390,8 +391,8 @@ func TestEvaluateRejectsInvalidLevers(t *testing.T) {
 }
 
 func TestEvaluateWithoutACloseNeedsAPrice(t *testing.T) {
-	m := fixtureStore(t)
-	m.bars = nil
+	m := stockstest.Fixture(t)
+	m.Bars = nil
 	svc := newService(t, m, nil)
 	_, err := svc.Evaluate(context.Background(), "KO", stocks.LeversInput{})
 	var missing *stocks.MissingInputError
@@ -405,7 +406,7 @@ func TestEvaluateWithoutACloseNeedsAPrice(t *testing.T) {
 }
 
 func TestFundamentalsListsTheDerivedQuartersWithTheirFilings(t *testing.T) {
-	st := fixtureStore(t)
+	st := stockstest.Fixture(t)
 	svc := newService(t, st, nil)
 	got, err := svc.Fundamentals(context.Background(), "NVDA")
 	if err != nil {
@@ -440,13 +441,13 @@ func TestFundamentalsListsTheDerivedQuartersWithTheirFilings(t *testing.T) {
 }
 
 func TestLoadCallsTheLoaderAndReturnsTheProfile(t *testing.T) {
-	loader := &fakeLoader{}
-	svc := newService(t, fixtureStore(t), loader)
+	loader := &stockstest.Loader{}
+	svc := newService(t, stockstest.Fixture(t), loader)
 	p, err := svc.Load(context.Background(), "msft")
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
 	}
-	if diff := cmp.Diff([]string{"MSFT"}, loader.symbols); diff != "" {
+	if diff := cmp.Diff([]string{"MSFT"}, loader.Symbols); diff != "" {
 		t.Errorf("loaded symbols (-want +got):\n%s", diff)
 	}
 	if p.Ticker.Symbol != "MSFT" {
@@ -455,27 +456,27 @@ func TestLoadCallsTheLoaderAndReturnsTheProfile(t *testing.T) {
 }
 
 func TestLoadOfAnUnknownTickerDoesNotCallTheLoader(t *testing.T) {
-	loader := &fakeLoader{}
-	svc := newService(t, fixtureStore(t), loader)
+	loader := &stockstest.Loader{}
+	svc := newService(t, stockstest.Fixture(t), loader)
 	if _, err := svc.Load(context.Background(), "ZZZZ"); !errors.Is(err, stocks.ErrUnknownTicker) {
 		t.Errorf("Load(ZZZZ) error = %v, want ErrUnknownTicker", err)
 	}
-	if len(loader.symbols) != 0 {
-		t.Errorf("loader called with %v, want no call", loader.symbols)
+	if len(loader.Symbols) != 0 {
+		t.Errorf("loader called with %v, want no call", loader.Symbols)
 	}
 }
 
 func TestLoadWithoutALoaderIsUnavailable(t *testing.T) {
-	svc := newService(t, fixtureStore(t), nil)
+	svc := newService(t, stockstest.Fixture(t), nil)
 	if _, err := svc.Load(context.Background(), "MSFT"); !errors.Is(err, stocks.ErrLoaderUnavailable) {
 		t.Errorf("Load() error = %v, want ErrLoaderUnavailable", err)
 	}
 }
 
 func TestStatusReportsRunsPricesAndCoverage(t *testing.T) {
-	m := fixtureStore(t)
-	m.runs = []store.IngestRun{{ID: 7, Job: "prices-daily", Status: store.RunSucceeded, StartedAt: now, Stats: map[string]int64{"bars": 3}}}
-	m.coverage = store.Coverage{Companies: 3, WithFacts: 2, WithFundamentals: 2}
+	m := stockstest.Fixture(t)
+	m.Runs = []store.IngestRun{{ID: 7, Job: "prices-daily", Status: store.RunSucceeded, StartedAt: stockstest.Now, Stats: map[string]int64{"bars": 3}}}
+	m.Coverage = store.Coverage{Companies: 3, WithFacts: 2, WithFundamentals: 2}
 	svc := newService(t, m, nil)
 	got, err := svc.Status(context.Background())
 	if err != nil {
@@ -483,7 +484,7 @@ func TestStatusReportsRunsPricesAndCoverage(t *testing.T) {
 	}
 	latest := date(t, "2026-10-29")
 	want := stocks.Status{
-		IngestRuns:      []stocks.IngestRun{{ID: 7, Job: "prices-daily", Status: "succeeded", StartedAt: now, Stats: map[string]int64{"bars": 3}}},
+		IngestRuns:      []stocks.IngestRun{{ID: 7, Job: "prices-daily", Status: "succeeded", StartedAt: stockstest.Now, Stats: map[string]int64{"bars": 3}}},
 		LatestPriceDate: &latest,
 		Companies:       stocks.Coverage{Total: 3, WithFacts: 2, WithFundamentals: 2},
 	}
@@ -493,7 +494,7 @@ func TestStatusReportsRunsPricesAndCoverage(t *testing.T) {
 }
 
 func TestSearchGivesSymbolNameExchangeAndLoaded(t *testing.T) {
-	svc := newService(t, fixtureStore(t), nil)
+	svc := newService(t, stockstest.Fixture(t), nil)
 	got, err := svc.Search(context.Background(), "KO", 10)
 	if err != nil {
 		t.Fatal(err)
@@ -506,18 +507,27 @@ func TestSearchGivesSymbolNameExchangeAndLoaded(t *testing.T) {
 
 // deriveNVDA derives NVIDIA's quarters the way the ingestion jobs do: its
 // own facts and the provider's splits.
-func deriveNVDA(m *memStore) (fundamentals.Series, error) {
+func deriveNVDA(m *stockstest.Store) (fundamentals.Series, error) {
 	var facts []domain.Fact
-	for _, f := range m.facts {
-		if f.CIK == cikNVDA {
+	for _, f := range m.Facts {
+		if f.CIK == stockstest.CIKNVDA {
 			facts = append(facts, f)
 		}
 	}
 	var splits []domain.Split
-	for _, sp := range m.splits {
+	for _, sp := range m.Splits {
 		if sp.Symbol == "NVDA" {
 			splits = append(splits, sp)
 		}
 	}
-	return fundamentals.Derive(cikNVDA, facts, fundamentals.Options{Splits: splits, ProviderChecked: true})
+	return fundamentals.Derive(stockstest.CIKNVDA, facts, fundamentals.Options{Splits: splits, ProviderChecked: true})
+}
+
+func date(t *testing.T, s string) domain.Date {
+	t.Helper()
+	d, err := domain.ParseDate(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return d
 }

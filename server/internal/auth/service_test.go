@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/sourcehawk/pricedin/server/internal/auth"
+	"github.com/sourcehawk/pricedin/server/internal/auth/authtest"
 )
 
 const (
@@ -19,8 +20,8 @@ const (
 
 type fixture struct {
 	svc   *auth.Service
-	store *memStore
-	clock *clock
+	store *authtest.Store
+	clock *authtest.Clock
 	// verifications counts the Argon2id verifications that Login ran.
 	verifications *int
 }
@@ -36,8 +37,8 @@ func newFixture(t *testing.T) fixture {
 
 func newFixtureWith(t *testing.T, opts auth.Options) fixture {
 	t.Helper()
-	st := newMemStore()
-	c := &clock{now: time.Date(2026, 10, 30, 12, 0, 0, 0, time.UTC)}
+	st := authtest.NewStore()
+	c := authtest.NewClock(time.Date(2026, 10, 30, 12, 0, 0, 0, time.UTC))
 	opts.SessionTTL = ttl
 	opts.Now = c.Now
 	svc, err := auth.New(st, opts)
@@ -81,10 +82,10 @@ func TestLoginStoresOnlyTheHashOfTheToken(t *testing.T) {
 	f := newFixture(t)
 	token := login(t, f)
 	sum := sha256.Sum256([]byte(token))
-	if _, ok := f.store.sessions[string(sum[:])]; !ok || len(f.store.sessions) != 1 {
-		t.Errorf("stored sessions = %d, want one keyed by the SHA-256 of the token", len(f.store.sessions))
+	if _, ok := f.store.Sessions[string(sum[:])]; !ok || len(f.store.Sessions) != 1 {
+		t.Errorf("stored sessions = %d, want one keyed by the SHA-256 of the token", len(f.store.Sessions))
 	}
-	for k, s := range f.store.sessions {
+	for k, s := range f.store.Sessions {
 		if bytes.Contains([]byte(k), []byte(token)) || bytes.Contains(s.TokenHash, []byte(token)) {
 			t.Error("the store holds the token itself")
 		}
@@ -107,7 +108,7 @@ func TestLoginGivesTheSameErrorForAWrongPasswordAndAnUnknownEmail(t *testing.T) 
 			if *f.verifications != 1 {
 				t.Errorf("Login() ran %d Argon2id verifications, want 1 so that the timing does not tell", *f.verifications)
 			}
-			if len(f.store.sessions) != 0 {
+			if len(f.store.Sessions) != 0 {
 				t.Error("a failed login stored a session")
 			}
 		})
@@ -123,7 +124,7 @@ func TestLoginWithoutAnOwnerIsDisabled(t *testing.T) {
 }
 
 func TestNewRejectsAMalformedOwnerHash(t *testing.T) {
-	_, err := auth.New(newMemStore(), auth.Options{OwnerEmail: ownerEmail, OwnerPasswordHash: "$argon2id$nonsense", SessionTTL: ttl})
+	_, err := auth.New(authtest.NewStore(), auth.Options{OwnerEmail: ownerEmail, OwnerPasswordHash: "$argon2id$nonsense", SessionTTL: ttl})
 	if err == nil {
 		t.Error("New() error = nil, want an error for a malformed hash")
 	}
@@ -150,7 +151,7 @@ func TestSessionExpiresAfterTheTTLAndIsDeleted(t *testing.T) {
 	if _, err := f.svc.Session(context.Background(), token); !errors.Is(err, auth.ErrUnauthenticated) {
 		t.Errorf("Session() at expiry error = %v, want ErrUnauthenticated", err)
 	}
-	if len(f.store.sessions) != 0 {
+	if len(f.store.Sessions) != 0 {
 		t.Error("the expired session is still stored")
 	}
 }
@@ -165,17 +166,17 @@ func TestSessionUpdatesLastSeenAtMostOnceAMinute(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if f.store.lastSeenWrites != 0 {
-		t.Fatalf("last-seen writes within the first minute = %d, want 0", f.store.lastSeenWrites)
+	if f.store.LastSeenWrites != 0 {
+		t.Fatalf("last-seen writes within the first minute = %d, want 0", f.store.LastSeenWrites)
 	}
 	f.clock.Advance(10 * time.Second)
 	if _, err := f.svc.Session(ctx, token); err != nil {
 		t.Fatal(err)
 	}
-	if f.store.lastSeenWrites != 1 {
-		t.Errorf("last-seen writes after a minute = %d, want 1", f.store.lastSeenWrites)
+	if f.store.LastSeenWrites != 1 {
+		t.Errorf("last-seen writes after a minute = %d, want 1", f.store.LastSeenWrites)
 	}
-	for _, s := range f.store.sessions {
+	for _, s := range f.store.Sessions {
 		if !s.LastSeenAt.Equal(f.clock.Now()) {
 			t.Errorf("LastSeenAt = %v, want %v", s.LastSeenAt, f.clock.Now())
 		}
@@ -207,7 +208,7 @@ func TestCreatedAPITokenAuthenticatesUntilRevoked(t *testing.T) {
 	if created.Name != "agent-1" || !created.CreatedAt.Equal(f.clock.Now()) {
 		t.Errorf("CreateAPIToken() = %+v, want name agent-1 created now", created)
 	}
-	if sum := sha256.Sum256([]byte(token)); !bytes.Equal(f.store.tokens[0].TokenHash, sum[:]) {
+	if sum := sha256.Sum256([]byte(token)); !bytes.Equal(f.store.Tokens[0].TokenHash, sum[:]) {
 		t.Error("the store does not hold the SHA-256 of the token")
 	}
 	got, err := f.svc.APIToken(ctx, token)
@@ -235,15 +236,15 @@ func TestAPITokenUpdatesLastUsedAtMostOnceAMinute(t *testing.T) {
 		}
 		f.clock.Advance(10 * time.Second)
 	}
-	if f.store.lastUsedWrites != 1 {
-		t.Fatalf("last-used writes in 30 seconds = %d, want 1 (the first use)", f.store.lastUsedWrites)
+	if f.store.LastUsedWrites != 1 {
+		t.Fatalf("last-used writes in 30 seconds = %d, want 1 (the first use)", f.store.LastUsedWrites)
 	}
 	f.clock.Advance(time.Minute)
 	if _, err := f.svc.APIToken(ctx, token); err != nil {
 		t.Fatal(err)
 	}
-	if f.store.lastUsedWrites != 2 {
-		t.Errorf("last-used writes after a minute = %d, want 2", f.store.lastUsedWrites)
+	if f.store.LastUsedWrites != 2 {
+		t.Errorf("last-used writes after a minute = %d, want 2", f.store.LastUsedWrites)
 	}
 }
 
