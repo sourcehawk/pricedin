@@ -196,11 +196,23 @@ func (d *deriver) values(q quarterSpan) map[Metric]Value {
 }
 
 // flow derives a value that adds up over time, from the first concept that
-// gives one. All inputs of a value come from that one concept.
+// gives one. All inputs of a value come from that one concept. Its
+// FirstFiled is the earliest date on which any concept gave the quarter in
+// any way: a quarter reported only in a later filing was known before from
+// year-to-date values.
 func (d *deriver) flow(concepts []sec.Concept, q quarterSpan) (Value, bool) {
+	var out Value
+	found := false
+	var known domain.Date
+	use := func(v Value) {
+		known = earliestDate(known, v.FirstFiled)
+		if !found {
+			out, found = v, true
+		}
+	}
 	for _, c := range concepts {
 		if w, ok := d.lookup(c, q.start, q.end); ok {
-			return newValue(w.obs.value, MethodReported, false, w), true
+			use(newValue(w.obs.value, MethodReported, false, w))
 		}
 		if q.n == 1 {
 			continue
@@ -217,19 +229,33 @@ func (d *deriver) flow(concepts []sec.Concept, q quarterSpan) (Value, bool) {
 		if q.n == 4 {
 			method = MethodFYDifference
 		}
-		return newValue(tidy(ytd.obs.value-prev.obs.value), method, false, ytd, prev), true
+		use(newValue(tidy(ytd.obs.value-prev.obs.value), method, false, ytd, prev))
 	}
-	return Value{}, false
+	out.FirstFiled = known
+	return out, found
 }
 
 // shares derives the diluted share count. A weighted average does not add
 // up over time, so only Q4 is derived, with each quarter weighted by its
-// days, and the result is an estimate.
+// days, and the result is an estimate. A reported count wins, and the
+// earlier of the two ways dates the quarter.
 func (d *deriver) shares(q quarterSpan) (Value, bool) {
 	c := sec.WeightedAverageNumberOfDilutedSharesOutstanding
-	if w, ok := d.lookup(c, q.start, q.end); ok {
-		return newValue(w.obs.value, MethodReported, false, w), true
+	weighted, wok := d.weightedQ4(c, q)
+	w, ok := d.lookup(c, q.start, q.end)
+	if !ok {
+		return weighted, wok
 	}
+	v := newValue(w.obs.value, MethodReported, false, w)
+	if wok {
+		v.FirstFiled = earliestDate(v.FirstFiled, weighted.FirstFiled)
+	}
+	return v, true
+}
+
+// weightedQ4 returns the Q4 count that makes the duration-weighted
+// quarters match the full-year average.
+func (d *deriver) weightedQ4(c sec.Concept, q quarterSpan) (Value, bool) {
 	if q.n != 4 {
 		return Value{}, false
 	}
@@ -284,6 +310,15 @@ func newValue(v float64, method Method, estimate bool, inputs ...winner) Value {
 		out.FirstFiled = latestDate(out.FirstFiled, w.firstFiled)
 	}
 	return out
+}
+
+// earliestDate returns the earlier of a and b, where a zero date counts as
+// no date.
+func earliestDate(a, b domain.Date) domain.Date {
+	if a.IsZero() || b.Before(a) {
+		return b
+	}
+	return a
 }
 
 func latestDate(a, b domain.Date) domain.Date {

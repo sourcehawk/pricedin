@@ -358,3 +358,23 @@ func TestDeriveGivesAnEmptySeriesWithoutAnAnnualReport(t *testing.T) {
 		t.Errorf("quarters = %v, want none", periods(s))
 	}
 }
+
+func TestDeriveDatesAQuarterByItsEarliestAvailableSource(t *testing.T) {
+	// The 2025 10-K gives the year and the 10-Q the nine months, so Q4 2025
+	// is known from the 10-K on. The 2026 10-K gives the Q4 2025 quarter
+	// itself a year later: its value wins, but the quarter stays known
+	// from the first 10-K.
+	var facts []domain.Fact
+	y := newCalYear(t, &facts, 2025)
+	y.q3.add(sec.EarningsPerShareDiluted, "2025-01-01", "2025-09-30", 3.00)
+	y.k.add(sec.EarningsPerShareDiluted, "2025-01-01", "2025-12-31", 4.00)
+	newCalYear(t, &facts, 2026).k.add(sec.EarningsPerShareDiluted, "2025-10-01", "2025-12-31", 1.00)
+
+	v := value(t, derive(t, facts, fundamentals.Options{}), "Q4 FY25", fundamentals.EPSDiluted)
+	if v.Method != fundamentals.MethodReported || !cmp.Equal(accessions(v), []string{"k-2026"}) {
+		t.Errorf("Q4 FY25 EPS = %s from %v, want reported from k-2026", v.Method, accessions(v))
+	}
+	if v.FirstFiled.String() != "2026-02-19" {
+		t.Errorf("FirstFiled = %s, want 2026-02-19, the filing date of k-2025", v.FirstFiled)
+	}
+}

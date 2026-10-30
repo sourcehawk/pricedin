@@ -512,3 +512,14 @@ func TestDeriveExplainsEveryFixtureRestatementWithTheProviderSplits(t *testing.T
 		})
 	}
 }
+
+func TestDeriveDatesADMQ4From10KOfThatYear(t *testing.T) {
+	// The 10-K for 2022 (filed 2023-02-14) gives the year and so Q4 2022.
+	// The quarter itself is reported only in the 10-K for 2023, filed
+	// 2024-03-12. That value is used, but the quarter was known in 2023.
+	s := deriveFixture(t, cikADM, fundamentals.Options{})
+	v := value(t, s, "Q4 FY22", fundamentals.EPSDiluted)
+	if v.V != 1.84 || v.Method != fundamentals.MethodReported || v.FirstFiled.String() != "2023-02-14" {
+		t.Errorf("Q4 FY22 EPS = %v %s first filed %s, want 1.84 reported first filed 2023-02-14", v.V, v.Method, v.FirstFiled)
+	}
+}
