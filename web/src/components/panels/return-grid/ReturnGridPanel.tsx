@@ -153,6 +153,7 @@ function Cell({
   text,
   tip,
   focusable,
+  you,
   r,
   c,
 }: {
@@ -163,6 +164,8 @@ function Cell({
   text: string;
   tip: () => ReactNode;
   focusable: boolean;
+  /** The user's own case: the cell gets the YOU badge. */
+  you: boolean;
   r: number;
   c: number;
 }) {
@@ -178,6 +181,15 @@ function Cell({
       tabIndex={focusable ? 0 : -1}
       {...h}
     >
+      {you && (
+        <>
+          {/* The space follows the hidden text, so it starts the line and takes no room. */}
+          <span className="sr-only">Your case:</span>{" "}
+          <span className="youtag" aria-hidden="true">
+            YOU
+          </span>
+        </>
+      )}
       {text}
     </td>
   );
@@ -570,6 +582,7 @@ function GridTable({
                       text={cellText(c, view)}
                       tip={() => cellTip(ri, ci)}
                       focusable={you === null ? ri === 0 && ci === 0 : isYou}
+                      you={isYou}
                     />
                   );
                 })}

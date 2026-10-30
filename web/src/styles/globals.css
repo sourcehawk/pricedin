@@ -1484,8 +1484,7 @@ table.hm {
   outline-offset: -1px;
   font-weight: 700;
 }
-.hm td.sel::before {
-  content: "YOU";
+.hm td.sel .youtag {
   display: inline-block;
   margin-right: 6px;
   vertical-align: 1px;

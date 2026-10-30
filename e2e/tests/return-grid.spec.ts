@@ -21,7 +21,10 @@ test("the YOU cell sits in the baseline's row and shows the summary's yearly ret
   const row = you.locator("xpath=ancestor::tr[1]");
   await expect(row.locator("th")).toContainText(pct(ev.baselines.weighted.value));
   await expect(row.locator("th .tags")).toContainText("Wtd");
-  await expect(you).toHaveText(signedPct(at.yearlyReturn, 0));
+  // The badge is text, hidden from a screen reader, which hears "Your case" instead.
+  await expect(you.locator(".youtag")).toBeVisible();
+  await expect(you.locator(".youtag")).toHaveText("YOU");
+  await expect(you).toHaveAccessibleName(`Your case: ${signedPct(at.yearlyReturn, 0)}`);
 
   const summary = pricedInPanel(page)
     .locator("dl.kv dt", { hasText: "Annual return at baseline" })
