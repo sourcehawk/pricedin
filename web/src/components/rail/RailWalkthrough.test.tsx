@@ -32,10 +32,10 @@ describe("the walkthrough of the inputs", () => {
   it("rings the lever of each step", async () => {
     await startTour();
     const lever = (key: string) => document.querySelector(`[data-lever="${key}"]`);
-    expect(lever("targetReturn")).toHaveClass("tside");
+    expect(lever("targetReturn")).toHaveAttribute("data-tside");
     await userEvent.click(screen.getByRole("button", { name: "Next" }));
-    expect(lever("targetReturn")).not.toHaveClass("tside");
-    expect(lever("holdingYears")).toHaveClass("tside");
+    expect(lever("targetReturn")).not.toHaveAttribute("data-tside");
+    expect(lever("holdingYears")).toHaveAttribute("data-tside");
   });
 
   it("uses the user's own numbers", async () => {
@@ -76,6 +76,6 @@ describe("the walkthrough of the inputs", () => {
       await userEvent.click(within(card).getByRole("button", { name: "Next" }));
     }
     expect(card).toHaveTextContent(/GRMN in one line: for 15\.0% a year over 3 years/);
-    expect(document.querySelector('[data-lever="dividend"]')).toHaveClass("tside");
+    expect(document.querySelector('[data-lever="dividend"]')).toHaveAttribute("data-tside");
   });
 });

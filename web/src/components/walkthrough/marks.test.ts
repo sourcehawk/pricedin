@@ -24,14 +24,14 @@ describe("markScope", () => {
     const scope = panel();
     const found = markScope(scope, ["sub", "weighted"], null);
     expect(found.map((e) => e.textContent)).toEqual(["14.8% a year", "12%"]);
-    expect(found.every((e) => e.classList.contains("thl"))).toBe(true);
+    expect(found.every((e) => e.hasAttribute("data-thl"))).toBe(true);
   });
 
   it("fades the other leaves of the scope but not the card", () => {
     const scope = panel();
     const card = scope.querySelector(".tour-card");
     markScope(scope, ["weighted"], card);
-    expect(scope).toHaveClass("tour-on");
+    expect(scope).toHaveAttribute("data-tour-on");
     expect(scope.querySelector("dt")).toHaveAttribute("data-tl");
     expect(scope.querySelector(".tour-card p")).not.toHaveAttribute("data-tl");
   });
@@ -49,7 +49,7 @@ describe("markScope", () => {
   it("fades nothing when no element matches", () => {
     const scope = panel();
     expect(markScope(scope, ["missing"], null)).toEqual([]);
-    expect(scope).not.toHaveClass("tour-on");
+    expect(scope).not.toHaveAttribute("data-tour-on");
     expect(scope.querySelector("[data-tl]")).toBeNull();
   });
 
@@ -62,7 +62,7 @@ describe("markScope", () => {
     const scope = panel();
     markScope(scope, ["weighted"], null);
     markScope(scope, ["big"], null);
-    expect(scope.querySelector("dd")).not.toHaveClass("thl");
+    expect(scope.querySelector("dd")).not.toHaveAttribute("data-thl");
   });
 });
 
@@ -71,8 +71,8 @@ describe("clearScope", () => {
     const scope = panel();
     markScope(scope, ["weighted"], null);
     clearScope(scope);
-    expect(scope).not.toHaveClass("tour-on");
-    expect(scope.querySelector("[data-tl], .thl")).toBeNull();
+    expect(scope).not.toHaveAttribute("data-tour-on");
+    expect(scope.querySelector("[data-tl], [data-thl]")).toBeNull();
   });
 });
 
@@ -81,8 +81,8 @@ describe("ringLevers", () => {
     panel();
     ringLevers(document, ["targetReturn"]);
     ringLevers(document, ["holdingYears"]);
-    expect(document.querySelector('[data-lever="targetReturn"]')).not.toHaveClass("tside");
-    expect(document.querySelector('[data-lever="holdingYears"]')).toHaveClass("tside");
+    expect(document.querySelector('[data-lever="targetReturn"]')).not.toHaveAttribute("data-tside");
+    expect(document.querySelector('[data-lever="holdingYears"]')).toHaveAttribute("data-tside");
   });
 
   it("scrolls the left panel, not the page, to a lever out of view", () => {
@@ -101,6 +101,6 @@ describe("ringLevers", () => {
     panel();
     ringLevers(document, ["targetReturn", "holdingYears"]);
     clearLevers(document);
-    expect(document.querySelector(".tside")).toBeNull();
+    expect(document.querySelector("[data-tside]")).toBeNull();
   });
 });

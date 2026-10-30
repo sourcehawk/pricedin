@@ -746,43 +746,43 @@ table.corr {
 }
 
 /* the inline walkthrough */
-.tour-on [data-tl] {
+[data-tour-on] [data-tl] {
   opacity: 0.16;
   transition: opacity 0.2s;
 }
-.px.tour-on svg > rect.L-band,
-.px.tour-on svg > text.L-band {
+.px[data-tour-on] svg > rect.L-band,
+.px[data-tour-on] svg > text.L-band {
   opacity: 0.16;
 }
-.px.tour-on svg > .L-band.thl {
+.px[data-tour-on] svg > .L-band[data-thl] {
   opacity: 1;
 }
-.tour-on .thl,
-.tour-on .thl [data-tl],
-.tour-on.thl [data-tl] {
+[data-tour-on] [data-thl],
+[data-tour-on] [data-thl] [data-tl],
+[data-tour-on][data-thl] [data-tl] {
   opacity: 1;
 }
-.tour-on td.thl {
+[data-tour-on] td[data-thl] {
   box-shadow: 0 0 0 2px var(--ink);
 }
-.tour-on td.tmeet {
+[data-tour-on] td.tmeet {
   box-shadow: 0 0 0 3px var(--bad);
   position: relative;
   z-index: 1;
 }
-.tour-on .tile.thl,
-.tour-on .sc.thl {
+[data-tour-on] .tile[data-thl],
+[data-tour-on] .sc[data-thl] {
   border-color: var(--ink);
   box-shadow: 0 0 0 1px var(--ink);
 }
 .panel {
   position: relative;
 }
-.tour-on .v-req.thl {
+[data-tour-on] .v-req[data-thl] {
   width: fit-content;
 }
 /* What a step points at: a thin yellow ring and a soft glow, no fill. */
-.tside {
+[data-tside] {
   border-radius: 10px;
   box-shadow:
     0 0 0 2px var(--hl),
@@ -790,12 +790,12 @@ table.corr {
   outline: 8px solid transparent;
   transition: box-shadow 0.2s;
 }
-.rail .lever.tside,
-.rail .field.tside {
+.rail .lever[data-tside],
+.rail .field[data-tside] {
   padding: 8px;
   margin: -8px;
 }
-.tour-on .thl:not(td):not(.tile):not(.sc):not(svg):not(svg *) {
+[data-tour-on] [data-thl]:not(td):not(.tile):not(.sc):not(svg):not(svg *) {
   border-radius: 6px;
   padding: 2px 5px;
   margin: -2px -5px;
@@ -986,8 +986,8 @@ table.corr {
   background: var(--accent);
 }
 @media (prefers-reduced-motion: reduce) {
-  .tour-on [data-tl],
-  .tside {
+  [data-tour-on] [data-tl],
+  [data-tside] {
     transition: none;
   }
 }

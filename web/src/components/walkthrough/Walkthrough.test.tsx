@@ -1,5 +1,6 @@
-import { screen, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { withApiServer } from "@/api/testing/server";
 import { pct } from "@/components/format";
@@ -102,8 +103,8 @@ describe("Walkthrough", () => {
     await renderReady(<Panel />);
     await start();
     const panel = screen.getByRole("region", { name: "panel demo" });
-    expect(panel).toHaveClass("tour-on");
-    expect(panel.querySelector('[data-walk="big"]')).toHaveClass("thl");
+    expect(panel).toHaveAttribute("data-tour-on");
+    expect(panel.querySelector('[data-walk="big"]')).toHaveAttribute("data-thl");
     expect(screen.getByText("Other text")).toHaveAttribute("data-tl");
     expect(within(card()).getByText("The big number")).not.toHaveAttribute("data-tl");
   });
@@ -116,12 +117,12 @@ describe("Walkthrough", () => {
       </>,
     );
     await start();
-    expect(screen.getByText("Target")).toHaveClass("tside");
+    expect(screen.getByText("Target")).toHaveAttribute("data-tside");
     await userEvent.click(screen.getByRole("button", { name: "Next" }));
-    expect(screen.getByText("Target")).not.toHaveClass("tside");
-    expect(screen.getByText("-2.0 pp")).toHaveClass("thl");
+    expect(screen.getByText("Target")).not.toHaveAttribute("data-tside");
+    expect(screen.getByText("-2.0 pp")).toHaveAttribute("data-thl");
     await userEvent.click(screen.getByRole("button", { name: "Next" }));
-    expect(screen.getByText("Exit P/E")).toHaveClass("tside");
+    expect(screen.getByText("Exit P/E")).toHaveAttribute("data-tside");
   });
 
   it("shows the take-away and the watch-out note on the last step and ends on Finish", async () => {
@@ -178,7 +179,75 @@ describe("Walkthrough", () => {
     );
     await start();
     await userEvent.click(screen.getByRole("button", { name: "End the walkthrough" }));
-    expect(document.querySelector(".tour-on, .thl, .tside, [data-tl]")).toBeNull();
+    expect(document.querySelector("[data-tour-on], [data-thl], [data-tside], [data-tl]")).toBeNull();
+  });
+
+  it("keeps a highlight when a component in the panel re-renders its element from its own state", async () => {
+    function Toggle() {
+      const [on, setOn] = useState(false);
+      return (
+        <>
+          <span data-walk="big" className={on ? "on" : "off"}>
+            14.8%
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              setOn(!on);
+            }}
+          >
+            toggle
+          </button>
+        </>
+      );
+    }
+    await renderReady(
+      <section data-walk-scope>
+        <Toggle />
+        <Walkthrough id="t" name="the demo" launcher="Go" steps={steps} />
+      </section>,
+    );
+    await start("Go");
+    await userEvent.click(screen.getByRole("button", { name: "toggle" }));
+    expect(screen.getByText("14.8%")).toHaveClass("on");
+    expect(screen.getByText("14.8%")).toHaveAttribute("data-thl");
+  });
+
+  it("marks a node that a component in the panel mounts during a step", async () => {
+    function More() {
+      const [more, setMore] = useState(false);
+      return (
+        <>
+          <button
+            type="button"
+            onClick={() => {
+              setMore(true);
+            }}
+          >
+            more
+          </button>
+          {more && (
+            <>
+              <b data-walk="big">20%</b>
+              <i>new text</i>
+            </>
+          )}
+          <p data-walk="big">14.8%</p>
+        </>
+      );
+    }
+    await renderReady(
+      <section data-walk-scope>
+        <More />
+        <Walkthrough id="m" name="the demo" launcher="Go" steps={steps} />
+      </section>,
+    );
+    await start("Go");
+    await userEvent.click(screen.getByRole("button", { name: "more" }));
+    await waitFor(() => {
+      expect(screen.getByText("20%")).toHaveAttribute("data-thl");
+    });
+    expect(screen.getByText("new text")).toHaveAttribute("data-tl");
   });
 
   it("never scrolls the page", async () => {

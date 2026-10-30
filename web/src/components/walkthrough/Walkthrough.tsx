@@ -93,23 +93,42 @@ export function Walkthrough(props: WalkthroughProps) {
     };
   }, [running]);
 
-  // The marks follow every render: a panel that re-renders replaces nodes.
+  // The marks are set after every render of the walkthrough. Another
+  // component of the panel can re-render alone: an attribute that no
+  // component renders survives that, and the observer marks the nodes that
+  // it adds. The marks set only attributes, so they do not wake it.
   useLayoutEffect(() => {
     const scope = wrap.current?.closest("[data-walk-scope]") ?? null;
     if (!running || step === undefined) {
       return;
     }
-    if (scope !== null) {
-      markScope(scope, step.highlight ?? [], card.current);
-    }
-    ringLevers(document, step.levers ?? []);
+    const highlight = step.highlight ?? [];
+    const levers = step.levers ?? [];
+    const apply = () => {
+      if (scope !== null) {
+        markScope(scope, highlight, card.current);
+      }
+      ringLevers(document, levers, false);
+    };
+    apply();
+    const observer = new MutationObserver(apply);
+    observer.observe(document.body, { childList: true, subtree: true });
     return () => {
+      observer.disconnect();
       if (scope !== null) {
         clearScope(scope);
       }
       clearLevers(document);
     };
   });
+
+  // The left panel scrolls to the first ringed lever once per step.
+  const leverKeys = step?.levers?.join(" ") ?? "";
+  useLayoutEffect(() => {
+    if (running && leverKeys !== "") {
+      ringLevers(document, leverKeys.split(" "));
+    }
+  }, [running, index, leverKeys]);
 
   // Focus moves to Next on each step, and back to the launcher at the end,
   // without scrolling. When another walkthrough took over, its card keeps

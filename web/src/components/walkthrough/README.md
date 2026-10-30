@@ -79,6 +79,6 @@ A `WalkthroughStep`:
 
 - The step card has the step number, Back, Next (Finish on the last step), the step dots and a close button. The arrow keys move between steps, except in a text field. Escape ends the walkthrough.
 - Focus moves to Next on each step and back to the launcher at the end, without a scroll.
-- The marks are DOM classes: `tour-on` on the scope, `thl` on each highlighted element, `data-tl` on each other leaf of the scope (it fades), and `tside` on each ringed lever. The styles are in `styles/globals.css`. They follow every render, so a panel that re-renders keeps them.
+- The marks are data attributes that no component renders: `data-tour-on` on the scope, `data-thl` on each highlighted element, `data-tl` on each other leaf of the scope (it fades), and `data-tside` on each ringed lever. The styles in `styles/globals.css` select these attributes; do not put them in a panel's markup. React keeps an attribute that it does not render, so a re-render that changes `className` keeps the marks. A `MutationObserver` on the page marks the nodes that any component adds or replaces while a step shows, within the same task. A mark is not reapplied when a component sets one of these attributes itself.
 - To make a lever visible, the left panel scrolls inside itself (`data-walk-scroll`). The page never scrolls.
 - The motion stops when the user prefers reduced motion.

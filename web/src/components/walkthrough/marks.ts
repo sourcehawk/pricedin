@@ -1,15 +1,15 @@
-// The marks a walkthrough step puts on the page. They are DOM classes, not
-// React state, so a panel opts in with data attributes alone and never
-// re-renders for a walkthrough.
+// The marks a walkthrough step puts on the page are data attributes that no
+// component renders, so a re-render that sets className keeps them, and a
+// panel never re-renders for a walkthrough.
 
-/** Classes and attributes of the marks; the styles in globals.css use the same names. */
+/** The attributes of the marks; the styles in globals.css use the same names. */
 export const marks = {
   /** On the panel scope while a step highlights something in it. */
-  scope: "tour-on",
+  scope: "data-tour-on",
   /** On each element a step highlights: the thin ring and soft glow. */
-  highlight: "thl",
+  highlight: "data-thl",
   /** On each lever a step refers to. */
-  lever: "tside",
+  lever: "data-tside",
   /** On each leaf of the scope, which fades unless a highlighted element holds it. */
   fade: "data-tl",
 } as const;
@@ -44,7 +44,7 @@ export function markScope(
   if (found.length === 0) {
     return [];
   }
-  scope.classList.add(marks.scope);
+  scope.setAttribute(marks.scope, "");
   for (const e of scope.querySelectorAll("*")) {
     // Opacity applies to a whole subtree: a faded parent fades its highlighted child.
     const holdsHighlight = found.some((h) => h !== e && e.contains(h));
@@ -53,35 +53,36 @@ export function markScope(
     }
   }
   for (const e of found) {
-    e.classList.add(marks.highlight);
+    e.setAttribute(marks.highlight, "");
   }
   return found;
 }
 
 /** clearScope removes every mark of markScope from scope. */
 export function clearScope(scope: Element): void {
-  scope.classList.remove(marks.scope);
-  for (const e of scope.querySelectorAll(`[${marks.fade}]`)) {
+  scope.removeAttribute(marks.scope);
+  for (const e of scope.querySelectorAll(`[${marks.fade}], [${marks.highlight}]`)) {
     e.removeAttribute(marks.fade);
-  }
-  for (const e of scope.querySelectorAll(`.${marks.highlight}`)) {
-    e.classList.remove(marks.highlight);
+    e.removeAttribute(marks.highlight);
   }
 }
 
 /**
  * ringLevers rings the elements of root whose data-lever is one of keys
- * and returns them. When the first one is out of view inside a container
- * marked data-walk-scroll (the left panel), that container scrolls; the
- * page itself never scrolls.
+ * and returns them. With scroll, when the first one is out of view inside a
+ * container marked data-walk-scroll (the left panel), that container
+ * scrolls; the page itself never scrolls.
  */
-export function ringLevers(root: ParentNode, keys: readonly string[]): Element[] {
+export function ringLevers(root: ParentNode, keys: readonly string[], scroll = true): Element[] {
   clearLevers(root);
   const found = keys
     .filter((k) => keyPattern.test(k))
     .flatMap((k) => [...root.querySelectorAll(`[data-lever="${k}"]`)]);
   for (const e of found) {
-    e.classList.add(marks.lever);
+    e.setAttribute(marks.lever, "");
+  }
+  if (!scroll) {
+    return found;
   }
   const first = found[0];
   const box = first?.closest("[data-walk-scroll]");
@@ -97,7 +98,7 @@ export function ringLevers(root: ParentNode, keys: readonly string[]): Element[]
 
 /** clearLevers removes every lever ring under root. */
 export function clearLevers(root: ParentNode): void {
-  for (const e of root.querySelectorAll(`.${marks.lever}`)) {
-    e.classList.remove(marks.lever);
+  for (const e of root.querySelectorAll(`[${marks.lever}]`)) {
+    e.removeAttribute(marks.lever);
   }
 }
