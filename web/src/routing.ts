@@ -24,3 +24,32 @@ export function route(
   }
   return { kind: "redirect", url: loginPath(req, false) };
 }
+
+// The API trusts the address in clientIPHeader only on a request whose
+// secretHeader holds the deploy secret: server/internal/auth.ProxyClientIP.
+const secretHeader = "x-pricedin-proxy";
+const clientIPHeader = "x-pricedin-client-ip";
+// Vercel's edge sets x-real-ip to the address of the connection and
+// overwrites any value the browser sent. Next itself sets no such header.
+const edgeClientIPHeader = "x-real-ip";
+
+/**
+ * apiRequestHeaders returns the headers of an API call as the API server
+ * gets them: incoming without the browser's copies of the two proxy
+ * headers, plus the secret and the browser's address when secret is set.
+ * Set secret only where Vercel's edge sets x-real-ip: elsewhere a browser
+ * can choose that value. incoming is not changed.
+ */
+export function apiRequestHeaders(incoming: Headers, secret: string | undefined): Headers {
+  const headers = new Headers(incoming);
+  headers.delete(secretHeader);
+  headers.delete(clientIPHeader);
+  if (secret) {
+    headers.set(secretHeader, secret);
+    const ip = incoming.get(edgeClientIPHeader);
+    if (ip) {
+      headers.set(clientIPHeader, ip);
+    }
+  }
+  return headers;
+}

@@ -58,6 +58,10 @@ func withProxyHeader(h string) option {
 	return func(o *httpapi.Options, _ *auth.Options) { o.TrustedProxyHeader, o.TrustedProxyHops = h, 1 }
 }
 
+func withProxySecret(secret string) option {
+	return func(o *httpapi.Options, _ *auth.Options) { o.ProxySecret = secret }
+}
+
 func newHarness(t *testing.T, opts ...option) *harness {
 	t.Helper()
 	authStore, data := authtest.NewStore(), stockstest.Fixture(t)

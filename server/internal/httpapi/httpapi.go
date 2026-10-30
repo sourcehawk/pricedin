@@ -39,6 +39,10 @@ type Options struct {
 	// the client address; an empty header means the connection's address.
 	TrustedProxyHeader string
 	TrustedProxyHops   int
+	// ProxySecret is the secret that the web app's proxy sends. A request
+	// that carries it gives the client address in its own header, which
+	// comes before the trusted proxy header. Empty trusts no such header.
+	ProxySecret string
 	// Now returns the current time for the login rate limit; nil means
 	// time.Now.
 	Now func() time.Time

@@ -38,6 +38,12 @@ type Auth struct {
 	// list header such as X-Forwarded-For: the client address is that many
 	// entries from the right. Default 1.
 	TrustedProxyHops int
+	// ProxySecret is the secret that the web app's proxy sends with each
+	// request, together with the browser's address. A request with the
+	// secret counts against that address; see auth.ProxyClientIP. At least
+	// 32 printable ASCII characters without spaces. Empty means that no
+	// request gives its address that way.
+	ProxySecret string
 }
 
 const (
@@ -48,6 +54,9 @@ const (
 	envPublicOrigin       = "PRICEDIN_PUBLIC_ORIGIN"
 	envTrustedProxyHeader = "PRICEDIN_TRUSTED_PROXY_HEADER"
 	envTrustedProxyHops   = "PRICEDIN_TRUSTED_PROXY_HOPS"
+	envProxySecret        = "PRICEDIN_PROXY_SECRET" //nolint:gosec // G101: a variable name, not a credential
+
+	minProxySecretLen = 32
 )
 
 func loadAuth(getenv func(string) string) (Auth, []error) {
@@ -58,6 +67,7 @@ func loadAuth(getenv func(string) string) (Auth, []error) {
 		CookieSecure:       true,
 		TrustedProxyHeader: strings.TrimSpace(getenv(envTrustedProxyHeader)),
 		TrustedProxyHops:   1,
+		ProxySecret:        strings.TrimSpace(getenv(envProxySecret)),
 	}
 	var errs []error
 	switch {
@@ -111,6 +121,10 @@ func loadAuth(getenv func(string) string) (Auth, []error) {
 	}
 	if h := cfg.TrustedProxyHeader; h != "" && strings.ContainsFunc(h, func(r rune) bool { return !isHeaderNameRune(r) }) {
 		errs = append(errs, &VarError{Var: envTrustedProxyHeader, Err: fmt.Errorf("want a header name, such as Fly-Client-IP, got %q", h)})
+	}
+	// The error leaves out the value, because the value is a secret.
+	if p := cfg.ProxySecret; p != "" && (len(p) < minProxySecretLen || strings.ContainsFunc(p, func(r rune) bool { return r <= ' ' || r > '~' })) {
+		errs = append(errs, &VarError{Var: envProxySecret, Err: fmt.Errorf("want at least %d printable ASCII characters without spaces, such as the output of `openssl rand -hex 32`", minProxySecretLen)})
 	}
 	return cfg, errs
 }
