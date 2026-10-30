@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { profileFixture } from "@/api/testing/fixtures";
-import { apiServer, apiUrl, withApiServer } from "@/api/testing/server";
+import { apiServer, apiUrl, problem, withApiServer } from "@/api/testing/server";
 import { defaultLevers } from "@/state/levers";
 import { renderReady, renderWithStock, testLevers } from "@/testing/render";
 import { StockMain } from "./StockMain";
@@ -82,6 +82,26 @@ describe("TopBar", () => {
     expect(bar).toHaveTextContent("$10.80");
     expect(bar).toHaveTextContent("25.0×");
     expect(bar).toHaveTextContent(`As of close${String(profileFixture.latestClose?.asOf)}`);
+  });
+
+  it("stays and says so when the logout fails", async () => {
+    apiServer.use(http.post(apiUrl("/api/auth/logout"), () => HttpResponse.error()));
+    await renderReady(<TopBar />);
+    await userEvent.click(screen.getByRole("button", { name: "Log out" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Logout failed. The server cannot be reached.",
+    );
+    expect(replace).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Log out" })).toBeEnabled();
+  });
+
+  it("goes to the login page when the session was already gone", async () => {
+    apiServer.use(http.post(apiUrl("/api/auth/logout"), () => problem(401, "Unauthenticated")));
+    await renderReady(<TopBar />);
+    await userEvent.click(screen.getByRole("button", { name: "Log out" }));
+    await waitFor(() => {
+      expect(replace).toHaveBeenCalledWith("/login");
+    });
   });
 
   it("logs out and goes to the login page", async () => {

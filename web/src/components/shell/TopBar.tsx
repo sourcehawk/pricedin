@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { ApiError } from "@/api/client";
 import { useApi } from "@/api/queries";
 import { times, usd } from "@/components/format";
 import { Sourced } from "@/components/Sourced";
@@ -15,25 +16,38 @@ function LogoutButton() {
   const router = useRouter();
   const cache = useQueryClient();
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const done = () => {
+    cache.clear();
+    router.replace("/login");
+  };
   return (
-    <button
-      type="button"
-      disabled={busy}
-      onClick={() => {
-        setBusy(true);
-        // The login page is the end state even when the call fails: the
-        // session is then gone or unusable anyway.
-        api
-          .logout()
-          .catch(() => undefined)
-          .finally(() => {
-            cache.clear();
-            router.replace("/login");
+    <>
+      <button
+        type="button"
+        disabled={busy}
+        onClick={() => {
+          setBusy(true);
+          setError(null);
+          api.logout().then(done, (e: unknown) => {
+            // A 401 means the session is already gone: that is a logout too.
+            if (e instanceof ApiError && e.status === 401) {
+              done();
+              return;
+            }
+            setError(`Logout failed. ${e instanceof ApiError ? e.message : "Try again."}`);
+            setBusy(false);
           });
-      }}
-    >
-      Log out
-    </button>
+        }}
+      >
+        Log out
+      </button>
+      {error !== null && (
+        <span className="small down" role="alert">
+          {error}
+        </span>
+      )}
+    </>
   );
 }
 
