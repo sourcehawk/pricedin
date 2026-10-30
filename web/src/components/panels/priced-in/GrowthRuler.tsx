@@ -161,8 +161,10 @@ function placeLabels(marks: readonly Mark[], x: (v: number) => number) {
 
 function MarkDot({ cx, mark, children }: { cx: number; mark: Mark; children: ReactNode }) {
   const handlers = useTipHandlers(() => mark.tip);
+  // The handlers sit on the group, so the label opens the tooltip too: dots of
+  // equal value lie on top of each other and only the last one gets the pointer.
   return (
-    <g>
+    <g {...handlers}>
       <circle
         data-walk="ruler-marks"
         cx={cx}
@@ -173,7 +175,7 @@ function MarkDot({ cx, mark, children }: { cx: number; mark: Mark; children: Rea
         strokeWidth={2}
       />
       {children}
-      <circle cx={cx} cy={46} r={13} fill="transparent" {...handlers} />
+      <circle cx={cx} cy={46} r={13} fill="transparent" />
     </g>
   );
 }

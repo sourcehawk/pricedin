@@ -126,6 +126,15 @@ describe("the priced-in panel", () => {
     }
   });
 
+  it("opens a mark's own tooltip from its label, also where dots sit on top of each other", async () => {
+    const panel = await renderPanel();
+    const scale = within(panel).getByRole("img", { name: /^Growth scale/ });
+    await userEvent.hover(within(scale).getByText("Weighted 16.0%"));
+    expect(screen.getByRole("tooltip")).toHaveTextContent("Weighted trend: 16.0%");
+    await userEvent.hover(within(scale).getByText("Trailing 12m 16.8%"));
+    expect(screen.getByRole("tooltip")).toHaveTextContent("Trailing 12 months: 16.8%");
+  });
+
   it("leaves the custom rate off the scale for the other baselines", async () => {
     const panel = await renderPanel();
     expect(within(panel).queryByText(/^Custom /)).toBeNull();
