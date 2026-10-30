@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/sourcehawk/pricedin/server/internal/domain"
@@ -41,8 +42,8 @@ func (r *Runner) LoadCompany(ctx context.Context, symbol string) error {
 
 // LoadCompanyResult loads, in this order, the SEC submissions and facts of
 // the company that symbol maps to, the provider's splits and dividends of
-// symbol, its daily bars for the provider's history window, and the
-// derived quarters. It returns an error that wraps ErrUnknownSymbol when
+// symbol and of the company's other current share classes, their daily
+// bars for the provider's history window, and the derived quarters. It returns an error that wraps ErrUnknownSymbol when
 // the symbol is not in the ticker map, after it fetched a fresh copy of the
 // SEC map if today's was not loaded yet. A second load of the same company
 // waits for the first and then changes nothing, so calling it again is
@@ -117,14 +118,41 @@ func (r *Runner) loadCompany(ctx context.Context, t domain.Ticker) (CompanyResul
 	if res.SEC.NotFound > 0 {
 		return res, fmt.Errorf("company %s: SEC has no submissions for it", t.CIK)
 	}
-	ref, err := r.symbolReference(ctx, t.Symbol)
+	symbols, err := r.shareClasses(ctx, t)
 	if err != nil {
-		return res, fmt.Errorf("price reference of %s: %w", t.Symbol, err)
-	}
-	res.Splits, res.Dividends = ref.Splits, ref.Dividends
-	if res.Bars, err = r.symbolBars(ctx, t.Symbol); err != nil {
 		return res, err
+	}
+	// The quarters belong to the company, and their split basis is the
+	// newest bar of any class, so every class gets its bars up to date.
+	for _, symbol := range symbols {
+		ref, err := r.symbolReference(ctx, symbol)
+		if err != nil {
+			return res, fmt.Errorf("price reference of %s: %w", symbol, err)
+		}
+		res.Splits += ref.Splits
+		res.Dividends += ref.Dividends
+		bars, err := r.symbolBars(ctx, symbol)
+		if err != nil {
+			return res, err
+		}
+		res.Bars += bars
 	}
 	res.Fundamentals, err = r.rebuild(ctx, t.CIK)
 	return res, err
+}
+
+// shareClasses returns t's symbol first, then the other current SEC
+// symbols of its company, sorted.
+func (r *Runner) shareClasses(ctx context.Context, t domain.Ticker) ([]string, error) {
+	records, err := r.store.ListTickers(ctx, t.CIK)
+	if err != nil {
+		return nil, err
+	}
+	symbols := []string{t.Symbol}
+	for _, rec := range records {
+		if rec.Source == store.TickerSourceSEC && rec.ValidTo == nil && !slices.Contains(symbols, rec.Symbol) {
+			symbols = append(symbols, rec.Symbol)
+		}
+	}
+	return symbols, nil
 }

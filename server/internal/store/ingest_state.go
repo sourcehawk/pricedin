@@ -232,10 +232,11 @@ func (s *Store) LockCompanyFundamentals(ctx context.Context, cik domain.CIK) err
 }
 
 // MarkFundamentalsPendingForSplitsReached marks pending the companies of
-// the symbols whose bars, about to be stored, reach a provider split that
-// no stored bar of the symbol reached yet: the split is dated after the
-// symbol's newest stored bar and on or before the newest of bars. Call it
-// in the transaction that stores bars, before it stores them.
+// the symbols whose bars, about to be stored, reach a split that no stored
+// bar of the symbol reached yet: a provider split of the symbol, or an
+// SEC-confirmed split of its company, dated after the symbol's newest
+// stored bar and on or before the newest of bars. Call it in the
+// transaction that stores bars, before it stores them.
 func (s *Store) MarkFundamentalsPendingForSplitsReached(ctx context.Context, bars []domain.PriceBar) error {
 	newest := map[string]domain.Date{}
 	for _, b := range bars {
@@ -256,9 +257,14 @@ func (s *Store) MarkFundamentalsPendingForSplitsReached(ctx context.Context, bar
 		INSERT INTO fundamentals_pending (cik)
 		SELECT DISTINCT t.cik
 		FROM unnest($1::text[], $2::date[]) AS b(symbol, upto)
-		JOIN price_splits sp ON sp.symbol = b.symbol AND sp.execution_date <= b.upto
-		  AND sp.execution_date > coalesce((SELECT max(p.date) FROM prices_daily p WHERE p.symbol = b.symbol), '-infinity')
 		JOIN tickers t ON t.symbol = b.symbol AND t.source = '`+TickerSourceSEC+`' AND t.valid_to IS NULL
+		CROSS JOIN LATERAL (
+			SELECT coalesce(max(p.date), '-infinity'::date) AS since FROM prices_daily p WHERE p.symbol = b.symbol
+		) m
+		WHERE EXISTS (SELECT 1 FROM price_splits sp WHERE sp.symbol = b.symbol
+		                AND sp.execution_date > m.since AND sp.execution_date <= b.upto)
+		   OR EXISTS (SELECT 1 FROM stock_splits ss WHERE ss.cik = t.cik
+		                AND ss.effective_date > m.since AND ss.effective_date <= b.upto)
 		ORDER BY t.cik
 		ON CONFLICT (cik) DO UPDATE SET version = fundamentals_pending.version + 1, marked_at = now()`,
 		symbols, pgDates(dates))

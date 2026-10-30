@@ -196,3 +196,52 @@ func TestTheSECLockHandoffKeepsASecondApart(t *testing.T) {
 		t.Errorf("the other process's first request came %v after the last one, want at least a second", gap)
 	}
 }
+
+// An on-demand load brings every share class of the company up to date,
+// because the quarters' split basis is the newest bar of any class.
+func TestLoadCompanyBringsEveryShareClassUpToDate(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	e := newEnv(t, envOptions{})
+	must(e.runner.SECTickers(ctx))(t)
+	// The fixtures have no company with two priced classes, so GRMN plays
+	// a second class of NVDA.
+	if _, err := e.store.SyncTickers(ctx, "sec", domain.NewDate(2026, 10, 30), []domain.Ticker{
+		{Symbol: "NVDA", CIK: 1045810, Exchange: "Nasdaq"}, {Symbol: "GRMN", CIK: 1045810, Exchange: "NYSE"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	res := must(e.runner.LoadCompanyResult(ctx, "NVDA"))(t)
+	if res.Bars < 2*1200 {
+		t.Errorf("LoadCompanyResult() bars = %d, want five years of both classes", res.Bars)
+	}
+	if n := e.count(t, `SELECT count(*) FROM prices_daily WHERE symbol = 'GRMN'`); n < 1200 {
+		t.Errorf("GRMN has %d bars, want its five years", n)
+	}
+}
+
+// An SEC split that the provider does not list, dated after the newest
+// bar, waits for its first bar, and that bar marks the company pending.
+func TestADeferredSECOnlySplitMarksTheCompanyWhenItsFirstBarArrives(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	// The last finished session is 2024-05-28; NVDA's filings date its
+	// 10-for-1 split on 2024-05-30.
+	e := newEnv(t, envOptions{now: "2024-05-29T12:00:00Z"})
+	must(e.runner.SECTickers(ctx))(t)
+	must(e.runner.LoadCompanyResult(ctx, "NVDA"))(t)
+	// The provider lists no split: an unchanged, empty response.
+	if _, err := e.pool.Exec(ctx, `DELETE FROM price_splits WHERE symbol = 'NVDA'`); err != nil {
+		t.Fatal(err)
+	}
+	must(e.runner.FundamentalsRebuild(ctx, "NVDA"))(t)
+	if n := e.count(t, `SELECT count(*) FROM stock_splits WHERE cik = 1045810 AND source = 'sec' AND effective_date > '2024-05-28'`); n != 1 {
+		t.Fatalf("%d deferred SEC splits stored, want the 2024 split", n)
+	}
+
+	e.clock.Set("2024-06-04T12:00:00Z")
+	must(e.runner.PricesDaily(ctx))(t)
+	if diff := cmp.Diff([]domain.CIK{1045810}, must(e.store.ListPendingFundamentals(ctx))(t)); diff != "" {
+		t.Errorf("pending after the split's first bar (-want +got):\n%s", diff)
+	}
+}

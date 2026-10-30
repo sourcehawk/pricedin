@@ -315,6 +315,12 @@ func TestBarsThatReachASplitMarkTheCompanyPending(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
+	// An SEC split that the provider does not list.
+	if _, err := s.InsertStockSplits(ctx, []domain.Split{
+		{CIK: globex.CIK, Date: date(t, "2026-10-29"), From: 1, To: 3, Source: "sec", Evidence: "0001002-26-000001"},
+	}); err != nil {
+		t.Fatal(err)
+	}
 	bar := func(symbol, d string) domain.PriceBar {
 		return domain.PriceBar{Symbol: symbol, Date: date(t, d), Open: 1, High: 1, Low: 1, Close: 1, Volume: 1, Source: "massive"}
 	}
@@ -322,8 +328,9 @@ func TestBarsThatReachASplitMarkTheCompanyPending(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// The bars of 2026-10-29 reach ACME's split, which the stored bars did
-	// not; GLBX's split is older than its stored bars.
+	// The bars of 2026-10-29 reach ACME's provider split and GLBX's SEC
+	// split, which the stored bars did not; GLBX's provider split is older
+	// than its stored bars.
 	if err := s.MarkFundamentalsPendingForSplitsReached(ctx, []domain.PriceBar{bar("ACME", "2026-10-29"), bar("GLBX", "2026-10-29")}); err != nil {
 		t.Fatalf("MarkFundamentalsPendingForSplitsReached() error = %v", err)
 	}
@@ -331,14 +338,16 @@ func TestBarsThatReachASplitMarkTheCompanyPending(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if diff := cmp.Diff([]domain.CIK{acme.CIK}, pending); diff != "" {
+	if diff := cmp.Diff([]domain.CIK{min(acme.CIK, globex.CIK), max(acme.CIK, globex.CIK)}, pending); diff != "" {
 		t.Errorf("pending (-want +got):\n%s", diff)
 	}
 	// Bars that stop before a split mark nothing.
-	if err := s.ClearFundamentalsPending(ctx, acme.CIK, 1); err != nil {
-		t.Fatal(err)
+	for _, c := range []domain.CIK{acme.CIK, globex.CIK} {
+		if err := s.ClearFundamentalsPending(ctx, c, 1); err != nil {
+			t.Fatal(err)
+		}
 	}
-	if err := s.MarkFundamentalsPendingForSplitsReached(ctx, []domain.PriceBar{bar("ACME", "2026-10-27")}); err != nil {
+	if err := s.MarkFundamentalsPendingForSplitsReached(ctx, []domain.PriceBar{bar("ACME", "2026-10-27"), bar("GLBX", "2026-10-28")}); err != nil {
 		t.Fatal(err)
 	}
 	if pending, _ := s.ListPendingFundamentals(ctx); len(pending) != 0 {

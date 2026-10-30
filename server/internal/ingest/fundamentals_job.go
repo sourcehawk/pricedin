@@ -135,7 +135,9 @@ func (r *Runner) rebuild(ctx context.Context, cik domain.CIK) (FundamentalsResul
 		values := quarterlyValues(series)
 		conflicts := storeConflicts(series.Conflicts)
 		var secSplits []domain.Split
-		for _, s := range series.Splits {
+		// The deferred ones too: their first bar must mark the company
+		// pending, also when the provider does not list them.
+		for _, s := range slices.Concat(series.Splits, series.Deferred) {
 			if s.Source == store.TickerSourceSEC {
 				s.CIK = cik
 				secSplits = append(secSplits, s)
