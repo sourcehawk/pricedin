@@ -309,3 +309,20 @@ func TestDeriveMatchesSECEvidenceToTheProviderEventWithItsRatio(t *testing.T) {
 		t.Errorf("Conflicts = %+v, want none", s.Conflicts)
 	}
 }
+
+func TestDeriveIgnoresAnAnnouncedSECSplitDatedAfterAsOf(t *testing.T) {
+	// A 10-Q filed on 2025-05-20 reports a split that takes effect on
+	// 2025-06-10. As of 2025-06-01 the split has not happened yet.
+	var facts []domain.Fact
+	splitYears(t, &facts, 0)
+	newFiling(t, &facts, "q1b-2025", "10-Q", "2025-05-20", 2025, "Q1").add(sec.StockholdersEquityNoteStockSplitConversionRatio1, "", "2025-06-10", 2)
+	asOf := day(t, "2025-06-01")
+
+	s := derive(t, facts, fundamentals.Options{AsOf: &asOf})
+	if len(s.Splits) != 0 {
+		t.Errorf("Splits = %+v, want none", s.Splits)
+	}
+	if v := value(t, s, "Q1 FY24", fundamentals.EPSDiluted); v.V != 2.00 {
+		t.Errorf("Q1 FY24 EPS = %v, want 2.00 as filed", v.V)
+	}
+}

@@ -40,6 +40,9 @@ func confirmSplits(cik domain.CIK, ratios []domain.Fact, opts Options) ([]domain
 				evidence = *f
 			}
 		}
+		if opts.AsOf != nil && date.After(*opts.AsOf) {
+			continue
+		}
 		split := domain.Split{CIK: cik, Date: date, From: 1, To: r, Source: "sec", Evidence: evidence.Accession}
 		if r < 1 {
 			split.From, split.To = 1/r, 1
