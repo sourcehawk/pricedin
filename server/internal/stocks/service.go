@@ -39,6 +39,8 @@ type Store interface {
 	GetDividendsLoadedAt(ctx context.Context, symbol string) (time.Time, error)
 	GetLatestSucceededIngestRun(ctx context.Context, job string) (store.IngestRun, error)
 	GetPriceReferenceCheckedAt(ctx context.Context, symbol string) (time.Time, error)
+	CountSECRetries(ctx context.Context, maxAttempts int) (waiting, exhausted int64, err error)
+	ListTrackedTickers(ctx context.Context) ([]domain.Ticker, error)
 	SearchTickers(ctx context.Context, query string, limit int) ([]store.TickerMatch, error)
 	ListLatestIngestRuns(ctx context.Context) ([]store.IngestRun, error)
 	GetLatestPriceDateOverall(ctx context.Context) (domain.Date, error)
@@ -96,6 +98,11 @@ type Options struct {
 	// Logger receives a warning for each stored value outside the engine's
 	// bounds; nil discards them.
 	Logger *slog.Logger
+	// SECRetryAttempts is the number of failed SEC loads after which the
+	// ingestion jobs give up on a company (ingest.SECRetryAttempts). Status
+	// counts the companies below it as waiting and the others as
+	// exhausted.
+	SECRetryAttempts int
 }
 
 // Service is safe for concurrent use.
@@ -104,6 +111,7 @@ type Service struct {
 	now     func() time.Time
 	loader  CompanyLoader
 	logger  *slog.Logger
+	retries int
 	newYork *time.Location
 	// warned holds "ticker|field" for each out-of-bounds warning given,
 	// so that each is logged once per process.
@@ -119,7 +127,7 @@ func New(st Store, opts Options) *Service {
 	if s.loader == nil {
 		s.loader = UnavailableLoader{}
 	}
-	s.logger = opts.Logger
+	s.logger, s.retries = opts.Logger, opts.SECRetryAttempts
 	if s.logger == nil {
 		s.logger = slog.New(slog.DiscardHandler)
 	}

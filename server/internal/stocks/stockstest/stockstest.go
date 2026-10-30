@@ -41,6 +41,11 @@ type Store struct {
 	// first fetched.
 	DividendsLoadedAt       map[string]time.Time
 	PriceReferenceCheckedAt map[string]time.Time
+	// SECRetryAttempts holds the failed SEC loads of each CIK that waits
+	// for a retry, and Tracked the tickers of the companies loaded on
+	// demand.
+	SECRetryAttempts map[domain.CIK]int
+	Tracked          []domain.Ticker
 }
 
 // GetCurrentTicker returns the open row of symbol, or store.ErrNotFound.
@@ -215,6 +220,24 @@ func (m *Store) GetLatestSucceededIngestRun(_ context.Context, job string) (stor
 		return store.IngestRun{}, store.ErrNotFound
 	}
 	return *out, nil
+}
+
+// CountSECRetries counts SECRetryAttempts below maxAttempts as waiting and
+// the others as exhausted.
+func (m *Store) CountSECRetries(_ context.Context, maxAttempts int) (waiting, exhausted int64, err error) {
+	for _, n := range m.SECRetryAttempts {
+		if n < maxAttempts {
+			waiting++
+		} else {
+			exhausted++
+		}
+	}
+	return waiting, exhausted, nil
+}
+
+// ListTrackedTickers returns Tracked.
+func (m *Store) ListTrackedTickers(context.Context) ([]domain.Ticker, error) {
+	return m.Tracked, nil
 }
 
 // GetCoverage returns Coverage.

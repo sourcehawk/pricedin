@@ -156,9 +156,12 @@ func (s *Service) Load(ctx context.Context, ticker string) (Profile, error) {
 
 // IngestRun is the newest run of one ingestion job.
 type IngestRun struct {
-	ID         int64            `json:"id"`
-	Job        string           `json:"job"`
-	Status     string           `json:"status"` // running, succeeded or failed
+	ID     int64  `json:"id"`
+	Job    string `json:"job"`
+	Status string `json:"status"` // running, succeeded or failed
+	// Abandoned is set for a run that a process left running when it
+	// died, which a later run marked as failed.
+	Abandoned  bool             `json:"abandoned"`
 	StartedAt  time.Time        `json:"startedAt"`
 	FinishedAt *time.Time       `json:"finishedAt"`
 	Stats      map[string]int64 `json:"stats"`
@@ -172,11 +175,22 @@ type Coverage struct {
 	WithFundamentals int64 `json:"withFundamentals"`
 }
 
+// SECRetries counts the companies whose SEC load failed: Waiting will be
+// tried again, Exhausted failed too often and will not.
+type SECRetries struct {
+	Waiting   int64 `json:"waiting"`
+	Exhausted int64 `json:"exhausted"`
+}
+
 // Status is the freshness of the stored data, for the data page.
 type Status struct {
 	IngestRuns      []IngestRun  `json:"ingestRuns"`
 	LatestPriceDate *domain.Date `json:"latestPriceDate"` // nil without prices
 	Companies       Coverage     `json:"companies"`
+	SECRetries      SECRetries   `json:"secRetries"`
+	// TrackedCompanies is the number of companies loaded on demand, which
+	// the daily jobs keep current.
+	TrackedCompanies int64 `json:"trackedCompanies"`
 }
 
 // Status returns the newest run of each job, the newest price date and
@@ -192,7 +206,11 @@ func (s *Service) Status(ctx context.Context) (Status, error) {
 		if stats == nil {
 			stats = map[string]int64{}
 		}
-		out.IngestRuns[i] = IngestRun{ID: r.ID, Job: r.Job, Status: string(r.Status), StartedAt: r.StartedAt, FinishedAt: r.FinishedAt, Stats: stats, Error: r.Error}
+		out.IngestRuns[i] = IngestRun{
+			ID: r.ID, Job: r.Job, Status: string(r.Status), StartedAt: r.StartedAt, FinishedAt: r.FinishedAt, Stats: stats, Error: r.Error,
+			// The store marks such a run failed with this error text.
+			Abandoned: r.Status == store.RunFailed && r.Error == "abandoned",
+		}
 	}
 	latest, err := s.store.GetLatestPriceDateOverall(ctx)
 	switch {
@@ -206,5 +224,13 @@ func (s *Service) Status(ctx context.Context) (Status, error) {
 		return Status{}, fmt.Errorf("stocks: status: %w", err)
 	}
 	out.Companies = Coverage{Total: c.Companies, WithFacts: c.WithFacts, WithFundamentals: c.WithFundamentals}
+	if out.SECRetries.Waiting, out.SECRetries.Exhausted, err = s.store.CountSECRetries(ctx, s.retries); err != nil {
+		return Status{}, fmt.Errorf("stocks: status: %w", err)
+	}
+	tracked, err := s.store.ListTrackedTickers(ctx)
+	if err != nil {
+		return Status{}, fmt.Errorf("stocks: status: %w", err)
+	}
+	out.TrackedCompanies = int64(len(tracked))
 	return out, nil
 }

@@ -547,18 +547,29 @@ func TestLoadWithoutALoaderIsUnavailable(t *testing.T) {
 
 func TestStatusReportsRunsPricesAndCoverage(t *testing.T) {
 	m := stockstest.Fixture(t)
-	m.Runs = []store.IngestRun{{ID: 7, Job: "prices-daily", Status: store.RunSucceeded, StartedAt: stockstest.Now, Stats: map[string]int64{"bars": 3}}}
+	finished := stockstest.Now
+	m.Runs = []store.IngestRun{
+		{ID: 7, Job: "prices-daily", Status: store.RunSucceeded, StartedAt: stockstest.Now, Stats: map[string]int64{"bars": 3}},
+		{ID: 8, Job: "sec-daily", Status: store.RunFailed, StartedAt: stockstest.Now, FinishedAt: &finished, Error: "abandoned"},
+	}
 	m.Coverage = store.Coverage{Companies: 3, WithFacts: 2, WithFundamentals: 2}
-	svc := newService(t, m, nil)
+	m.SECRetryAttempts = map[domain.CIK]int{1: 2, 2: 6, 3: 7}
+	m.Tracked = []domain.Ticker{{Symbol: "KO", CIK: stockstest.CIKKO}}
+	svc := stocks.New(m, stocks.Options{Now: func() time.Time { return stockstest.Now }, SECRetryAttempts: 6})
 	got, err := svc.Status(context.Background())
 	if err != nil {
 		t.Fatalf("Status() error = %v", err)
 	}
 	latest := date(t, "2026-10-29")
 	want := stocks.Status{
-		IngestRuns:      []stocks.IngestRun{{ID: 7, Job: "prices-daily", Status: "succeeded", StartedAt: stockstest.Now, Stats: map[string]int64{"bars": 3}}},
-		LatestPriceDate: &latest,
-		Companies:       stocks.Coverage{Total: 3, WithFacts: 2, WithFundamentals: 2},
+		IngestRuns: []stocks.IngestRun{
+			{ID: 7, Job: "prices-daily", Status: "succeeded", StartedAt: stockstest.Now, Stats: map[string]int64{"bars": 3}},
+			{ID: 8, Job: "sec-daily", Status: "failed", Abandoned: true, StartedAt: stockstest.Now, FinishedAt: &finished, Stats: map[string]int64{}, Error: "abandoned"},
+		},
+		LatestPriceDate:  &latest,
+		Companies:        stocks.Coverage{Total: 3, WithFacts: 2, WithFundamentals: 2},
+		SECRetries:       stocks.SECRetries{Waiting: 1, Exhausted: 2},
+		TrackedCompanies: 1,
 	}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("Status() (-want +got):\n%s", diff)

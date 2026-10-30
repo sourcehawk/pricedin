@@ -1020,11 +1020,12 @@ components:
     IngestRun:
       type: object
       additionalProperties: false
-      required: [id, job, status, startedAt, finishedAt, stats, error]
+      required: [id, job, status, abandoned, startedAt, finishedAt, stats, error]
       properties:
         id: { type: integer }
         job: { type: string }
         status: { type: string, enum: [running, succeeded, failed] }
+        abandoned: { type: boolean, description: "A failed run that a process left running when it died." }
         startedAt: { $ref: "#/components/schemas/Timestamp" }
         finishedAt:
           oneOf: [{ $ref: "#/components/schemas/Timestamp" }, { type: "null" }]
@@ -1035,7 +1036,7 @@ components:
     DataStatus:
       type: object
       additionalProperties: false
-      required: [ingestRuns, latestPriceDate, companies]
+      required: [ingestRuns, latestPriceDate, companies, secRetries, trackedCompanies]
       properties:
         ingestRuns:
           type: array
@@ -1051,6 +1052,15 @@ components:
             total: { type: integer }
             withFacts: { type: integer }
             withFundamentals: { type: integer }
+        secRetries:
+          type: object
+          description: Companies whose SEC load failed.
+          additionalProperties: false
+          required: [waiting, exhausted]
+          properties:
+            waiting: { type: integer, description: "Will be tried again." }
+            exhausted: { type: integer, description: "Failed too often; the jobs no longer try them." }
+        trackedCompanies: { type: integer, description: "Companies loaded on demand, which the daily jobs keep current." }
 
     # --- Engine input -------------------------------------------------------
     QuarterLabel:
