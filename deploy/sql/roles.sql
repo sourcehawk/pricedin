@@ -10,15 +10,15 @@
 --   psql "$OWNER_URL" -f deploy/sql/roles.sql
 --   psql "$OWNER_URL" -f deploy/sql/app-password.sql
 --
--- The second script sets the password of the role. -v app_role=<name>
--- gives the role another name. Make the role only with this script: a role
--- from the Neon console is a member of neon_superuser, which this script
--- refuses.
+-- The second script sets the password of the role. To give the role
+-- another name, pass the same -v app_role=<name> to both scripts. Make the
+-- role only with this script: a role from the Neon console is a member of
+-- neon_superuser, which this script refuses.
 --
 -- The default privileges below make each table that a later migration
--- creates readable and writable for the app role. A migration that adds an
--- append-only table must revoke UPDATE and DELETE on it, as this script
--- does for facts.
+-- creates readable and writable for the app role. A table whose rows must
+-- never change needs triggers that reject UPDATE, DELETE and TRUNCATE, as
+-- facts has: a migration does not know the name of the app role.
 
 \set ON_ERROR_STOP on
 \if :{?app_role}
