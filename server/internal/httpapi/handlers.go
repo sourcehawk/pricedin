@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	contract "github.com/sourcehawk/pricedin/server/api"
 	"github.com/sourcehawk/pricedin/server/internal/auth"
@@ -101,12 +102,12 @@ func (a *api) openAPI(w http.ResponseWriter, _ *http.Request) {
 	_, _ = w.Write(contract.Document())
 }
 
-// maxQueryLen bounds the search text.
+// maxQueryLen bounds the search text, in characters.
 const maxQueryLen = 100
 
 func (a *api) search(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query()
-	if !query.Has("q") || len(query.Get("q")) > maxQueryLen {
+	if !query.Has("q") || utf8.RuneCountInString(query.Get("q")) > maxQueryLen {
 		writeProblem(w, r, invalidRequest, fmt.Sprintf("Send q, at most %d characters.", maxQueryLen), nil)
 		return
 	}

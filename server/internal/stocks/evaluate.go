@@ -133,6 +133,15 @@ func (s *Service) Evaluate(ctx context.Context, ticker string, in LeversInput) (
 	if err := l.Validate(); err != nil {
 		return Evaluation{}, fmt.Errorf("stocks: evaluate %s: %w", st.ticker.Symbol, err)
 	}
+	// The engine checks the custom exit P/E only in custom mode, but the
+	// levers echo it in every mode, and the contract bounds it there too.
+	if l.ExitPE.Custom != 0 && l.ExitPE.Mode != engine.ExitPECustom {
+		probe := l
+		probe.ExitPE.Mode = engine.ExitPECustom
+		if err := probe.Validate(); err != nil {
+			return Evaluation{}, fmt.Errorf("stocks: evaluate %s: %w", st.ticker.Symbol, err)
+		}
+	}
 
 	h := st.history(RangeMax)
 	ev, err := engine.Evaluate(h.History, l)

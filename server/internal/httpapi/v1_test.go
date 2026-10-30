@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"slices"
 	"strings"
 	"testing"
@@ -228,7 +229,11 @@ func TestSearch(t *testing.T) {
 	if len(got.Results) != 1 || got.Results[0].Symbol != "NVDA" || !got.Results[0].Loaded {
 		t.Errorf("results = %+v, want NVDA, loaded", got.Results)
 	}
-	for _, bad := range []string{"/api/v1/search", "/api/v1/search?q=a&limit=0", "/api/v1/search?q=a&limit=51", "/api/v1/search?q=a&limit=x", "/api/v1/search?q=" + strings.Repeat("a", 101)} {
+	// The contract counts the length of q in characters, not bytes.
+	if res := h.do(t, withBearer(request(t, http.MethodGet, "/api/v1/search?q="+url.QueryEscape(strings.Repeat("é", 100)), nil), token), true); res.StatusCode != http.StatusOK {
+		t.Errorf("q of 100 two-byte characters: status %d, want 200", res.StatusCode)
+	}
+	for _, bad := range []string{"/api/v1/search?q=" + url.QueryEscape(strings.Repeat("é", 101)), "/api/v1/search", "/api/v1/search?q=a&limit=0", "/api/v1/search?q=a&limit=51", "/api/v1/search?q=a&limit=x", "/api/v1/search?q=" + strings.Repeat("a", 101)} {
 		h.do(t, withBearer(request(t, http.MethodGet, bad, nil), token), false).problem(t, http.StatusBadRequest, "invalid-request")
 	}
 }
@@ -379,6 +384,8 @@ func TestEvaluationErrors(t *testing.T) {
 		t.Errorf("detail = %q, want the lever's bound without internals", d)
 	}
 	post("KO", `{"exitPe": {"mode": "custom"}}`).problem(t, http.StatusBadRequest, "invalid-levers")
+	// The custom exit P/E has its bounds in every mode, since the levers echo it.
+	post("KO", `{"exitPe": {"mode": "estimated", "custom": 5000}}`).problem(t, http.StatusBadRequest, "invalid-levers")
 	post("KO", `{"target": 0.1}`).problem(t, http.StatusBadRequest, "invalid-request")
 	post("KO", `{"exitPe": {"mode": "estimated", "extra": 1}}`).problem(t, http.StatusBadRequest, "invalid-request")
 	post("KO", `{"holdingYears": "3"}`).problem(t, http.StatusBadRequest, "invalid-request")
