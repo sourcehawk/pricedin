@@ -1,34 +1,39 @@
-import type { QuarterSources, Source, SourcedNumber } from "@/api/types";
+import type { PriceFeed, PriceSource, QuarterSources, Source, SourcedNumber } from "@/api/types";
 import { isEstimate, newestFiling } from "@/components/Sourced";
 import type { ChartPoint } from "@/engine";
 
-// The history sends the daily closes split-adjusted, without the provider's
-// raw close and split factor of each day, so a close has a source only on a
-// day that the profile or the quarters source: the latest close and the
-// quarter-end closes. Every other close, such as most highs and lows, shows
-// without one.
-
 /**
- * closeSourced returns the close of date with its source: the latest close
- * of the profile, or the close of a quarter that ends on that trading day.
- * It is null on any other day, and when the sourced value is not close.
+ * closeSourced returns the close of date with its source: the profile's
+ * latest close on its own day when it is close, and otherwise the feed's
+ * close of that day. It is null without a feed or the feed's provider.
  */
 export function closeSourced(
   date: string,
   close: number,
-  quarters: readonly QuarterSources[],
+  feed: PriceFeed | null,
   latest: SourcedNumber | null,
 ): SourcedNumber | null {
   if (latest !== null && latest.asOf === date && latest.value === close) {
     return latest;
   }
-  for (const q of quarters) {
-    const s = q.close;
-    if (s?.kind === "price" && s.closeDate === date) {
-      return { value: close, source: s, asOf: date, asOfLabel: "as of close" };
+  if (feed?.provider == null) {
+    return null;
+  }
+  let splitFactor = 1;
+  for (const s of feed.splits) {
+    if (date < s.date) {
+      splitFactor *= s.ratio;
     }
   }
-  return null;
+  const source: PriceSource = {
+    kind: "price",
+    provider: feed.provider,
+    symbol: feed.symbol,
+    closeDate: date,
+    rawClose: close * splitFactor,
+    splitFactor,
+  };
+  return { value: close, source, asOf: date, asOfLabel: "as of close" };
 }
 
 /**

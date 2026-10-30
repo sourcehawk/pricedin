@@ -121,7 +121,7 @@ func TestGetDividendsLoadedAt(t *testing.T) {
 		t.Errorf("GetDividendsLoadedAt() before a load error = %v, want ErrNotFound", err)
 	}
 	before := time.Now().Add(-time.Minute)
-	d := domain.Dividend{Symbol: "KO", ExDate: date(t, "2026-09-14"), CashAmount: 0.52, Currency: "USD", Type: "recurring", Source: "massive", ProviderID: "e1"}
+	d := domain.Dividend{Symbol: "KO", ExDate: date(t, "2026-09-14"), CashAmount: 0.443, Currency: "USD", Type: "recurring", Source: "massive", ProviderID: "e1"}
 	if _, err := s.UpsertDividends(ctx, []domain.Dividend{d}); err != nil {
 		t.Fatal(err)
 	}

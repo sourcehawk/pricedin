@@ -142,7 +142,7 @@ The brief chose Stooq. On 2026-10-30 the owner replaced it with Massive (formerl
 
 Facts checked against the live API on 2026-10-30:
 
-- `adjusted=false` returns raw closes. Nvidia closed at 1208.88 on 2024-06-07 and 121.79 on 2024-06-10, the day of its 10-for-1 split. `adjusted=true` divides the earlier closes by 10. Adjusted closes are not dividend-adjusted.
+- `adjusted=false` returns raw closes. Check: the Nvidia close of 2024-06-07 divided by the close of 2024-06-10, the day of its 10-for-1 split, is within 1% of 10. Result: pass. With `adjusted=true`, the same ratio is within 1% of 1, because the earlier closes are divided by 10. Result: pass. Adjusted closes are not dividend-adjusted.
 - The splits endpoint lists the Nvidia split of 2024-06-10 (`split_from` 1, `split_to` 10).
 - The grouped daily endpoint returns one bar for each of about 12,600 US tickers for one date in one request.
 - Data older than five years is refused on this plan.

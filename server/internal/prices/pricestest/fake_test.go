@@ -42,9 +42,9 @@ func newFake() *pricestest.Provider {
 			{Symbol: "AAPL", Date: date("2020-08-31"), From: 1, To: 4},
 		},
 		DividendEvents: []domain.Dividend{
-			{Symbol: "KO", ExDate: date("2024-09-13"), CashAmount: 0.485},
-			{Symbol: "KO", ExDate: date("2024-06-14"), CashAmount: 0.485},
-			{Symbol: "AAPL", ExDate: date("2024-08-12"), CashAmount: 0.25},
+			{Symbol: "KO", ExDate: date("2024-09-13"), CashAmount: 0.431},
+			{Symbol: "KO", ExDate: date("2024-06-14"), CashAmount: 0.431},
+			{Symbol: "AAPL", ExDate: date("2024-08-12"), CashAmount: 0.213},
 		},
 		TickerList: []prices.ProviderTicker{
 			{Symbol: "NVDA", CIK: 1045810},
@@ -111,8 +111,8 @@ func TestDividendsReturnsTheSymbolByExDate(t *testing.T) {
 		t.Fatalf("Dividends() error = %v", err)
 	}
 	want := []domain.Dividend{
-		{Symbol: "KO", ExDate: date("2024-06-14"), CashAmount: 0.485},
-		{Symbol: "KO", ExDate: date("2024-09-13"), CashAmount: 0.485},
+		{Symbol: "KO", ExDate: date("2024-06-14"), CashAmount: 0.431},
+		{Symbol: "KO", ExDate: date("2024-09-13"), CashAmount: 0.431},
 	}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("Dividends() mismatch (-want +got):\n%s", diff)

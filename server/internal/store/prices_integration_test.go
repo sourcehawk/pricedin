@@ -110,10 +110,10 @@ func TestListAdjustedPriceBarsDividesByEveryLaterSplit(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	s, _ := newStore(t)
-	// The NVDA closes around its 10-for-1 split, plus an earlier 4-for-1.
+	// Synthetic NVDA closes around its 10-for-1 split, plus an earlier 4-for-1.
 	beforeBoth := domain.PriceBar{Symbol: "NVDA", Date: date(t, "2021-07-19"), Open: 800, High: 820, Low: 780, Close: 800, Volume: 100, Source: "massive"}
-	beforeSplit := domain.PriceBar{Symbol: "NVDA", Date: date(t, "2024-06-07"), Open: 1200, High: 1216, Low: 1180, Close: 1208.88, Volume: 40_000_000, Source: "massive"}
-	splitDay := domain.PriceBar{Symbol: "NVDA", Date: date(t, "2024-06-10"), Open: 120, High: 123, Low: 117, Close: 121.79, Volume: 300_000_000, Source: "massive"}
+	beforeSplit := domain.PriceBar{Symbol: "NVDA", Date: date(t, "2024-06-07"), Open: 600, High: 616, Low: 590, Close: 612.5, Volume: 40_000_000, Source: "massive"}
+	splitDay := domain.PriceBar{Symbol: "NVDA", Date: date(t, "2024-06-10"), Open: 60, High: 62.5, Low: 58.5, Close: 61.75, Volume: 300_000_000, Source: "massive"}
 	mustUpsertBars(t, s, beforeBoth, beforeSplit, splitDay, bar(t, "ACME", "2024-06-07", 10))
 	if _, err := s.UpsertPriceSplits(ctx, []domain.Split{
 		{Symbol: "NVDA", Date: date(t, "2024-06-10"), From: 1, To: 10, Source: "massive", Evidence: "E1"},
@@ -133,11 +133,11 @@ func TestListAdjustedPriceBarsDividesByEveryLaterSplit(t *testing.T) {
 			SplitFactor: 40,
 		},
 		{
-			PriceBar:    domain.PriceBar{Symbol: "NVDA", Date: beforeSplit.Date, Open: 120, High: 121.6, Low: 118, Close: 120.888, Volume: 400_000_000, Source: "massive"},
-			RawClose:    1208.88,
+			PriceBar:    domain.PriceBar{Symbol: "NVDA", Date: beforeSplit.Date, Open: 60, High: 61.6, Low: 59, Close: 61.25, Volume: 400_000_000, Source: "massive"},
+			RawClose:    612.5,
 			SplitFactor: 10,
 		},
-		{PriceBar: splitDay, RawClose: 121.79, SplitFactor: 1},
+		{PriceBar: splitDay, RawClose: 61.75, SplitFactor: 1},
 	}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("ListAdjustedPriceBars() (-want +got):\n%s", diff)
@@ -257,7 +257,7 @@ func TestDividends(t *testing.T) {
 	s, _ := newStore(t)
 	regular := domain.Dividend{
 		Symbol: "KO", ExDate: date(t, "2026-03-13"), PayDate: datePtr(t, "2026-04-01"), DeclarationDate: datePtr(t, "2026-02-12"),
-		CashAmount: 0.51, Currency: "USD", Frequency: 4, Type: "CD", Source: "massive", ProviderID: "D2",
+		CashAmount: 0.437, Currency: "USD", Frequency: 4, Type: "CD", Source: "massive", ProviderID: "D2",
 	}
 	special := domain.Dividend{Symbol: "KO", ExDate: date(t, "2025-12-01"), CashAmount: 1, Currency: "USD", Type: "SC", Source: "massive", ProviderID: "D1"}
 
@@ -270,7 +270,7 @@ func TestDividends(t *testing.T) {
 		t.Fatalf("repeated UpsertDividends() = %d, %v; want 0, nil", n, err)
 	}
 	corrected := regular
-	corrected.CashAmount = 0.52
+	corrected.CashAmount = 0.443
 	n, err = s.UpsertDividends(ctx, []domain.Dividend{corrected})
 	if err != nil || n != 1 {
 		t.Fatalf("UpsertDividends() with a correction = %d, %v; want 1, nil", n, err)
@@ -289,7 +289,7 @@ func TestListAdjustedPriceBarsIgnoresASplitUntilABarOnOrAfterItExists(t *testing
 	t.Parallel()
 	ctx := context.Background()
 	s, _ := newStore(t)
-	before := domain.PriceBar{Symbol: "NVDA", Date: date(t, "2024-06-07"), Open: 1200, High: 1216, Low: 1180, Close: 1208.88, Volume: 100, Source: "massive"}
+	before := domain.PriceBar{Symbol: "NVDA", Date: date(t, "2024-06-07"), Open: 600, High: 616, Low: 590, Close: 612.5, Volume: 100, Source: "massive"}
 	mustUpsertBars(t, s, before)
 	// An announced split whose execution date is after the newest bar.
 	if _, err := s.UpsertPriceSplits(ctx, []domain.Split{{Symbol: "NVDA", Date: date(t, "2024-06-10"), From: 1, To: 10, Source: "massive"}}); err != nil {
@@ -307,7 +307,7 @@ func TestListAdjustedPriceBarsIgnoresASplitUntilABarOnOrAfterItExists(t *testing
 	if f := factor(); f != 1 {
 		t.Errorf("SplitFactor before the split day has a bar = %v, want 1", f)
 	}
-	mustUpsertBars(t, s, domain.PriceBar{Symbol: "NVDA", Date: date(t, "2024-06-10"), Open: 120, High: 123, Low: 117, Close: 121.79, Volume: 300, Source: "massive"})
+	mustUpsertBars(t, s, domain.PriceBar{Symbol: "NVDA", Date: date(t, "2024-06-10"), Open: 60, High: 62.5, Low: 58.5, Close: 61.75, Volume: 300, Source: "massive"})
 	if f := factor(); f != 10 {
 		t.Errorf("SplitFactor after the split day has a bar = %v, want 10", f)
 	}
@@ -318,7 +318,7 @@ func TestUpsertDividendsRejectsAnEmptyProviderID(t *testing.T) {
 	ctx := context.Background()
 	s, pool := newStore(t)
 	dividends := []domain.Dividend{
-		{Symbol: "KO", ExDate: date(t, "2026-03-13"), CashAmount: 0.51, Source: "massive", ProviderID: "D1"},
+		{Symbol: "KO", ExDate: date(t, "2026-03-13"), CashAmount: 0.437, Source: "massive", ProviderID: "D1"},
 		{Symbol: "PEP", ExDate: date(t, "2026-03-01"), CashAmount: 1.3, Source: "massive"},
 	}
 	if _, err := s.UpsertDividends(ctx, dividends); err == nil {

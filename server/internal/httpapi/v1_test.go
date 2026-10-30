@@ -273,6 +273,20 @@ func TestHistory(t *testing.T) {
 			t.Errorf("range %q: status %d", rng, res.StatusCode)
 		}
 	}
+	// The price feed names the provider and the splits that adjust the
+	// range's closes; the 3Y range of the fixture spans the 2024 split.
+	for rng, want := range map[string]string{
+		"3Y": `{"provider":"massive","symbol":"NVDA","splits":[{"date":"2024-06-10","ratio":10}]}`,
+		"6M": `{"provider":"massive","symbol":"NVDA","splits":[]}`,
+	} {
+		var got struct {
+			Prices json.RawMessage `json:"prices"`
+		}
+		h.do(t, withBearer(request(t, http.MethodGet, "/api/v1/stocks/NVDA/history?range="+rng, nil), token), true).json(t, &got)
+		if string(got.Prices) != want {
+			t.Errorf("range %s: prices = %s, want %s", rng, got.Prices, want)
+		}
+	}
 	h.do(t, withBearer(request(t, http.MethodGet, "/api/v1/stocks/NVDA/history?range=2Y", nil), token), false).problem(t, http.StatusBadRequest, "invalid-request")
 	p := h.do(t, withBearer(request(t, http.MethodGet, "/api/v1/stocks/MSFT/history", nil), token), true).problem(t, http.StatusConflict, "not-loaded")
 	if p["loadable"] != true {

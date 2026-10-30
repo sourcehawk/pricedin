@@ -56,7 +56,7 @@ func TestParseSplits(t *testing.T) {
 func TestParseDividends(t *testing.T) {
 	page, err := massive.ParseDividends([]byte(`{"status":"OK","request_id":"r1","results":[
 		{"id":"E1","ticker":"KO","record_date":"2024-06-14","pay_date":"2024-07-01","declaration_date":"2024-04-24","ex_dividend_date":"2024-06-14",
-		 "frequency":4,"cash_amount":0.485,"currency":"USD","distribution_type":"recurring","historical_adjustment_factor":0.99,"split_adjusted_cash_amount":0.485},
+		 "frequency":4,"cash_amount":0.431,"currency":"USD","distribution_type":"recurring","historical_adjustment_factor":0.99,"split_adjusted_cash_amount":0.431},
 		{"id":"E2","ticker":"KO","ex_dividend_date":"2027-03-12","frequency":0,"cash_amount":1.5,"currency":"USD","distribution_type":"special"}]}`))
 	if err != nil {
 		t.Fatalf("ParseDividends() error = %v", err)
@@ -64,7 +64,7 @@ func TestParseDividends(t *testing.T) {
 	want := []domain.Dividend{
 		{
 			Symbol: "KO", ExDate: date("2024-06-14"), PayDate: datePtr("2024-07-01"), DeclarationDate: datePtr("2024-04-24"),
-			CashAmount: 0.485, Currency: "USD", Frequency: 4, Type: "recurring", Source: "massive", ProviderID: "E1",
+			CashAmount: 0.431, Currency: "USD", Frequency: 4, Type: "recurring", Source: "massive", ProviderID: "E1",
 		},
 		{Symbol: "KO", ExDate: date("2027-03-12"), CashAmount: 1.5, Currency: "USD", Type: "special", Source: "massive", ProviderID: "E2"},
 	}
@@ -152,8 +152,8 @@ func TestSplitsAndDividendsComeSortedByDate(t *testing.T) {
 		{"id":"b","execution_date":"2024-06-10","split_from":1,"split_to":10,"ticker":"NVDA"},
 		{"id":"a","execution_date":"2021-07-20","split_from":1,"split_to":4,"ticker":"NVDA"}]}`))
 	mux.HandleFunc("/stocks/v1/dividends", serveJSON(`{"status":"OK","results":[
-		{"id":"b","ticker":"KO","ex_dividend_date":"2019-06-13","cash_amount":0.4},
-		{"id":"a","ticker":"KO","ex_dividend_date":"2015-03-12","cash_amount":0.33}]}`))
+		{"id":"b","ticker":"KO","ex_dividend_date":"2019-06-13","cash_amount":0.357},
+		{"id":"a","ticker":"KO","ex_dividend_date":"2015-03-12","cash_amount":0.296}]}`))
 	srv := httptest.NewServer(&mux)
 	defer srv.Close()
 	c := newClient(t, srv, nil)

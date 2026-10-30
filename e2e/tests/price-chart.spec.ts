@@ -88,6 +88,34 @@ test("each chart range shows the span and the price change that the API computes
   expect(starts.size).toBe(3);
 });
 
+test("the high under the title shows the provider and the day of its close from the API", async ({
+  page,
+  api,
+}) => {
+  await page.goto("/");
+  await pickStock(page, "NV", "NVDA");
+  await pickRange(page, "3Y");
+  const chart = await chartAsPage(page, api);
+  const history = await api.history("NVDA", "3Y");
+  expect(history.prices?.provider).toBe("massive");
+  const date = chart.points.find((p) => p.close === chart.high)?.date;
+  expect(date, "the API's high is the close of a chart day").toBeDefined();
+
+  const high = chartPanel(page)
+    .getByTestId("price-sub")
+    .locator(".sourced", { hasText: usd(chart.high) })
+    .first();
+  // A phone has no hover; focus shows the same tooltip.
+  if (isPhone(page)) {
+    await high.focus();
+  } else {
+    await high.hover();
+  }
+  const tip = page.getByRole("tooltip");
+  await expect(tip).toContainText(`Close on ${date ?? "?"} from Massive`);
+  await expect(tip).toContainText(`As of close ${date ?? "?"}`);
+});
+
 test("each overlay chip switches its line on and off", async ({ page }) => {
   await page.goto("/");
   await pickStock(page, "NV", "NVDA");
