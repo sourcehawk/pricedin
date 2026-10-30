@@ -694,3 +694,93 @@ func TestBarDatesAreNewYorkSessionDates(t *testing.T) {
 		}
 	}
 }
+
+// recordWaits makes c record each retry wait in place of waiting it.
+func recordWaits(c *massive.Client) *[]time.Duration {
+	var waits []time.Duration
+	massive.SetSleep(c, func(_ context.Context, d time.Duration) error {
+		waits = append(waits, d)
+		return nil
+	})
+	return &waits
+}
+
+// serveRetryAfter answers every request with HTTP 429 and the given
+// Retry-After header, or none when it is empty.
+func serveRetryAfter(header string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if header != "" {
+			w.Header().Set("Retry-After", header)
+		}
+		serveStatus(http.StatusTooManyRequests, `{"status":"ERROR"}`)(w, r)
+	}
+}
+
+func TestRetryWaitsDoubleWithJitter(t *testing.T) {
+	srv := httptest.NewServer(serveRetryAfter(""))
+	defer srv.Close()
+	c := newClient(t, srv, func(o *massive.Options) { o.RetryDelay = time.Second; o.MaxRetries = 4 })
+	waits := recordWaits(c)
+
+	if _, err := c.Splits(t.Context(), "NVDA"); err == nil {
+		t.Fatal("Splits() error = nil, want the HTTP 429 error")
+	}
+	if len(*waits) != 4 {
+		t.Fatalf("waits = %v, want 4", *waits)
+	}
+	for k, w := range *waits {
+		full := time.Second << k
+		if w < full/2 || w > full {
+			t.Errorf("wait %d = %v, want from %v to %v", k+1, w, full/2, full)
+		}
+	}
+}
+
+func TestRetryWaitsStopGrowingAtOneMinute(t *testing.T) {
+	srv := httptest.NewServer(serveRetryAfter(""))
+	defer srv.Close()
+	c := newClient(t, srv, func(o *massive.Options) { o.RetryDelay = 40 * time.Second; o.MaxRetries = 3 })
+	waits := recordWaits(c)
+
+	if _, err := c.Splits(t.Context(), "NVDA"); err == nil {
+		t.Fatal("Splits() error = nil, want the HTTP 429 error")
+	}
+	for k, w := range *waits {
+		if w > time.Minute {
+			t.Errorf("wait %d = %v, want at most 1m", k+1, w)
+		}
+	}
+	if last := (*waits)[len(*waits)-1]; last < 30*time.Second {
+		t.Errorf("last wait = %v, want at least 30s", last)
+	}
+}
+
+func TestRetryAfterIsHonoredUpToTenMinutes(t *testing.T) {
+	now := time.Date(2026, time.October, 30, 12, 0, 0, 0, time.UTC)
+	tests := []struct {
+		header string
+		want   time.Duration
+	}{
+		{"5", 5 * time.Second},
+		{"3600", 10 * time.Minute},
+		{now.Add(30 * time.Second).Format(http.TimeFormat), 30 * time.Second},
+	}
+	for _, tt := range tests {
+		t.Run(tt.header, func(t *testing.T) {
+			srv := httptest.NewServer(serveRetryAfter(tt.header))
+			defer srv.Close()
+			c := newClient(t, srv, func(o *massive.Options) {
+				o.MaxRetries = 1
+				o.Now = func() time.Time { return now }
+			})
+			waits := recordWaits(c)
+
+			if _, err := c.Splits(t.Context(), "NVDA"); err == nil {
+				t.Fatal("Splits() error = nil, want the HTTP 429 error")
+			}
+			if len(*waits) != 1 || (*waits)[0] != tt.want {
+				t.Errorf("waits = %v, want [%v]", *waits, tt.want)
+			}
+		})
+	}
+}

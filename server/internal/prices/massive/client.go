@@ -84,6 +84,7 @@ type Client struct {
 	maxRetries int
 	retryDelay time.Duration
 	now        func() time.Time
+	sleep      func(context.Context, time.Duration) error
 	newYork    *time.Location
 }
 
@@ -115,6 +116,7 @@ func New(opts Options) (*Client, error) {
 		maxRetries: opts.MaxRetries,
 		retryDelay: withDefault(opts.RetryDelay, defaultRetryDelay),
 		now:        opts.Now,
+		sleep:      sleep,
 		newYork:    newYork,
 	}
 	if c.http == nil {
@@ -133,6 +135,18 @@ func New(opts Options) (*Client, error) {
 		c.now = time.Now
 	}
 	return c, nil
+}
+
+// sleep waits for d, or returns the error of ctx when ctx ends first.
+func sleep(ctx context.Context, d time.Duration) error {
+	timer := time.NewTimer(d)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
 }
 
 func withDefault[T time.Duration | float64](v, fallback T) T {
@@ -385,12 +399,8 @@ func (c *Client) get(ctx context.Context, rel, key string) ([]byte, error) {
 		}
 		wait := c.backoff(attempt, retryAfter)
 		c.logger.WarnContext(ctx, "massive: retrying request", "path", rel, "attempt", attempt+1, "wait", wait, "error", err.Error())
-		timer := time.NewTimer(wait)
-		select {
-		case <-ctx.Done():
-			timer.Stop()
-			return nil, fmt.Errorf("massive: GET %s: %w", rel, ctx.Err())
-		case <-timer.C:
+		if err := c.sleep(ctx, wait); err != nil {
+			return nil, fmt.Errorf("massive: GET %s: %w", rel, err)
 		}
 	}
 }
