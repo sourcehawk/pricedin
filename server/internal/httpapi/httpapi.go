@@ -14,6 +14,7 @@ import (
 	"log/slog"
 	"mime"
 	"net/http"
+	"reflect"
 	"runtime/debug"
 	"slices"
 	"strings"
@@ -358,5 +359,49 @@ func badBody(w http.ResponseWriter, r *http.Request, err error) {
 		writeProblem(w, r, bodyTooLarge, fmt.Sprintf("The body may hold at most %d bytes.", maxBodyBytes), nil)
 		return
 	}
-	writeProblem(w, r, invalidRequest, strings.TrimPrefix(err.Error(), "json: "), nil)
+	writeProblem(w, r, invalidRequest, bodyErrorDetail(err), nil)
+}
+
+// bodyErrorDetail describes a decoding error by the JSON field path and
+// JSON types, never by the Go types of the server.
+func bodyErrorDetail(err error) string {
+	var typeErr *json.UnmarshalTypeError
+	var syntaxErr *json.SyntaxError
+	switch {
+	case errors.As(err, &typeErr) && typeErr.Field == "":
+		return "the body must be a JSON object"
+	case errors.As(err, &typeErr):
+		return typeErr.Field + " must be " + jsonKind(typeErr.Type)
+	case errors.As(err, &syntaxErr) || errors.Is(err, io.ErrUnexpectedEOF):
+		return "the body is not valid JSON"
+	case strings.HasPrefix(err.Error(), "json: unknown field "):
+		return "unknown field " + strings.TrimPrefix(err.Error(), "json: unknown field ")
+	case strings.HasPrefix(err.Error(), "json: "):
+		return "the body does not match the request schema"
+	default:
+		return err.Error() // the decoder's own messages
+	}
+}
+
+// jsonKind names the JSON type that the Go type t decodes from.
+func jsonKind(t reflect.Type) string {
+	for t.Kind() == reflect.Pointer {
+		t = t.Elem()
+	}
+	switch t.Kind() { //nolint:exhaustive // the other kinds are not in a request
+	case reflect.String:
+		return "a string"
+	case reflect.Bool:
+		return "a boolean"
+	case reflect.Slice, reflect.Array:
+		return "an array"
+	case reflect.Struct, reflect.Map:
+		return "an object"
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
+		reflect.Float32, reflect.Float64:
+		return "a number"
+	default:
+		return "another JSON type"
+	}
 }

@@ -389,7 +389,18 @@ func TestEvaluationErrors(t *testing.T) {
 	post("KO", `{"exitPe": {"mode": "estimated", "custom": 5000}}`).problem(t, http.StatusBadRequest, "invalid-levers")
 	post("KO", `{"target": 0.1}`).problem(t, http.StatusBadRequest, "invalid-request")
 	post("KO", `{"exitPe": {"mode": "estimated", "extra": 1}}`).problem(t, http.StatusBadRequest, "invalid-request")
-	post("KO", `{"holdingYears": "3"}`).problem(t, http.StatusBadRequest, "invalid-request")
+	for body, want := range map[string]string{
+		`{"holdingYears": "3"}`:                         "holdingYears must be a number",
+		`{"exitPe": {"mode": "custom", "custom": "x"}}`: "exitPe.custom must be a number",
+		`{"scenarios": {}}`:                             "scenarios must be an array",
+		`[1]`:                                           "the body must be a JSON object",
+		`{"price": 1`:                                   "the body is not valid JSON",
+	} {
+		p := post("KO", body).problem(t, http.StatusBadRequest, "invalid-request")
+		if d, _ := p["detail"].(string); d != want {
+			t.Errorf("detail for %s = %q, want %q", body, d, want)
+		}
+	}
 	post("KO", `{} {}`).problem(t, http.StatusBadRequest, "invalid-request")
 	// No field of a request body is nullable, so null is never a value.
 	post("KO", `{"baseline": {"mode": "custom", "custom": {"yearly": true, "rates": [0.3, null, 0.1]}}}`).problem(t, http.StatusBadRequest, "invalid-request")

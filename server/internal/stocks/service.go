@@ -14,6 +14,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 	_ "time/tzdata" // the New York zone must load on any host
 
@@ -101,6 +102,9 @@ type Service struct {
 	loader  CompanyLoader
 	logger  *slog.Logger
 	newYork *time.Location
+	// warned holds "ticker|field" for each out-of-bounds warning given,
+	// so that each is logged once per process.
+	warned sync.Map
 }
 
 // New returns a Service over st.
@@ -137,7 +141,7 @@ const maxCloseLag = 7
 type stock struct {
 	ticker  domain.Ticker
 	company domain.Company
-	log     *slog.Logger // with the ticker
+	svc     *Service
 	loaded  bool
 	today   domain.Date
 	// rawBars and dividends are the provider's, from the day the ticker
@@ -173,7 +177,7 @@ func (s *Service) open(ctx context.Context, ticker string) (*stock, error) {
 	}
 	st := &stock{
 		ticker: t, today: domain.DateOf(s.now().In(s.newYork)),
-		log: s.logger.With(slog.String("ticker", t.Symbol)),
+		svc: s,
 	}
 	if st.company, err = s.store.GetCompany(ctx, t.CIK); err != nil {
 		return nil, fmt.Errorf("stocks: %s: %w", ticker, err)
@@ -314,7 +318,7 @@ func (st *stock) applySplits(splits []domain.Split) error {
 		if closeOK(b.Close) {
 			return false
 		}
-		st.log.Warn("close outside the engine's bounds left out", slog.String("date", b.Bar.Date.String()), slog.Float64("close", b.Close))
+		st.warnOutOfBounds("close", slog.String("date", b.Bar.Date.String()), slog.Float64("value", b.Close))
 		return true
 	})
 	return nil
@@ -354,6 +358,16 @@ func (st *stock) latestClose() *SourcedNumber {
 		return nil
 	}
 	return &SourcedNumber{Value: b.Close, Source: priceSource(b), AsOf: b.Bar.Date, AsOfLabel: "as of close"}
+}
+
+// warnOutOfBounds logs that a stored value of field is outside the
+// engine's bounds and left out, once per ticker and field per process.
+func (st *stock) warnOutOfBounds(field string, attrs ...any) {
+	if _, seen := st.svc.warned.LoadOrStore(st.ticker.Symbol+"|"+field, true); seen {
+		return
+	}
+	st.svc.logger.Warn("stored value outside the engine's bounds left out",
+		append([]any{slog.String("ticker", st.ticker.Symbol), slog.String("field", field)}, attrs...)...)
 }
 
 // ttmEPS is the newest TTM diluted EPS known today, or nil. The value is

@@ -3,6 +3,7 @@ package stocks_test
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"math"
 	"slices"
 	"strings"
@@ -859,5 +860,33 @@ func TestDividendFetchedWithoutRowsIsZeroAsOfTheFetch(t *testing.T) {
 	}
 	if d := p.TTMDividend.Number; d == nil || d.Value != 0 || d.AsOf != date(t, "2026-10-29") {
 		t.Errorf("TTMDividend = %+v, want 0 as of the run's day 2026-10-29", p.TTMDividend)
+	}
+}
+
+// countingHandler counts the warnings logged.
+type countingHandler struct{ warnings *int }
+
+func (h countingHandler) Enabled(context.Context, slog.Level) bool { return true }
+func (h countingHandler) Handle(_ context.Context, r slog.Record) error {
+	if r.Level == slog.LevelWarn {
+		*h.warnings++
+	}
+	return nil
+}
+func (h countingHandler) WithAttrs([]slog.Attr) slog.Handler { return h }
+func (h countingHandler) WithGroup(string) slog.Handler      { return h }
+
+func TestAValueOutsideTheBoundsIsLoggedOnce(t *testing.T) {
+	m := stockstest.Fixture(t)
+	m.SetQuarterValue(t, stockstest.CIKKO, "EarningsPerShareDiluted", date(t, "2026-07-03"), 1e-7)
+	n := 0
+	svc := stocks.New(m, stocks.Options{Now: func() time.Time { return stockstest.Now }, Logger: slog.New(countingHandler{&n})})
+	for range 3 {
+		if _, err := svc.History(context.Background(), "KO", stocks.RangeMax); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if n != 1 {
+		t.Errorf("warnings = %d, want 1 for one ticker and field", n)
 	}
 }

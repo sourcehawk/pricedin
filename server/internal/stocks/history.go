@@ -140,8 +140,7 @@ func (st *stock) history(rng HistoryRange) History {
 				valid = perShareOK(x)
 			}
 			if !valid {
-				st.log.Warn("value outside the engine's bounds left out",
-					slog.String("quarter", q.Label), slog.String("metric", string(f.metric)), slog.Float64("value", x))
+				st.warnOutOfBounds(string(f.metric), slog.String("quarter", q.Label), slog.Float64("value", x))
 				continue
 			}
 			*f.value, *f.source = &x, valueSource(cik, v, st.filings)
