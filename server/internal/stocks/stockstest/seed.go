@@ -4,18 +4,22 @@ import (
 	"context"
 	"testing"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"github.com/sourcehawk/pricedin/server/internal/domain"
 	"github.com/sourcehawk/pricedin/server/internal/fundamentals"
 	"github.com/sourcehawk/pricedin/server/internal/store"
 )
 
-// Seed writes the data of Fixture to st as the ingestion jobs would: the
-// companies, the SEC tickers, the filings and facts, the quarters that
-// fundamentals.Derive gives with the provider's splits, and the
-// provider's bars, splits and dividends.
-func Seed(tb testing.TB, st *store.Store) {
+// Seed writes the data of Fixture to the database of pool as the ingestion
+// jobs would: the companies, the SEC tickers, the filings and facts, the
+// quarters that fundamentals.Derive gives with the provider's splits, and
+// the provider's bars, splits and dividends. The dividends have the load
+// time Now. It returns the store over pool.
+func Seed(tb testing.TB, pool *pgxpool.Pool) *store.Store {
 	tb.Helper()
 	ctx := context.Background()
+	st := store.New(pool)
 	m := Fixture(tb)
 	must := func(_ int64, err error) {
 		tb.Helper()
@@ -37,6 +41,13 @@ func Seed(tb testing.TB, st *store.Store) {
 	must(st.UpsertPriceBars(ctx, m.Bars))
 	must(st.UpsertPriceSplits(ctx, m.Splits))
 	must(st.UpsertDividends(ctx, m.Dividends))
+	var symbols []string
+	for sym := range m.DividendsLoadedAt {
+		symbols = append(symbols, sym)
+	}
+	if _, err := pool.Exec(ctx, `UPDATE dividends SET loaded_at = $1 WHERE symbol = ANY($2)`, Now, symbols); err != nil {
+		tb.Fatalf("seed: %v", err)
+	}
 
 	for _, t := range m.Tickers {
 		if !m.Loaded[t.CIK] {
@@ -62,6 +73,7 @@ func Seed(tb testing.TB, st *store.Store) {
 			tb.Fatalf("seed: %v", err)
 		}
 	}
+	return st
 }
 
 // quarterlyValues converts a derived series to the rows of the store.

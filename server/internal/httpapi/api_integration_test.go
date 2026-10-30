@@ -17,8 +17,7 @@ func TestMain(m *testing.M) {
 // TestTheOwnersFlowOverPostgres runs the API on a seeded database: log in,
 // read NVIDIA across its split and Coca-Cola's dividend, evaluate, log out.
 func TestTheOwnersFlowOverPostgres(t *testing.T) {
-	st := pgtest.NewStore(t)
-	stockstest.Seed(t, st)
+	st := stockstest.Seed(t, pgtest.NewPool(t))
 	h := newHarnessOn(t, st, st)
 	c := h.login(t)
 
@@ -75,8 +74,7 @@ func TestTheOwnersFlowOverPostgres(t *testing.T) {
 }
 
 func TestAPITokenOverPostgres(t *testing.T) {
-	st := pgtest.NewStore(t)
-	stockstest.Seed(t, st)
+	st := stockstest.Seed(t, pgtest.NewPool(t))
 	h := newHarnessOn(t, st, st)
 	token := h.token(t)
 	if res := h.do(t, withBearer(request(t, http.MethodGet, "/api/v1/stocks/NVDA", nil), token), true); res.StatusCode != http.StatusOK {

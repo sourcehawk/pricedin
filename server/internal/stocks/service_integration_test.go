@@ -22,8 +22,7 @@ func TestMain(m *testing.M) {
 // in-memory store, whose semantics the unit tests rely on.
 func TestTheServiceOverPostgresMatchesTheFixtures(t *testing.T) {
 	ctx := context.Background()
-	st := pgtest.NewStore(t)
-	stockstest.Seed(t, st)
+	st := stockstest.Seed(t, pgtest.NewPool(t))
 	clock := func() time.Time { return stockstest.Now }
 	pg := stocks.New(st, stocks.Options{Now: clock})
 	fake := stocks.New(stockstest.Fixture(t), stocks.Options{Now: clock})
@@ -60,8 +59,7 @@ func compare(t *testing.T, what string, call func(*stocks.Service) (any, error),
 
 func TestNVIDIAAcrossItsSplitOverPostgres(t *testing.T) {
 	ctx := context.Background()
-	st := pgtest.NewStore(t)
-	stockstest.Seed(t, st)
+	st := stockstest.Seed(t, pgtest.NewPool(t))
 	svc := stocks.New(st, stocks.Options{Now: func() time.Time { return stockstest.Now }})
 	h, err := svc.History(ctx, "NVDA", stocks.RangeMax)
 	if err != nil {
@@ -81,8 +79,7 @@ func TestNVIDIAAcrossItsSplitOverPostgres(t *testing.T) {
 
 func TestCocaColaDividendOverPostgres(t *testing.T) {
 	ctx := context.Background()
-	st := pgtest.NewStore(t)
-	stockstest.Seed(t, st)
+	st := stockstest.Seed(t, pgtest.NewPool(t))
 	svc := stocks.New(st, stocks.Options{Now: func() time.Time { return stockstest.Now }})
 	p, err := svc.Profile(ctx, "KO")
 	if err != nil {
