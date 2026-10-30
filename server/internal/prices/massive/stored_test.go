@@ -104,6 +104,7 @@ func TestStoredRequestRejectsAKeyThatTheClientNeverMakes(t *testing.T) {
 		"prices/massive/splits/NVDA/page-x.json",
 		"prices/massive/splits/NVDA/first.json",
 		"prices/massive/splits/page-1.json",
+		"prices/massive/page-1.json",
 		"prices/massive/grouped/2026-13-01/page-1.json",
 		"prices/massive/aggs/NVDA/2024-06-05/page-1.json",
 		"prices/massive/aggs/NVDA/2024-06-12_2024-06-05/page-1.json",

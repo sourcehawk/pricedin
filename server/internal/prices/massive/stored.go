@@ -28,7 +28,7 @@ func (Stored) StoredRequest(base string) (prices.StoredRequest, bool, error) {
 	}
 	segs := strings.Split(rest, "/")
 	page, ok := pageNumber(segs[len(segs)-1])
-	if !ok {
+	if !ok || len(segs) < 2 {
 		return fail()
 	}
 	params := segs[1 : len(segs)-1]
