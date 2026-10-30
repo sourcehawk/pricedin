@@ -4,8 +4,11 @@ package ingest_test
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -311,6 +314,179 @@ func TestReprocessLoadsTheVersionsOfASourceOldestFirst(t *testing.T) {
 	}
 	if amount != 0.6 {
 		t.Errorf("cash amount = %v, want 0.6 of the newest version", amount)
+	}
+
+	// The older version is not written again before the newer one.
+	before := tableRows(t, pool, map[string][]string{"dividends": {}, "price_splits": {}})
+	res, err = r.Reprocess(context.Background(), ingest.ReprocessOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Dividends != 0 || res.Fundamentals.Companies != 0 {
+		t.Errorf("second Reprocess() = %+v, want no dividend written and no rebuild", res)
+	}
+	if diff := cmp.Diff(before, tableRows(t, pool, map[string][]string{"dividends": {}, "price_splits": {}})); diff != "" {
+		t.Errorf("second reprocess wrote the dividends again (-before +after):\n%s", diff)
+	}
+}
+
+// A ticker map that repeats the one of the day before opens no row, but
+// it moves the day of the last sync, as the job did.
+func TestReprocessKeepsTheDaysOfARepeatedTickerMap(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, envOptions{})
+	bs := newBlob(t)
+	tickers := `{"fields":["cik","name","ticker","exchange"],"data":[[21344,"Coca-Cola Co","KO","NYSE"]]}`
+	for _, at := range []string{"2026-10-27T12:00:00Z", "2026-10-28T12:00:00Z", "2026-10-29T12:00:00Z"} {
+		record(t, bs, at, "sec/tickers/company_tickers_exchange.json", tickers)
+	}
+	r, pool := offlineRunner(t, e, bs)
+	res, err := r.Reprocess(context.Background(), ingest.ReprocessOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Files != 2 || res.Unchanged != 1 {
+		t.Errorf("Reprocess() = %+v, want the first and the last map loaded, and the one between them unchanged", res)
+	}
+	ticker := must(store.New(pool).GetCurrentTicker(context.Background(), "KO"))(t)
+	if ticker.ValidFrom != mustDate("2026-10-27") {
+		t.Errorf("KO valid from %s, want 2026-10-27, the first map", ticker.ValidFrom)
+	}
+	synced := must(store.New(pool).GetTickerSyncDate(context.Background(), "sec"))(t)
+	if synced != mustDate("2026-10-29") {
+		t.Errorf("SEC tickers synced on %s, want 2026-10-29, the last map", synced)
+	}
+}
+
+// The pages of two versions of a ticker list from one day cannot be
+// paired, and a union of them would keep a symbol that the newer list
+// dropped.
+func TestReprocessSkipsATickerListWithTwoVersionsOfAPage(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, envOptions{})
+	bs := newBlob(t)
+	at := "2026-10-30T12:00:00Z"
+	next := `,"next_url":"https://api.massive.com/v3/reference/tickers?cursor=p2"`
+	record(t, bs, at, "prices/massive/tickers/stocks-active/page-1.json", `{"status":"OK","results":[{"ticker":"KO","cik":"0000021344"}]`+next+`}`)
+	record(t, bs, at, "prices/massive/tickers/stocks-active/page-1.json", `{"status":"OK","results":[{"ticker":"KOF","cik":"0000021344"}]`+next+`}`)
+	record(t, bs, at, "prices/massive/tickers/stocks-active/page-2.json", `{"status":"OK","results":[]}`)
+	r, _ := offlineRunner(t, e, bs)
+	res, err := r.Reprocess(context.Background(), ingest.ReprocessOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Incomplete != 3 || res.TickersOpened != 0 {
+		t.Errorf("Reprocess() = %+v, want the 3 pages skipped as incomplete", res)
+	}
+}
+
+// A submissions file that did not change still loads the newer version of
+// an extra file that it lists.
+func TestReprocessLoadsTheNewerVersionOfAnExtraSubmissionsFile(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, envOptions{})
+	bs := newBlob(t)
+	main := `{"cik":"21344","name":"KO","filings":{"recent":{},"files":[{"name":"CIK0000021344-submissions-001.json"}]}}`
+	extra := func(accessions ...string) string {
+		n := len(accessions)
+		acc, form, filed, report, doc := make([]string, 0, n), make([]string, 0, n), make([]string, 0, n), make([]string, 0, n), make([]string, 0, n)
+		for _, a := range accessions {
+			acc, form, filed, report, doc = append(acc, `"`+a+`"`), append(form, `"10-K"`), append(filed, `"2020-02-20"`),
+				append(report, `"2019-12-31"`), append(doc, `"a.htm"`)
+		}
+		join := func(v []string) string { return "[" + strings.Join(v, ",") + "]" }
+		return `{"accessionNumber":` + join(acc) + `,"form":` + join(form) + `,"filingDate":` + join(filed) +
+			`,"reportDate":` + join(report) + `,"primaryDocument":` + join(doc) + `}`
+	}
+	record(t, bs, "2026-10-28T12:00:00Z", "sec/submissions/CIK0000021344.json", main)
+	record(t, bs, "2026-10-28T12:00:00Z", "sec/submissions/CIK0000021344-submissions-001.json", extra("0000021344-20-000001"))
+	record(t, bs, "2026-10-29T12:00:00Z", "sec/submissions/CIK0000021344.json", main)
+	record(t, bs, "2026-10-29T12:00:00Z", "sec/submissions/CIK0000021344-submissions-001.json",
+		extra("0000021344-20-000001", "0000021344-20-000002"))
+	r, pool := offlineRunner(t, e, bs)
+	must(r.Reprocess(context.Background(), ingest.ReprocessOptions{}))(t)
+	db := &env{pool: pool}
+	if n := db.count(t, `SELECT count(*) FROM filings WHERE cik = 21344`); n != 2 {
+		t.Errorf("filings of KO = %d, want 2, with the filing of the newer extra file", n)
+	}
+}
+
+// hookBlob runs hook once, before the first Get.
+type hookBlob struct {
+	blob.Store
+	once sync.Once
+	hook func()
+}
+
+func (h *hookBlob) Get(ctx context.Context, key string) (io.ReadCloser, error) {
+	h.once.Do(h.hook)
+	return h.Store.Get(ctx, key)
+}
+
+// A job that stores a newer response while a reprocess runs keeps its
+// value: the reprocess loads that response again after the older ones.
+func TestReprocessDoesNotLeaveAnOlderValueOverTheValueOfAJobThatRanMeanwhile(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, envOptions{})
+	bs := newBlob(t)
+	dividend := func(amount string) string {
+		return `{"status":"OK","results":[{"id":"d1","ticker":"KO","ex_dividend_date":"2026-09-15","cash_amount":` + amount + `}]}`
+	}
+	recordReference := func(at, amount string) {
+		record(t, bs, at, "prices/massive/splits/KO/page-1.json", `{"status":"OK","results":[]}`)
+		record(t, bs, at, "prices/massive/dividends/KO/page-1.json", dividend(amount))
+	}
+	recordReference("2026-10-28T12:00:00Z", "0.5")
+	recordReference("2026-10-29T12:00:00Z", "0.6")
+	hb := &hookBlob{Store: bs}
+	r, pool := offlineRunner(t, e, hb)
+	// The job records the corrected response first, then stores its value.
+	hb.hook = func() {
+		recordReference("2026-10-30T12:00:00Z", "0.7")
+		if _, err := pool.Exec(context.Background(), `
+			INSERT INTO dividends (provider_id, symbol, ex_dividend_date, cash_amount, source)
+			VALUES ('d1', 'KO', '2026-09-15', 0.7, 'massive')
+			ON CONFLICT (provider_id) DO UPDATE SET cash_amount = 0.7`); err != nil {
+			t.Error(err)
+		}
+	}
+	must(r.Reprocess(context.Background(), ingest.ReprocessOptions{}))(t)
+	var amount float64
+	if err := pool.QueryRow(context.Background(), `SELECT cash_amount FROM dividends WHERE provider_id = 'd1'`).Scan(&amount); err != nil {
+		t.Fatal(err)
+	}
+	if amount != 0.7 {
+		t.Errorf("cash amount = %v, want 0.7, the value of the job that ran meanwhile", amount)
+	}
+}
+
+// sec-bulk stores the archive facts of a covered company before it asks
+// for its submissions, so the company keeps its facts when that request
+// fails.
+func TestReprocessLoadsTheArchiveFactsOfACoveredCompanyWithoutSubmissions(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t, envOptions{wrap: func(h http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if strings.HasSuffix(r.URL.Path, "/submissions/CIK0000021344.json") {
+				http.NotFound(w, r)
+				return
+			}
+			h.ServeHTTP(w, r)
+		})
+	}})
+	ctx := context.Background()
+	jobs := e.newRunner(t, e.pool, 30, reprocessUniverse())
+	must(jobs.SECTickers(ctx))(t)
+	must(jobs.SECBulk(ctx, ingest.BulkArchive))(t)
+	const facts = `SELECT count(*) FROM facts WHERE cik = 21344`
+	if e.count(t, facts) == 0 {
+		t.Fatal("the jobs stored no archive facts of KO; the test needs them")
+	}
+	r, pool := offlineRunner(t, e, e.blob)
+	must(r.Reprocess(ctx, ingest.ReprocessOptions{Prefix: ingest.ReprocessSEC}))(t)
+	db := &env{pool: pool}
+	if got, want := db.count(t, facts), e.count(t, facts); got != want {
+		t.Errorf("facts of KO after reprocess = %d, want the %d of the jobs", got, want)
 	}
 }
 

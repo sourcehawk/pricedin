@@ -333,14 +333,15 @@ func (r *Runner) loadGroupedDay(ctx context.Context, d domain.Date, keep map[str
 	if err != nil {
 		return 0, 0, fmt.Errorf("grouped daily %s: %w", d, err)
 	}
-	stored, err := r.storeGroupedDay(ctx, d, all, keep, true)
+	stored, err := r.storeGroupedDay(ctx, d, all, len(all), keep, true)
 	return len(all), stored, err
 }
 
 // storeGroupedDay stores the bars of all, the grouped bars of day d, whose
-// symbols are in keep. With mark, it also marks the day loaded when all
-// holds any bar. It returns the number of bars stored.
-func (r *Runner) storeGroupedDay(ctx context.Context, d domain.Date, all []domain.PriceBar, keep map[string]bool, mark bool) (int64, error) {
+// symbols are in keep. returned is the number of bars that the provider
+// returned for the day; when it is 0, nothing is stored. With mark, it
+// also marks the day loaded. It returns the number of bars stored.
+func (r *Runner) storeGroupedDay(ctx context.Context, d domain.Date, all []domain.PriceBar, returned int, keep map[string]bool, mark bool) (int64, error) {
 	bars := make([]domain.PriceBar, 0, len(keep))
 	for _, b := range all {
 		b.Symbol = SECSymbol(b.Symbol)
@@ -348,7 +349,7 @@ func (r *Runner) storeGroupedDay(ctx context.Context, d domain.Date, all []domai
 			bars = append(bars, b)
 		}
 	}
-	if len(all) == 0 {
+	if returned == 0 {
 		return 0, nil
 	}
 	var stored int64
@@ -357,7 +358,7 @@ func (r *Runner) storeGroupedDay(ctx context.Context, d domain.Date, all []domai
 		if stored, err = storeBars(ctx, tx, bars); err != nil || !mark {
 			return err
 		}
-		return tx.MarkGroupedPricesLoaded(ctx, d, len(all))
+		return tx.MarkGroupedPricesLoaded(ctx, d, returned)
 	})
 	return stored, err
 }

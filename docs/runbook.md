@@ -327,11 +327,12 @@ Put the options of the job after `reprocess`:
 How the job loads the files:
 
 - It reads every version of each file, oldest retrieval day first. On each day, it loads the files in the order of the jobs: the SEC ticker map, submissions, company facts, the archives, then the Massive ticker list, splits and dividends, grouped daily bars and the bars of one symbol.
-- Facts and filings are never changed or removed, so each version can add rows. For the other data, such as company details, splits, dividends and bars, the newest version wins.
-- It skips a version with the same content as the version of the retrieval day before.
+- Facts and filings are never changed or removed, so each version can add rows. For the other data, such as company details, splits, dividends and bars, the job writes each value one time, in its newest version. Thus a second run writes nothing.
+- It skips a version with the same content as the version of the retrieval day before. A ticker map is the exception: the last map of such a run gives the day of the sync.
 - It loads a ticker map only from the day of the last sync of its source. The dated symbol map cannot go back in time. To load the older maps again, reprocess into an empty database.
+- If another job stores a newer response while `reprocess` runs, `reprocess` loads that response again after the older ones. The newest value stays in the database.
 - It keeps the grouped daily bars of the covered symbols, and of each symbol that has splits, dividends or bars of its own in the blob store.
-- It counts a response as `incomplete` and skips it when a part is not stored: a page, an extra submissions file, or the dividends that the job stores with the splits.
+- It counts a response as `incomplete` and skips it when a part is not stored: a page, an extra submissions file, or the dividends that the job stores with the splits. It also skips a Massive ticker list of more than one page when a page has two versions on one day, because the pages of the two lists cannot be paired.
 - The daily filing indexes, the split-adjusted bars and the ticker details hold no data to load.
 
 Like the other jobs, `reprocess` records an `ingest_runs` row with its counts, and it is safe to run again. If a file fails, the job loads the other files, and the run ends as failed with the first errors.
