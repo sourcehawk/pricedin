@@ -154,3 +154,19 @@ func TestGetLatestSucceededIngestRun(t *testing.T) {
 		t.Errorf("GetLatestSucceededIngestRun() = %+v, %v; want run %d", got, err, ok)
 	}
 }
+
+func TestGetPriceReferenceCheckedAt(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	s, _ := newStore(t)
+	if _, err := s.GetPriceReferenceCheckedAt(ctx, "KO"); !errors.Is(err, store.ErrNotFound) {
+		t.Errorf("GetPriceReferenceCheckedAt() before a check error = %v, want ErrNotFound", err)
+	}
+	before := time.Now().Add(-time.Minute)
+	if _, err := s.MarkPriceReferenceChecked(ctx, []string{"KO"}); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := s.GetPriceReferenceCheckedAt(ctx, "ko"); err != nil || got.Before(before) {
+		t.Errorf("GetPriceReferenceCheckedAt() = %v, %v; want the time of the check", got, err)
+	}
+}

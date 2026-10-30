@@ -864,6 +864,7 @@ func fetchDate(t *testing.T, at time.Time) domain.Date {
 func TestDividendWithoutDividendDataIsMissing(t *testing.T) {
 	m := stockstest.Fixture(t)
 	delete(m.DividendsLoadedAt, "NVDA")
+	delete(m.PriceReferenceCheckedAt, "NVDA")
 	svc := newService(t, m, nil)
 	p, err := svc.Profile(context.Background(), "NVDA")
 	if err != nil {
@@ -885,6 +886,7 @@ func TestDividendWithoutDividendDataIsMissing(t *testing.T) {
 func TestDividendFetchedWithoutRowsIsZeroAsOfTheFetch(t *testing.T) {
 	m := stockstest.Fixture(t)
 	delete(m.DividendsLoadedAt, "NVDA")
+	m.PriceReferenceCheckedAt["NVDA"] = time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)
 	m.Dividends = slices.DeleteFunc(m.Dividends, func(d domain.Dividend) bool { return d.Symbol == "NVDA" })
 	finished := time.Date(2026, 10, 29, 23, 0, 0, 0, time.UTC)
 	m.Runs = []store.IngestRun{{ID: 1, Job: "price-reference", Status: store.RunSucceeded, StartedAt: finished.Add(-time.Hour), FinishedAt: &finished}}
@@ -931,6 +933,7 @@ func TestDividendAsOfIsTheLastFetch(t *testing.T) {
 	m := stockstest.Fixture(t)
 	changed := time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)
 	m.DividendsLoadedAt["KO"] = changed
+	m.PriceReferenceCheckedAt["KO"] = changed
 	finished := time.Date(2026, 10, 29, 23, 0, 0, 0, time.UTC)
 	m.Runs = []store.IngestRun{{ID: 1, Job: "price-reference", Status: store.RunSucceeded, StartedAt: finished.Add(-time.Hour), FinishedAt: &finished}}
 	p, err := newService(t, m, nil).Profile(context.Background(), "KO")
@@ -939,5 +942,22 @@ func TestDividendAsOfIsTheLastFetch(t *testing.T) {
 	}
 	if d := p.TTMDividend.Number; d == nil || d.AsOf != date(t, "2026-10-29") {
 		t.Errorf("TTMDividend = %+v, want as of the run's day 2026-10-29", p.TTMDividend)
+	}
+}
+
+// A price-reference run that never fetched the symbol does not make its
+// dividend known.
+func TestARunThatNeverCoveredTheSymbolLeavesItsDividendMissing(t *testing.T) {
+	m := stockstest.Fixture(t)
+	delete(m.DividendsLoadedAt, "NVDA")
+	delete(m.PriceReferenceCheckedAt, "NVDA")
+	finished := time.Date(2026, 10, 29, 23, 0, 0, 0, time.UTC)
+	m.Runs = []store.IngestRun{{ID: 1, Job: "price-reference", Status: store.RunSucceeded, StartedAt: finished.Add(-time.Hour), FinishedAt: &finished}}
+	p, err := newService(t, m, nil).Profile(context.Background(), "NVDA")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.TTMDividend.Number != nil || p.TTMDividend.Reason != stocks.ReasonNoDividendData {
+		t.Errorf("TTMDividend = %+v, want missing with no_dividend_data", p.TTMDividend)
 	}
 }

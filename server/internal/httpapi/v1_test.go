@@ -481,6 +481,8 @@ func TestStoredDataOutsideTheEngineBoundsAnswers200(t *testing.T) {
 func TestEvaluationWithoutDividendData(t *testing.T) {
 	h := newHarness(t)
 	delete(h.data.DividendsLoadedAt, "KO")
+	delete(h.data.PriceReferenceCheckedAt, "KO")
+	h.data.Dividends = slices.DeleteFunc(h.data.Dividends, func(d domain.Dividend) bool { return d.Symbol == "KO" })
 	res := h.do(t, withBearer(request(t, http.MethodPost, "/api/v1/stocks/KO/evaluation", map[string]any{}), h.token(t)), true)
 	if res.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d, body %.300s", res.StatusCode, res.body)

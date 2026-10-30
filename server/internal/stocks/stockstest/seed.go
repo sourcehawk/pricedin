@@ -14,8 +14,8 @@ import (
 // Seed writes the data of Fixture to the database of pool as the ingestion
 // jobs would: the companies, the SEC tickers, the filings and facts, the
 // quarters that fundamentals.Derive gives with the provider's splits, and
-// the provider's bars, splits and dividends. The dividends have the load
-// time Now. It returns the store over pool.
+// the provider's bars, splits and dividends. The dividends and the
+// provider checks have the time Now. It returns the store over pool.
 func Seed(tb testing.TB, pool *pgxpool.Pool) *store.Store {
 	tb.Helper()
 	ctx := context.Background()
@@ -46,6 +46,14 @@ func Seed(tb testing.TB, pool *pgxpool.Pool) *store.Store {
 		symbols = append(symbols, sym)
 	}
 	if _, err := pool.Exec(ctx, `UPDATE dividends SET loaded_at = $1 WHERE symbol = ANY($2)`, Now, symbols); err != nil {
+		tb.Fatalf("seed: %v", err)
+	}
+	checked := make([]string, 0, len(m.PriceReferenceCheckedAt))
+	for sym := range m.PriceReferenceCheckedAt {
+		checked = append(checked, sym)
+	}
+	must(st.MarkPriceReferenceChecked(ctx, checked))
+	if _, err := pool.Exec(ctx, `UPDATE price_reference_checks SET first_checked_at = $1`, Now); err != nil {
 		tb.Fatalf("seed: %v", err)
 	}
 

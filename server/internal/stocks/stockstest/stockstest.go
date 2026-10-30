@@ -36,8 +36,11 @@ type Store struct {
 	Dividends []domain.Dividend
 	Runs      []store.IngestRun
 	Coverage  store.Coverage
-	// DividendsLoadedAt is the time each symbol's dividends were stored.
-	DividendsLoadedAt map[string]time.Time
+	// DividendsLoadedAt is the time each symbol's dividends were stored,
+	// and PriceReferenceCheckedAt the time its splits and dividends were
+	// first fetched.
+	DividendsLoadedAt       map[string]time.Time
+	PriceReferenceCheckedAt map[string]time.Time
 }
 
 // GetCurrentTicker returns the open row of symbol, or store.ErrNotFound.
@@ -188,6 +191,16 @@ func (m *Store) GetDividendsLoadedAt(_ context.Context, symbol string) (time.Tim
 	return at, nil
 }
 
+// GetPriceReferenceCheckedAt returns PriceReferenceCheckedAt of symbol, or
+// store.ErrNotFound.
+func (m *Store) GetPriceReferenceCheckedAt(_ context.Context, symbol string) (time.Time, error) {
+	at, ok := m.PriceReferenceCheckedAt[strings.ToUpper(symbol)]
+	if !ok {
+		return time.Time{}, store.ErrNotFound
+	}
+	return at, nil
+}
+
 // GetLatestSucceededIngestRun returns the succeeded run of job in Runs
 // that finished last, or store.ErrNotFound.
 func (m *Store) GetLatestSucceededIngestRun(_ context.Context, job string) (store.IngestRun, error) {
@@ -236,7 +249,7 @@ func Testdata(t testing.TB, path string) []byte {
 // MSFT with a ticker and a company but no data.
 func Fixture(t testing.TB) *Store {
 	t.Helper()
-	m := &Store{Loaded: map[domain.CIK]bool{}, DividendsLoadedAt: map[string]time.Time{}}
+	m := &Store{Loaded: map[domain.CIK]bool{}, DividendsLoadedAt: map[string]time.Time{}, PriceReferenceCheckedAt: map[string]time.Time{}}
 	entries, err := sec.ParseTickers(Testdata(t, "sec/www.sec.gov/files/company_tickers_exchange.json"), domain.NewDate(2026, 10, 1))
 	if err != nil {
 		t.Fatal(err)
@@ -289,6 +302,7 @@ func Fixture(t testing.TB) *Store {
 		if len(divs.Items) > 0 {
 			m.DividendsLoadedAt[sym] = Now
 		}
+		m.PriceReferenceCheckedAt[sym] = Now
 	}
 	return m
 }

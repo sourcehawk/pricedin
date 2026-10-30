@@ -90,6 +90,21 @@ func (s *Store) GetDividendsLoadedAt(ctx context.Context, symbol string) (time.T
 	return at.Time, nil
 }
 
+// GetPriceReferenceCheckedAt returns the time at which the provider's
+// splits and dividends of symbol were first fetched, or ErrNotFound when
+// they never were. The lookup upper-cases symbol.
+func (s *Store) GetPriceReferenceCheckedAt(ctx context.Context, symbol string) (time.Time, error) {
+	var at time.Time
+	err := s.db.QueryRow(ctx, `SELECT first_checked_at FROM price_reference_checks WHERE symbol = upper($1)`, symbol).Scan(&at)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return time.Time{}, notFound("price reference check of %s", symbol)
+	}
+	if err != nil {
+		return time.Time{}, fmt.Errorf("price reference check of %s: %w", symbol, err)
+	}
+	return at, nil
+}
+
 // GetLatestSucceededIngestRun returns the newest run of job that
 // succeeded, or ErrNotFound.
 func (s *Store) GetLatestSucceededIngestRun(ctx context.Context, job string) (IngestRun, error) {
