@@ -6,7 +6,8 @@
 // Every job stores raw responses in the blob store before it parses them
 // (through Recorder, which the clients call), records one ingest_runs row,
 // and is safe to run again: a second run with the same upstream data
-// changes nothing.
+// changes nothing. The job reprocess loads the stored responses again,
+// with no request to SEC or the price provider.
 //
 // Concurrency: each job holds a Postgres advisory lock for its name while
 // it runs, so two processes never run the same job at once; the second one

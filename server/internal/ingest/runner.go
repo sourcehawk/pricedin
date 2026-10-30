@@ -62,6 +62,9 @@ type Options struct {
 	// per client.
 	SEC    *sec.Client
 	Prices prices.Provider
+	// StoredPrices reads the price provider's responses in Blob for
+	// reprocess. A reprocess of price files fails without it.
+	StoredPrices prices.StoredReader
 	// Universe narrows the covered universe to these symbols when not
 	// empty (PRICEDIN_UNIVERSE).
 	Universe []string
@@ -95,6 +98,7 @@ type Runner struct {
 	blob         blob.Store
 	sec          *sec.Client
 	prices       prices.Provider
+	stored       prices.StoredReader
 	narrow       []string
 	backfillDays int
 	waitForLocks bool
@@ -142,6 +146,7 @@ func New(ctx context.Context, opts Options) (*Runner, error) {
 		blob:         opts.Blob,
 		sec:          opts.SEC,
 		prices:       opts.Prices,
+		stored:       opts.StoredPrices,
 		narrow:       opts.Universe,
 		backfillDays: opts.PricesBackfillDays,
 		waitForLocks: opts.WaitForLocks,
