@@ -202,14 +202,16 @@ export function priceSteps(ticker: string): WalkthroughStep[] {
         </p>
       ),
       highlight: ["pe"],
-      levers: ["typicalPeMonths"],
+      levers: ["price", "ttmEps", "typicalPeMonths"],
       you: (ev) => {
         const vs = ev.exitPe.peNowVsTypical.value;
         const t = ev.exitPe.typical;
         return (
           <>
-            The P/E is <b>{times(ev.peNow.value)}</b> today, against its typical{" "}
-            <b>{times(t.pe.value)}</b> (the median of the last {t.months} months)
+            The P/E from your inputs (price ÷ TTM EPS in the left panel) is{" "}
+            <b>{times(ev.peNow.value)}</b>, against its typical <b>{times(t.pe.value)}</b> (the
+            median of the quarter-end P/Es of the last {t.months} months and the P/E from your
+            inputs)
             {vs === null ? "." : `: ${usual[vs] ?? ""}.`} Change the months next to Typical P/E in
             the exit P/E lever to use a different period.
           </>
