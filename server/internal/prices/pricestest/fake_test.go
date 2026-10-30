@@ -200,3 +200,23 @@ func TestACanceledContextFailsEveryCall(t *testing.T) {
 		}
 	}
 }
+
+func TestDividendDatesAreCopies(t *testing.T) {
+	pay := date("2024-07-01")
+	fake := &pricestest.Provider{DividendEvents: []domain.Dividend{
+		{Symbol: "KO", ExDate: date("2024-06-14"), PayDate: &pay, DeclarationDate: &pay},
+	}}
+	got, err := fake.Dividends(t.Context(), "KO")
+	if err != nil {
+		t.Fatalf("Dividends() error = %v", err)
+	}
+	*got[0].PayDate = date("2099-01-01")
+	*got[0].DeclarationDate = date("2099-01-01")
+	again, err := fake.Dividends(t.Context(), "KO")
+	if err != nil {
+		t.Fatalf("Dividends() error = %v", err)
+	}
+	if *again[0].PayDate != date("2024-07-01") || *again[0].DeclarationDate != date("2024-07-01") {
+		t.Errorf("a change to a returned date changed the fake: pay %v, declared %v", again[0].PayDate, again[0].DeclarationDate)
+	}
+}

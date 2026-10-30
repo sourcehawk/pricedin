@@ -83,6 +83,10 @@ func (p *Provider) Dividends(ctx context.Context, symbol string) ([]domain.Divid
 		return nil, err
 	}
 	divs := filter(p.DividendEvents, func(d domain.Dividend) bool { return d.Symbol == symbol })
+	for i := range divs {
+		divs[i].PayDate = copyDate(divs[i].PayDate)
+		divs[i].DeclarationDate = copyDate(divs[i].DeclarationDate)
+	}
 	slices.SortFunc(divs, func(a, b domain.Dividend) int { return a.ExDate.Time().Compare(b.ExDate.Time()) })
 	return divs, nil
 }
@@ -106,6 +110,14 @@ func (p *Provider) check(ctx context.Context) error {
 
 func (p *Provider) unauthorized(d domain.Date) bool {
 	return !p.AuthorizedFrom.IsZero() && d.Before(p.AuthorizedFrom)
+}
+
+func copyDate(d *domain.Date) *domain.Date {
+	if d == nil {
+		return nil
+	}
+	c := *d
+	return &c
 }
 
 func filter[T any](items []T, keep func(T) bool) []T {
